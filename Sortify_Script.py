@@ -58,17 +58,17 @@ def analyze_listening_data(json_file_paths, output_file):
 
     with open(output_file, "w", encoding="utf-8") as outfile:
         # Summary at the top
-        outfile.write(f"Total Tracks Listened To: {total_tracks}\n")
-        outfile.write(f"Total Listening Time: {formatted_total_time}\n\n")
+        outfile.write(f"Total Play Count: {total_tracks}\n")
+        outfile.write(f"Total Listening Time: {formatted_total_time}\n\n\n")
 
         # Track Play Count Ranking
-        outfile.write("Tracks Ranked by Play Count (Most to Least):\n")
+        outfile.write("Songs Ranked by Play Count:\n")
         for track_name, count in ranked_by_count:
             outfile.write(f"- '{track_name}': {count} times\n")
-        outfile.write("\n")  # Add a newline for separation
+        outfile.write("\n\n")  # Add a newline for separation
 
         # Track Listening Time Ranking
-        outfile.write("Tracks Ranked by Listening Time (Most to Least):\n")
+        outfile.write("Songs Ranked by Listening Time:\n")
         for track_name, ms_played in ranked_by_time:
             playtime = timedelta(milliseconds=ms_played)
             # Calculate individual track times in hours, minutes, and seconds, including days
@@ -82,7 +82,7 @@ def analyze_listening_data(json_file_paths, output_file):
 
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")  # Get all JSON files in the directory
-    output_file = "track_counts.txt"
+    output_file = "Results.txt"
     ranked_counts = analyze_listening_data(json_file_patterns, output_file)
 
     print(f"\nResults saved to {output_file}")
