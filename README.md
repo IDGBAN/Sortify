@@ -1,1 +1,4 @@
 # Sortify
+TL;DR download Run_Sortify.bat to get started!
+
+Sortify is a small program developed by me in 5 hours starting at 12am, utilizing Gemini 1.5 Pro and my limited coding experiance. from what i can tell its safe to run but i don't claim any responsability. the .bat file downloads, runs, and deletes the python file. it must be placed in the spotify extended history path. once the python code is ran it will make an output file named "Results.txt" this file shows how long and how many times you've listened to each song and ranks them. it takes about 1.5 seconds to run but it can vary A LOT depending on your data size, CPU power, and internet speed. i might make the code more flexible in the future (ie. add the option to keep the python script, or add a way to pick the files manually, or even a GUI) but for now if you want to change anything you will have to code it in.
