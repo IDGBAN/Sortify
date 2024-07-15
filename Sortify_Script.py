@@ -17,7 +17,7 @@ def analyze_listening_data(json_file_paths, output_file):
             with open(json_file_path, 'r', encoding='utf-8') as file:
                 if os.stat(json_file_path).st_size == 0:
                     print(f"Warning: {json_file_path} is empty.")
-                    continue  # Skip empty files
+                    continue
 
                 file_content = file.read()
                 try:
@@ -40,38 +40,30 @@ def analyze_listening_data(json_file_paths, output_file):
 
     total_time_played = timedelta(milliseconds=total_ms_played)
 
-    # Calculate total listening time in hours, minutes, and seconds, including days
     total_hours = total_time_played.days * 24 + total_time_played.seconds // 3600
     total_minutes = (total_time_played.seconds % 3600) // 60
     total_seconds = total_time_played.seconds % 60
     formatted_total_time = f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
 
-    # Rank tracks by play time (descending order)
     ranked_by_time = sorted(track_playtimes.items(), key=itemgetter(1), reverse=True)
 
-    # Rank tracks by play count (descending order)
     ranked_by_count = track_counts.most_common()
 
-    # Save results to the output file
     output_directory = os.path.dirname(os.path.abspath(output_file))
     os.makedirs(output_directory, exist_ok=True)
 
     with open(output_file, "w", encoding="utf-8") as outfile:
-        # Summary at the top
         outfile.write(f"Total Play Count: {total_tracks}\n")
         outfile.write(f"Total Listening Time: {formatted_total_time}\n\n\n")
 
-        # Track Play Count Ranking
         outfile.write("Songs Ranked by Play Count:\n")
         for track_name, count in ranked_by_count:
             outfile.write(f"- '{track_name}': {count} times\n")
-        outfile.write("\n\n")  # Add a newline for separation
+        outfile.write("\n\n")
 
-        # Track Listening Time Ranking
         outfile.write("Songs Ranked by Listening Time:\n")
         for track_name, ms_played in ranked_by_time:
             playtime = timedelta(milliseconds=ms_played)
-            # Calculate individual track times in hours, minutes, and seconds, including days
             play_hours = playtime.days * 24 + playtime.seconds // 3600
             play_minutes = (playtime.seconds % 3600) // 60
             play_seconds = playtime.seconds % 60
@@ -81,8 +73,8 @@ def analyze_listening_data(json_file_paths, output_file):
     return ranked_by_time
 
 if __name__ == "__main__":
-    json_file_patterns = glob.glob("*.json")  # Get all JSON files in the directory
+    json_file_patterns = glob.glob("*.json")
     output_file = "Results.txt"
     ranked_counts = analyze_listening_data(json_file_patterns, output_file)
 
-    print(f"\nResults saved to {output_file}")
+    print(f"Results saved to {output_file}")
