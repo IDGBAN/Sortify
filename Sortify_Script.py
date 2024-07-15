@@ -59,7 +59,7 @@ def analyze_listening_data(json_file_paths, output_file):
         outfile.write("Songs Ranked by Play Count:\n")
         for track_name, count in ranked_by_count:
             outfile.write(f"- '{track_name}': {count} times\n")
-        outfile.write("\n\n")
+        outfile.write("\n")
 
         outfile.write("Songs Ranked by Listening Time:\n")
         for track_name, ms_played in ranked_by_time:
