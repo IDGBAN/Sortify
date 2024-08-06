@@ -45,7 +45,7 @@ def analyze_listening_data(json_file_paths, aggregate_by='artist'):
             print(f"Warning: File not found: {json_file_path}")
             continue  # Skip to the next file if not found
 
-   def format_timedelta(td):
+def format_timedelta(td):
 
     """Formats a timedelta object into HH:MM:SS."""
 
