@@ -65,8 +65,8 @@ def format_timedelta(td):
     total_seconds = td.seconds % 60
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
 
-def write_results(output_file, results_type, playtimes_by_year, counts_by_year, 
-                 total_tracks_by_year, total_ms_played_by_year, first_playtimes_by_year=None):
+def write_results(output_file, results_type, playtimes_by_year, counts_by_year, total_tracks_by_year,
+                 total_ms_played_by_year, first_playtimes_by_year=None):
     """Writes the analysis results to files, one for each year."""
 
     artist_data = {}  # Track artists for tracks
@@ -88,15 +88,20 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year,
         # Filter to top 1000
         ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)[:1000]
         ranked_by_count = counts_by_year[year].most_common(1000)
-        first_playtimes = first_playtimes_by_year.get(year, None)  # Safely get first_playtimes 
 
-        output_file_year = f"{output_file}_{year}.txt" 
+        # Handle first_playtimes based on results_type
+        if results_type == "Artists":
+            first_playtimes = None  # No first playtime for artists
+        else:
+            first_playtimes = first_playtimes_by_year.get(year, None)  # For songs
+
+        output_file_year = f"{output_file}_{year}.txt"
         os.makedirs(os.path.dirname(os.path.abspath(output_file_year)), exist_ok=True)
 
         with open(output_file_year, "w", encoding="utf-8") as outfile:
             outfile.write(f"Year: {year}\n\n")
             outfile.write(f"Total Play Count: {total_tracks}\n")
-            outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n") 
+            outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n")
 
             outfile.write(f"{results_type} Ranked by Play Count:\n")
             for rank, (item, count) in enumerate(ranked_by_count, 1):
@@ -106,7 +111,6 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year,
                     item_name = item
                 outfile.write(f"{rank}. {count} times - {item_name}\n")
 
-
             outfile.write(f"\n{results_type} Ranked by Listening Time:\n")
             for rank, (item, ms_played) in enumerate(ranked_by_time, 1):
                 if results_type == "Songs":
@@ -115,7 +119,7 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year,
                     item_name = item
                 playtime = timedelta(milliseconds=ms_played)
                 outfile.write(f"{rank}. {format_timedelta(playtime)} - {item_name}\n")
-            
+
             # Write first play times **only** if it is song data
             if first_playtimes is not None and results_type == "Songs":
                 outfile.write(f"\nFirst Play Time of {results_type}:\n")
