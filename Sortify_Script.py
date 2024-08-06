@@ -51,7 +51,7 @@ def format_timedelta(td):
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
 
 def write_results(output_file, track_playtimes, track_counts, total_tracks, total_ms_played):
-    """Writes the analysis results to a file, including artist information."""
+    """Writes the analysis results to a file, including artist information and play count/duration."""
     total_time_played = timedelta(milliseconds=total_ms_played)
     ranked_by_time = sorted(track_playtimes.items(), key=itemgetter(1), reverse=True)
     ranked_by_count = track_counts.most_common()
@@ -64,13 +64,12 @@ def write_results(output_file, track_playtimes, track_counts, total_tracks, tota
 
         outfile.write("Songs Ranked by Play Count:\n")
         for rank, (full_track_info, count) in enumerate(ranked_by_count, 1):
-            outfile.write(f"{rank}. {full_track_info}: {count} times\n")
+            outfile.write(f"{rank}. {count} times - {full_track_info}\n")
 
         outfile.write("\nSongs Ranked by Listening Time:\n")
         for rank, (full_track_info, ms_played) in enumerate(ranked_by_time, 1):
             playtime = timedelta(milliseconds=ms_played)
-            outfile.write(f"{rank}. {full_track_info}: {format_timedelta(playtime)}\n")
-
+            outfile.write(f"{rank}. {format_timedelta(playtime)} - {full_track_info}\n")
 
 
 if __name__ == "__main__":
