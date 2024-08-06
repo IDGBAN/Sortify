@@ -7,7 +7,6 @@ from operator import itemgetter
 
 def analyze_listening_data(json_file_paths, aggregate_by='artist'):
     """Analyzes listening data from multiple JSON files, aggregating by artist or track."""
-
     playtimes = Counter()
     counts = Counter()
     total_tracks = 0
@@ -47,18 +46,15 @@ def analyze_listening_data(json_file_paths, aggregate_by='artist'):
 
     return playtimes, counts, total_tracks, total_ms_played
 
-
-def format_timedelta(td):
-    """Formats a timedelta object into HH:MM:SS."""
+def format_timedelta(td):  
+    """Formats a timedelta object into HH:MM:SS."""  
     total_hours = td.days * 24 + td.seconds // 3600
     total_minutes = (td.seconds % 3600) // 60
     total_seconds = td.seconds % 60
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
 
-
 def write_results(output_file, results_type, playtimes, counts, total_tracks, total_ms_played):
     """Writes the analysis results to a file."""
-
     total_time_played = timedelta(milliseconds=total_ms_played)
     ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)
     ranked_by_count = counts.most_common()
@@ -97,4 +93,3 @@ if __name__ == "__main__":
     write_results(output_file_tracks, "Tracks", track_playtimes, track_counts, total_tracks, total_ms_played)
 
     print(f"Results saved to {output_file_tracks} and {output_file_artists}")
-
