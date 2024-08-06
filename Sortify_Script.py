@@ -65,13 +65,12 @@ def format_timedelta(td):
     total_seconds = td.seconds % 60
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
   
-def write_results(output_file, results_type, playtimes_by_year, counts_by_year, total_tracks_by_year,
-                 total_ms_played_by_year, first_playtimes_by_year=None):
+def write_results(output_file, results_type, data_by_year, first_playtimes_by_year=None):
     """Writes the analysis results to files, one for each year."""
 
-    artist_data = {}  # Track artists for tracks
+    artist_data = {} if results_type == "Songs" else None
 
-    if results_type == "Songs":
+    if artist_data:  # Only load if writing song results
         for json_file_path in json_file_patterns:
             with open(json_file_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -81,13 +80,14 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year, 
                     if track_name and artist_name:
                         artist_data[track_name] = artist_name
 
-    for year, playtimes in playtimes_by_year.items():
-        total_tracks = total_tracks_by_year[year]
-        total_ms_played = total_ms_played_by_year[year]
+    for year, playtimes in data_by_year.items():
+        total_tracks = sum(playtimes.values())  # Calculate total plays
+        total_ms_played = sum(ms_played for ms_played in playtimes.values())
         total_time_played = timedelta(milliseconds=total_ms_played)
-        # Filter to top 1000
+
         ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)[:1000]
-        ranked_by_count = counts_by_year[year].most_common(1000)
+        ranked_by_count = Counter(playtimes).most_common(1000)
+        first_playtimes = first_playtimes_by_year.get(year, None) if results_type == "Songs" else None
 
         # Handle first_playtimes based on results_type
         if results_type == "Artists":
@@ -133,33 +133,23 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year, 
 
 
 if __name__ == "__main__":
-    json_file_patterns = glob.glob("*.json")  
+    json_file_patterns = glob.glob("*.json")
     output_file_tracks = "Results_Songs"
     output_file_artists = "Results_Artists"
 
-    (artist_playtimes, artist_counts, track_playtimes_by_year,
-     track_counts_by_year, track_first_playtimes_by_year,
-     total_tracks_by_year, total_ms_played_by_year) = analyze_listening_data(json_file_patterns)
+    results = analyze_listening_data(json_file_patterns)
 
     write_results(
         output_file_artists,
         "Artists",
-        artist_playtimes,  # Pass artist_playtimes for artists
-        artist_counts,
-        total_tracks_by_year,
-        total_ms_played_by_year,
-        None,
-    ) 
-
+        results[0],  # Pass artist_playtimes directly for artists
+        None  # No first_playtimes for artists
+    )
     write_results(
         output_file_tracks,
         "Songs",
-        track_playtimes_by_year,  # Pass track_playtimes_by_year for songs
-        track_counts_by_year,
-        total_tracks_by_year,
-        total_ms_played_by_year,
-        track_first_playtimes_by_year,
+        results[2],  # Pass track_playtimes_by_year for songs
+        results[4]   # Pass track_first_playtimes_by_year for songs
     )
-
 
     print(f"Results saved to separate files for each year with timestamps.")
