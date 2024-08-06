@@ -28,7 +28,7 @@ def analyze_listening_data(json_file_paths):
                         artist_name = item.get("master_metadata_album_artist_name", "Unknown Artist")
                         ms_played = int(item.get("ms_played", 0))
                         if track_name:
-                            full_track_info = f"'{track_name}' from {artist_name}"
+                            full_track_info = f"'{track_name}' - {artist_name}"
                             track_playtimes[full_track_info] += ms_played
                             track_counts[full_track_info] += 1
                             total_tracks += 1
