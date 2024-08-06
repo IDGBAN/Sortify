@@ -12,7 +12,7 @@ def analyze_listening_data(json_file_paths):
     artist_counts = Counter()
     track_playtimes = Counter()
     track_counts = Counter()
-    track_first_playtimes = defaultdict(lambda: datetime.max)  
+    track_first_playtimes = defaultdict(lambda: datetime.max) 
     total_tracks = 0
     total_ms_played = 0
 
@@ -64,35 +64,58 @@ def format_timedelta(td):
     total_seconds = td.seconds % 60
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
 
-def write_results(output_file, results_type, playtimes, counts, total_tracks, 
-                 total_ms_played, first_playtimes=None):
-    """Writes the analysis results to a file."""
+def write_results(output_file, results_type, playtimes, counts, total_tracks, total_ms_played, first_playtimes=None):
+    """Writes the analysis results to a file, including artist names for tracks."""
 
     total_time_played = timedelta(milliseconds=total_ms_played)
     # Filter to top 1000
     ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)[:1000]
     ranked_by_count = counts.most_common(1000)
 
+    artist_data = {}  # Track artists for tracks
+
     os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
 
     with open(output_file, "w", encoding="utf-8") as outfile:
         outfile.write(f"Total Play Count: {total_tracks}\n")
         outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n")
+        if results_type == "Songs":
+            for json_file_path in json_file_patterns:
+                with open(json_file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for d in data:
+                        track_name = d.get("master_metadata_track_name", None)
+                        artist_name = d.get("master_metadata_album_artist_name", None)
+                        if track_name and artist_name:
+                            artist_data[track_name] = artist_name
+
 
         outfile.write(f"{results_type} Ranked by Play Count:\n")
         for rank, (item, count) in enumerate(ranked_by_count, 1):
-            outfile.write(f"{rank}. {count} times - {item}\n")
+            if results_type == "Songs":
+                item_name = f"{item} - {artist_data.get(item, 'Unknown Artist')}"
+            else:
+                item_name = item
+            outfile.write(f"{rank}. {count} times - {item_name}\n")
+        
 
         outfile.write(f"\n{results_type} Ranked by Listening Time:\n")
         for rank, (item, ms_played) in enumerate(ranked_by_time, 1):
+            if results_type == "Songs":
+                item_name = f"{item} - {artist_data.get(item, 'Unknown Artist')}"
+            else:
+                item_name = item
             playtime = timedelta(milliseconds=ms_played)
-            outfile.write(f"{rank}. {format_timedelta(playtime)} - {item}\n")
+            outfile.write(f"{rank}. {format_timedelta(playtime)} - {item_name}\n")
+        
 
         # Write first play times if available
         if first_playtimes:
             outfile.write(f"\nFirst Play Time of {results_type}:\n")
             for track, playtime in sorted(first_playtimes.items(), key=lambda x: x[1]):
-                outfile.write(f"{playtime.strftime('%Y-%m-%d %H:%M')} - {track}\n")
+                track_name = f"{track} - {artist_data.get(track, 'Unknown Artist')}"
+                outfile.write(f"{playtime.strftime('%Y-%m-%d %H:%M')} - {track_name}\n")
+
 
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")
