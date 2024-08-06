@@ -6,15 +6,15 @@ from operator import itemgetter
 import glob
 
 def analyze_listening_data(json_file_paths):
-    """Analyzes listening data from multiple JSON files, aggregating by artist, track, and year."""
+    """Analyzes listening data from multiple JSON files, aggregating by artist and track."""
 
     artist_playtimes = Counter()
     artist_counts = Counter()
-    track_playtimes_by_year = defaultdict(Counter)
-    track_counts_by_year = defaultdict(Counter)
-    track_first_playtimes_by_year = defaultdict(lambda: defaultdict(lambda: datetime.max))
-    total_tracks_by_year = defaultdict(int)  # Track total tracks per year
-    total_ms_played_by_year = defaultdict(int)  # Track total ms played per year
+    track_playtimes = Counter()
+    track_counts = Counter()
+    track_first_playtimes = defaultdict(lambda: datetime.max) 
+    total_tracks = 0
+    total_ms_played = 0
 
     for json_file_path in json_file_paths:
         try:
@@ -35,16 +35,16 @@ def analyze_listening_data(json_file_paths):
                         if artist_name:
                             artist_playtimes[artist_name] += ms_played
                             artist_counts[artist_name] += 1
-                        if track_name and timestamp_str:
-                            playtime = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
-                            year = playtime.year  
+                        if track_name:
+                            track_playtimes[track_name] += ms_played
+                            track_counts[track_name] += 1
 
-                            track_playtimes_by_year[year][track_name] += ms_played
-                            track_counts_by_year[year][track_name] += 1
-                            total_tracks_by_year[year] += 1
-                            total_ms_played_by_year[year] += ms_played
-                            track_first_playtimes_by_year[year][track_name] = min(track_first_playtimes_by_year[year][track_name], playtime)
+                            if timestamp_str:
+                                playtime = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
+                                track_first_playtimes[track_name] = min(track_first_playtimes[track_name], playtime)
 
+                        total_tracks += 1
+                        total_ms_played += ms_played
                 except json.JSONDecodeError as e:
                     print(f"Warning: Skipping invalid JSON content in {json_file_path}: {e}")
                     continue  # Skip to the next file if JSON is invalid
@@ -53,9 +53,8 @@ def analyze_listening_data(json_file_paths):
             print(f"Warning: File not found: {json_file_path}")
             continue  # Skip to the next file if not found
 
-    return (artist_playtimes, artist_counts, track_playtimes_by_year,
-            track_counts_by_year, track_first_playtimes_by_year, 
-            total_tracks_by_year, total_ms_played_by_year)
+    return (artist_playtimes, artist_counts, track_playtimes, 
+            track_counts, track_first_playtimes, total_tracks, total_ms_played)
 
 
 def format_timedelta(td):
@@ -64,92 +63,69 @@ def format_timedelta(td):
     total_minutes = (td.seconds % 3600) // 60
     total_seconds = td.seconds % 60
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
-  
-def write_results(output_file, results_type, data_by_year, first_playtimes_by_year=None):
-    """Writes the analysis results to files, one for each year."""
 
-    artist_data = {} if results_type == "Songs" else None
+def write_results(output_file, results_type, playtimes, counts, total_tracks, total_ms_played, first_playtimes=None):
+    """Writes the analysis results to a file, including artist names for tracks."""
 
-    if artist_data:  # Only load if writing song results
-        for json_file_path in json_file_patterns:
-            with open(json_file_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for d in data:
-                    track_name = d.get("master_metadata_track_name", None)
-                    artist_name = d.get("master_metadata_album_artist_name", None)
-                    if track_name and artist_name:
-                        artist_data[track_name] = artist_name
+    total_time_played = timedelta(milliseconds=total_ms_played)
+    # Filter to top 1000
+    ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)[:1000]
+    ranked_by_count = counts.most_common(1000)
 
-    for year, playtimes in data_by_year.items():
-        total_tracks = sum(playtimes.values())  # Calculate total plays
-        total_ms_played = sum(ms_played for ms_played in playtimes.values())
-        total_time_played = timedelta(milliseconds=total_ms_played)
+    artist_data = {}  # Track artists for tracks
 
-        ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)[:1000]
-        ranked_by_count = Counter(playtimes).most_common(1000)
-        first_playtimes = first_playtimes_by_year.get(year, None) if results_type == "Songs" else None
+    os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
 
-        # Handle first_playtimes based on results_type
-        if results_type == "Artists":
-            first_playtimes = None  # No first playtime for artists
-        else:
-            first_playtimes = first_playtimes_by_year.get(year, None)  # For songs
+    with open(output_file, "w", encoding="utf-8") as outfile:
+        outfile.write(f"Total Play Count: {total_tracks}\n")
+        outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n")
+        if results_type == "Songs":
+            for json_file_path in json_file_patterns:
+                with open(json_file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for d in data:
+                        track_name = d.get("master_metadata_track_name", None)
+                        artist_name = d.get("master_metadata_album_artist_name", None)
+                        if track_name and artist_name:
+                            artist_data[track_name] = artist_name
 
-        # Construct the output file name with a timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_file_year = f"{output_file}_{year}_{timestamp}.txt"
 
-        # Create the directory if it doesn't exist
-        os.makedirs(os.path.dirname(os.path.abspath(output_file_year)), exist_ok=True)
+        outfile.write(f"{results_type} Ranked by Play Count:\n")
+        for rank, (item, count) in enumerate(ranked_by_count, 1):
+            if results_type == "Songs":
+                item_name = f"{item} - {artist_data.get(item, 'Unknown Artist')}"
+            else:
+                item_name = item
+            outfile.write(f"{rank}. {count} times - {item_name}\n")
+        
 
-        with open(output_file_year, "w", encoding="utf-8") as outfile:
-            outfile.write(f"Year: {year}\n\n")
-            outfile.write(f"Total Play Count: {total_tracks}\n")
-            outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n")
+        outfile.write(f"\n{results_type} Ranked by Listening Time:\n")
+        for rank, (item, ms_played) in enumerate(ranked_by_time, 1):
+            if results_type == "Songs":
+                item_name = f"{item} - {artist_data.get(item, 'Unknown Artist')}"
+            else:
+                item_name = item
+            playtime = timedelta(milliseconds=ms_played)
+            outfile.write(f"{rank}. {format_timedelta(playtime)} - {item_name}\n")
+        
 
-            outfile.write(f"{results_type} Ranked by Play Count:\n")
-            for rank, (item, count) in enumerate(ranked_by_count, 1):
-                if results_type == "Songs":
-                    item_name = f"{item} - {artist_data.get(item, 'Unknown Artist')}"
-                else:
-                    item_name = item
-                outfile.write(f"{rank}. {count} times - {item_name}\n")
-
-            outfile.write(f"\n{results_type} Ranked by Listening Time:\n")
-            for rank, (item, ms_played) in enumerate(ranked_by_time, 1):
-                if results_type == "Songs":
-                    item_name = f"{item} - {artist_data.get(item, 'Unknown Artist')}"
-                else:
-                    item_name = item
-                playtime = timedelta(milliseconds=ms_played)
-                outfile.write(f"{rank}. {format_timedelta(playtime)} - {item_name}\n")
-
-            # Write first play times **only** if it is song data
-            if first_playtimes is not None and results_type == "Songs":
-                outfile.write(f"\nFirst Play Time of {results_type}:\n")
-                for track, playtime in sorted(first_playtimes.items(), key=lambda x: x[1]):
-                    track_name = f"{track} - {artist_data.get(track, 'Unknown Artist')}"
-                    outfile.write(f"{playtime.strftime('%Y-%m-%d %H:%M')} - {track_name}\n")
+        # Write first play times if available
+        if first_playtimes:
+            outfile.write(f"\nFirst Play Time of {results_type}:\n")
+            for track, playtime in sorted(first_playtimes.items(), key=lambda x: x[1]):
+                track_name = f"{track} - {artist_data.get(track, 'Unknown Artist')}"
+                outfile.write(f"{playtime.strftime('%Y-%m-%d %H:%M')} - {track_name}\n")
 
 
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")
-    output_file_tracks = "Results_Songs"
-    output_file_artists = "Results_Artists"
+    output_file_tracks = "Results.txt"
+    output_file_artists = "Results (Artists).txt"
 
-    results = analyze_listening_data(json_file_patterns)
+    (artist_playtimes, artist_counts, track_playtimes, track_counts, 
+     track_first_playtimes, total_tracks, total_ms_played) = analyze_listening_data(json_file_patterns)
 
-    write_results(
-        output_file_artists,
-        "Artists",
-        results[0],  # Pass artist_playtimes directly for artists
-        None  # No first_playtimes for artists
-    )
-    write_results(
-        output_file_tracks,
-        "Songs",
-        results[2],  # Pass track_playtimes_by_year for songs
-        results[4]   # Pass track_first_playtimes_by_year for songs
-    )
+    write_results(output_file_artists, "Artists", artist_playtimes, artist_counts, total_tracks, total_ms_played)
+    write_results(output_file_tracks, "Songs", track_playtimes, track_counts, total_tracks, total_ms_played, track_first_playtimes)
 
-    print(f"Results saved to separate files for each year with timestamps.")
+    print(f"Results saved to {output_file_tracks} and {output_file_artists}")
