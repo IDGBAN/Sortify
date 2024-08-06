@@ -5,7 +5,9 @@ from datetime import timedelta
 from operator import itemgetter
 import glob
 
-def analyze_listening_data(json_file_paths, output_file):
+def analyze_listening_data(json_file_paths):
+    """Analyzes track play data from multiple JSON files."""
+
     track_playtimes = Counter()
     track_counts = Counter()
     total_tracks = 0
@@ -17,11 +19,10 @@ def analyze_listening_data(json_file_paths, output_file):
             with open(json_file_path, 'r', encoding='utf-8') as file:
                 if os.stat(json_file_path).st_size == 0:
                     print(f"Warning: {json_file_path} is empty.")
-                    continue
+                    continue  # Skip empty files
 
-                file_content = file.read()
                 try:
-                    data = json.loads(file_content)
+                    data = json.load(file)
                     for item in data:
                         track_name = item.get("master_metadata_track_name")
                         ms_played = int(item.get("ms_played", 0))
@@ -32,49 +33,49 @@ def analyze_listening_data(json_file_paths, output_file):
                             total_ms_played += ms_played
                 except json.JSONDecodeError as e:
                     print(f"Warning: Skipping invalid JSON content in {json_file_path}: {e}")
-                    continue
+                    continue  # Skip to the next file if JSON is invalid
 
         except FileNotFoundError:
             print(f"Warning: File not found: {json_file_path}")
-            continue
+            continue  # Skip to the next file if not found
 
+    return track_playtimes, track_counts, total_tracks, total_ms_played
+
+def format_timedelta(td):
+    """Formats a timedelta object into HH:MM:SS."""
+    total_hours = td.days * 24 + td.seconds // 3600
+    total_minutes = (td.seconds % 3600) // 60
+    total_seconds = td.seconds % 60
+    return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
+
+def write_results(output_file, track_playtimes, track_counts, total_tracks, total_ms_played):
+    """Writes the analysis results to a file."""
     total_time_played = timedelta(milliseconds=total_ms_played)
-
-    total_hours = total_time_played.days * 24 + total_time_played.seconds // 3600
-    total_minutes = (total_time_played.seconds % 3600) // 60
-    total_seconds = total_time_played.seconds % 60
-    formatted_total_time = f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
-
     ranked_by_time = sorted(track_playtimes.items(), key=itemgetter(1), reverse=True)
-
     ranked_by_count = track_counts.most_common()
 
-    output_directory = os.path.dirname(os.path.abspath(output_file))
-    os.makedirs(output_directory, exist_ok=True)
+    os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
 
     with open(output_file, "w", encoding="utf-8") as outfile:
         outfile.write(f"Total Play Count: {total_tracks}\n")
-        outfile.write(f"Total Listening Time: {formatted_total_time}\n\n\n")
+        outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n")
 
         outfile.write("Songs Ranked by Play Count:\n")
-        for track_name, count in ranked_by_count:
-            outfile.write(f"- '{track_name}': {count} times\n")
-        outfile.write("\n")
+        for rank, (track_name, count) in enumerate(ranked_by_count, 1):
+            outfile.write(f"{rank}. '{track_name}': {count} times\n")
 
-        outfile.write("Songs Ranked by Listening Time:\n")
-        for track_name, ms_played in ranked_by_time:
+        outfile.write("\nSongs Ranked by Listening Time:\n")
+        for rank, (track_name, ms_played) in enumerate(ranked_by_time, 1):
             playtime = timedelta(milliseconds=ms_played)
-            play_hours = playtime.days * 24 + playtime.seconds // 3600
-            play_minutes = (playtime.seconds % 3600) // 60
-            play_seconds = playtime.seconds % 60
-            formatted_playtime = f"{play_hours:02d}:{play_minutes:02d}:{play_seconds:02d}"
-            outfile.write(f"- '{track_name}': {formatted_playtime}\n")
+            outfile.write(f"{rank}. '{track_name}': {format_timedelta(playtime)}\n")
 
-    return ranked_by_time
+
 
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")
     output_file = "Results.txt"
-    ranked_counts = analyze_listening_data(json_file_patterns, output_file)
+
+    track_playtimes, track_counts, total_tracks, total_ms_played = analyze_listening_data(json_file_patterns)
+    write_results(output_file, track_playtimes, track_counts, total_tracks, total_ms_played)
 
     print(f"Results saved to {output_file}")
