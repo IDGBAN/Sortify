@@ -133,7 +133,7 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year, 
 
 
 if __name__ == "__main__":
-    json_file_patterns = glob.glob("*.json")
+    json_file_patterns = glob.glob("*.json")  
     output_file_tracks = "Results_Songs"
     output_file_artists = "Results_Artists"
 
@@ -144,15 +144,22 @@ if __name__ == "__main__":
     write_results(
         output_file_artists,
         "Artists",
-        artist_playtimes,
+        artist_playtimes,  # Pass artist_playtimes for artists
         artist_counts,
         total_tracks_by_year,
         total_ms_played_by_year,
         None,
-    )  # Pass None for first_playtimes_by_year for artists
+    ) 
 
-    write_results(output_file_tracks, "Songs", track_playtimes_by_year, track_counts_by_year,
-                  total_tracks_by_year, total_ms_played_by_year, track_first_playtimes_by_year)
+    write_results(
+        output_file_tracks,
+        "Songs",
+        track_playtimes_by_year,  # Pass track_playtimes_by_year for songs
+        track_counts_by_year,
+        total_tracks_by_year,
+        total_ms_played_by_year,
+        track_first_playtimes_by_year,
+    )
 
 
     print(f"Results saved to separate files for each year with timestamps.")
