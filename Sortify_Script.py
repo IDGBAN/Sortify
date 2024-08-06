@@ -88,7 +88,7 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year,
         # Filter to top 1000
         ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)[:1000]
         ranked_by_count = counts_by_year[year].most_common(1000)
-        first_playtimes = first_playtimes_by_year[year]
+        first_playtimes = first_playtimes_by_year.get(year, None)  # Safely get first_playtimes 
 
         output_file_year = f"{output_file}_{year}.txt" 
         os.makedirs(os.path.dirname(os.path.abspath(output_file_year)), exist_ok=True)
@@ -115,14 +115,13 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year,
                     item_name = item
                 playtime = timedelta(milliseconds=ms_played)
                 outfile.write(f"{rank}. {format_timedelta(playtime)} - {item_name}\n")
-
-            # Write first play times if available
-            if first_playtimes:
+            
+            # Write first play times if available AND relevant to the result type
+            if first_playtimes is not None and results_type == "Songs":
                 outfile.write(f"\nFirst Play Time of {results_type}:\n")
                 for track, playtime in sorted(first_playtimes.items(), key=lambda x: x[1]):
                     track_name = f"{track} - {artist_data.get(track, 'Unknown Artist')}"
                     outfile.write(f"{playtime.strftime('%Y-%m-%d %H:%M')} - {track_name}\n")
-            
 
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")
