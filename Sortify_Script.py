@@ -41,6 +41,7 @@ def analyze_listening_data(json_file_paths):
 
     return artist_playtimes, artist_counts, total_tracks, total_ms_played
 
+
 def format_timedelta(td):
     """Formats a timedelta object into HH:MM:SS."""
     total_hours = td.days * 24 + td.seconds // 3600
@@ -71,16 +72,13 @@ def write_results(output_file, results_type, playtimes, counts, total_tracks, to
             outfile.write(f"{rank}. {format_timedelta(playtime)} - {item}\n")
 
 
-
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")
-    output_file_tracks = "Results.txt"
-    output_file_artists = "Results (Artists).txt"
+    output_file_artists = "Results.txt"  
+    output_file_tracks = "Results (Tracks).txt"  
 
     artist_playtimes, artist_counts, total_tracks, total_ms_played = analyze_listening_data(json_file_patterns)
     write_results(output_file_artists, "Artists", artist_playtimes, artist_counts, total_tracks, total_ms_played)
 
-    track_playtimes, track_counts, total_tracks, total_ms_played = analyze_listening_data(json_file_patterns)
-    write_results(output_file_tracks, "Songs", track_playtimes, track_counts, total_tracks, total_ms_played)
 
-    print(f"Results saved to {output_file_tracks} and {output_file_artists}")
+    print(f"Results saved to {output_file_artists} and {output_file_tracks}")
