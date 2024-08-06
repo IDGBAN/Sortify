@@ -6,7 +6,7 @@ from operator import itemgetter
 import glob
 
 def analyze_listening_data(json_file_paths):
-    """Analyzes track play data from multiple JSON files."""
+    """Analyzes track play data from multiple JSON files, including artist information."""
 
     track_playtimes = Counter()
     track_counts = Counter()
@@ -25,10 +25,12 @@ def analyze_listening_data(json_file_paths):
                     data = json.load(file)
                     for item in data:
                         track_name = item.get("master_metadata_track_name")
+                        artist_name = item.get("master_metadata_album_artist_name", "Unknown Artist")
                         ms_played = int(item.get("ms_played", 0))
                         if track_name:
-                            track_playtimes[track_name] += ms_played
-                            track_counts[track_name] += 1
+                            full_track_info = f"'{track_name}' from {artist_name}"
+                            track_playtimes[full_track_info] += ms_played
+                            track_counts[full_track_info] += 1
                             total_tracks += 1
                             total_ms_played += ms_played
                 except json.JSONDecodeError as e:
@@ -49,7 +51,7 @@ def format_timedelta(td):
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
 
 def write_results(output_file, track_playtimes, track_counts, total_tracks, total_ms_played):
-    """Writes the analysis results to a file."""
+    """Writes the analysis results to a file, including artist information."""
     total_time_played = timedelta(milliseconds=total_ms_played)
     ranked_by_time = sorted(track_playtimes.items(), key=itemgetter(1), reverse=True)
     ranked_by_count = track_counts.most_common()
@@ -61,13 +63,13 @@ def write_results(output_file, track_playtimes, track_counts, total_tracks, tota
         outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n")
 
         outfile.write("Songs Ranked by Play Count:\n")
-        for rank, (track_name, count) in enumerate(ranked_by_count, 1):
-            outfile.write(f"{rank}. '{track_name}': {count} times\n")
+        for rank, (full_track_info, count) in enumerate(ranked_by_count, 1):
+            outfile.write(f"{rank}. {full_track_info}: {count} times\n")
 
         outfile.write("\nSongs Ranked by Listening Time:\n")
-        for rank, (track_name, ms_played) in enumerate(ranked_by_time, 1):
+        for rank, (full_track_info, ms_played) in enumerate(ranked_by_time, 1):
             playtime = timedelta(milliseconds=ms_played)
-            outfile.write(f"{rank}. '{track_name}': {format_timedelta(playtime)}\n")
+            outfile.write(f"{rank}. {full_track_info}: {format_timedelta(playtime)}\n")
 
 
 
