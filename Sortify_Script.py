@@ -58,8 +58,9 @@ def write_results(output_file, results_type, playtimes, counts, total_tracks, to
     """Writes the analysis results to a file."""
 
     total_time_played = timedelta(milliseconds=total_ms_played)
-    ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)
-    ranked_by_count = counts.most_common()
+    # Filter to top 1000
+    ranked_by_time = sorted(playtimes.items(), key=itemgetter(1), reverse=True)[:1000]
+    ranked_by_count = counts.most_common(1000) 
 
     os.makedirs(os.path.dirname(os.path.abspath(output_file)), exist_ok=True)
 
@@ -67,11 +68,11 @@ def write_results(output_file, results_type, playtimes, counts, total_tracks, to
         outfile.write(f"Total Play Count: {total_tracks}\n")
         outfile.write(f"Total Listening Time: {format_timedelta(total_time_played)}\n\n\n")
 
-        outfile.write(f"{results_type} Ranked by Play Count:\n")
+        outfile.write(f"{results_type} Ranked by Play Count (Top 1000):\n")
         for rank, (item, count) in enumerate(ranked_by_count, 1):
             outfile.write(f"{rank}. {count} times - {item}\n")
 
-        outfile.write(f"\n{results_type} Ranked by Listening Time:\n")
+        outfile.write(f"\n{results_type} Ranked by Listening Time (Top 1000):\n")
         for rank, (item, ms_played) in enumerate(ranked_by_time, 1):
             playtime = timedelta(milliseconds=ms_played)
             outfile.write(f"{rank}. {format_timedelta(playtime)} - {item}\n")
