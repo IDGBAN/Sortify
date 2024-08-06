@@ -116,12 +116,13 @@ def write_results(output_file, results_type, playtimes_by_year, counts_by_year,
                 playtime = timedelta(milliseconds=ms_played)
                 outfile.write(f"{rank}. {format_timedelta(playtime)} - {item_name}\n")
             
-            # Write first play times if available AND relevant to the result type
+            # Write first play times **only** if it is song data
             if first_playtimes is not None and results_type == "Songs":
                 outfile.write(f"\nFirst Play Time of {results_type}:\n")
                 for track, playtime in sorted(first_playtimes.items(), key=lambda x: x[1]):
                     track_name = f"{track} - {artist_data.get(track, 'Unknown Artist')}"
                     outfile.write(f"{playtime.strftime('%Y-%m-%d %H:%M')} - {track_name}\n")
+
 
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")
