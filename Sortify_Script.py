@@ -5,11 +5,19 @@ from datetime import timedelta
 from operator import itemgetter
 import glob
 
-def analyze_listening_data(json_file_paths):
-    """Analyzes listening data from multiple JSON files, aggregating by artist."""
+def analyze_listening_data(json_file_paths, aggregate_by="artist"):
+    """Analyzes listening data from multiple JSON files, aggregating by the specified key."""
+    
+    # Choose the appropriate Counter based on aggregation
+    if aggregate_by == "artist":
+        playtimes = Counter()
+        counts = Counter()
+    elif aggregate_by == "track":
+        playtimes = Counter()
+        counts = Counter()
+    else:
+        raise ValueError("Invalid aggregation type. Choose 'artist' or 'track'.")
 
-    artist_playtimes = Counter()
-    artist_counts = Counter()
     total_tracks = 0
     total_ms_played = 0
 
@@ -24,13 +32,20 @@ def analyze_listening_data(json_file_paths):
                 try:
                     data = json.load(file)
                     for item in data:
-                        artist_name = item.get("master_metadata_album_artist_name", "Unknown Artist")
+                        if aggregate_by == "artist":
+                            key = item.get("master_metadata_album_artist_name", "Unknown Artist")
+                        elif aggregate_by == "track":
+                            track_name = item.get("master_metadata_track_name")
+                            artist_name = item.get("master_metadata_album_artist_name", "Unknown Artist")
+                            key = f"'{track_name}' - {artist_name}"
+
                         ms_played = int(item.get("ms_played", 0))
-                        if artist_name:
-                            artist_playtimes[artist_name] += ms_played
-                            artist_counts[artist_name] += 1
+                        if key:
+                            playtimes[key] += ms_played
+                            counts[key] += 1
                             total_tracks += 1
                             total_ms_played += ms_played
+
                 except json.JSONDecodeError as e:
                     print(f"Warning: Skipping invalid JSON content in {json_file_path}: {e}")
                     continue  # Skip to the next file if JSON is invalid
@@ -39,7 +54,7 @@ def analyze_listening_data(json_file_paths):
             print(f"Warning: File not found: {json_file_path}")
             continue  # Skip to the next file if not found
 
-    return artist_playtimes, artist_counts, total_tracks, total_ms_played
+    return playtimes, counts, total_tracks, total_ms_played
 
 
 def format_timedelta(td):
@@ -71,14 +86,23 @@ def write_results(output_file, results_type, playtimes, counts, total_tracks, to
             playtime = timedelta(milliseconds=ms_played)
             outfile.write(f"{rank}. {format_timedelta(playtime)} - {item}\n")
 
-
 if __name__ == "__main__":
     json_file_patterns = glob.glob("*.json")
-    output_file_artists = "Results.txt"  
-    output_file_tracks = "Results (Tracks).txt"  
+    output_file_artists = "Results.txt"
+    output_file_tracks = "Results (Tracks).txt"
 
-    artist_playtimes, artist_counts, total_tracks, total_ms_played = analyze_listening_data(json_file_patterns)
-    write_results(output_file_artists, "Artists", artist_playtimes, artist_counts, total_tracks, total_ms_played)
+    artist_playtimes, artist_counts, total_tracks, total_ms_played = analyze_listening_data(
+        json_file_patterns, aggregate_by="artist"
+    )
+    write_results(
+        output_file_artists, "Artists", artist_playtimes, artist_counts, total_tracks, total_ms_played
+    )
 
+    track_playtimes, track_counts, total_tracks, total_ms_played = analyze_listening_data(
+        json_file_patterns, aggregate_by="track"
+    )
+    write_results(
+        output_file_tracks, "Songs", track_playtimes, track_counts, total_tracks, total_ms_played
+    )
 
     print(f"Results saved to {output_file_artists} and {output_file_tracks}")
