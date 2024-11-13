@@ -1,4 +1,12 @@
 # Sortify
-TL;DR download Run_Sortify.bat to get started!
-
-Sortify is a small program developed by me in 5 hours starting at 12am, utilizing Gemini 1.5 Pro and my limited coding experiance. from what i can tell its safe to run but i don't claim any responsability. the .bat file downloads, runs, and deletes the python file. it must be placed in the spotify extended history path. once the python code is ran it will make an output file named "Results.txt" this file shows how long and how many times you've listened to each song and ranks them. it takes about 1.5 seconds to run but it can vary A LOT depending on your data size, CPU power, and internet speed. i might make the code more flexible in the future (ie. add the option to keep the python script, or add a way to pick the files manually, or even a GUI) but for now if you want to change anything you will have to code it in.
+## About
+Sortify is a small GUI based program developed by me, which uses your spotify extended streaming history to show you your top tracks/artists.
+## Get Started
+to get started request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/), when you recieve your data download and extract them, then download the latest version of [python](https://www.python.org/downloads/) and [Sortify.py](https://github.com/IDGBAN/Sortify/blob/main/Sortify.py), run it, and press the *Run Analysis* button. From your Spotify data Select the json files you want included in your statistics. This shouldn't take long to process unless your data is huge or your computer is very old.
+## Disclaimer
+- I am **not** affiliated with Spotify.
+- This code accesses your computer's files.
+- This code has only been tested on windows.
+- No data is sent from this program to me.
+- You should **review the code** before downloading it.
+- Im not responsible for any unexpected behaviour from this program.
