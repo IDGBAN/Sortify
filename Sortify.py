@@ -19,6 +19,16 @@ def analyze_listening_data(json_file_paths):
     track_artist_mapping = {}
     total_tracks = 0
     total_ms_played = 0
+    artist_playtimes = Counter()
+    artist_counts = Counter()
+    artist_first_playtimes = defaultdict(lambda: datetime.max)
+    track_playtimes = Counter()
+    track_counts = Counter()
+    track_first_playtimes = defaultdict(lambda: datetime.max)
+    track_artist_mapping = {}
+    artist_first_track = {}
+    total_tracks = 0
+    total_ms_played = 0
 
     for json_file_path in json_file_paths:
         try:
@@ -39,7 +49,9 @@ def analyze_listening_data(json_file_paths):
                         artist_counts[artist_name] += 1
                         if timestamp_str:
                             playtime = datetime.strptime(timestamp_str, "%Y-%m-%dT%H:%M:%SZ")
-                            artist_first_playtimes[artist_name] = min(artist_first_playtimes[artist_name], playtime)
+                            if playtime < artist_first_playtimes[artist_name]:
+                                artist_first_playtimes[artist_name] = playtime
+                                artist_first_track[artist_name] = track_name
 
                     if track_name:
                         track_playtimes[track_name] += ms_played
@@ -59,7 +71,7 @@ def analyze_listening_data(json_file_paths):
 
     return (artist_playtimes, artist_counts, artist_first_playtimes,
             track_playtimes, track_counts, track_first_playtimes, 
-            total_tracks, total_ms_played, track_artist_mapping)
+            total_tracks, total_ms_played, track_artist_mapping, artist_first_track)
 
 def format_timedelta(td):
     total_hours = td.days * 24 + td.seconds // 3600
@@ -67,7 +79,7 @@ def format_timedelta(td):
     total_seconds = td.seconds % 60
     return f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
 
-def display_results(results_type, playtimes, counts, first_playtimes, sort_by, sort_direction, track_artist_mapping, search_term=""):
+def display_results(results_type, playtimes, counts, first_playtimes, sort_by, sort_direction, track_artist_mapping, artist_first_track=None, search_term=""):
     display_text = ""
     if sort_by == "Time Listened":
         sorted_items = sorted(playtimes.items(), key=itemgetter(1), reverse=(sort_direction == "Descending"))
@@ -101,9 +113,9 @@ def display_results(results_type, playtimes, counts, first_playtimes, sort_by, s
         display_text = f"First Play Time of {results_type}:\n"
         for rank, (item, playtime) in enumerate(sorted_items, 1):
             if search_term.lower() in item.lower():
-                if results_type == "Tracks":
-                    artist_name = track_artist_mapping.get(item, "Unknown Artist")
-                    display_text += f"{rank}. {playtime.strftime('%Y-%m-%d %H:%M')} - {item} - {artist_name}\n"
+                if results_type == "Artists":
+                    first_track = artist_first_track.get(item, "Unknown Track")
+                    display_text += f"{rank}. {playtime.strftime('%Y-%m-%d %H:%M')} - {item} - {first_track}\n"
                 else:
                     display_text += f"{rank}. {playtime.strftime('%Y-%m-%d %H:%M')} - {item}\n"
 
@@ -124,11 +136,11 @@ def run_analysis():
     root.update_idletasks()
 
     global artist_playtimes, artist_counts, artist_first_playtimes
-    global track_playtimes, track_counts, track_first_playtimes, total_tracks, total_ms_played, track_artist_mapping
+    global track_playtimes, track_counts, track_first_playtimes, total_tracks, total_ms_played, track_artist_mapping, artist_first_track
 
     (artist_playtimes, artist_counts, artist_first_playtimes,
      track_playtimes, track_counts, track_first_playtimes, 
-     total_tracks, total_ms_played, track_artist_mapping) = analyze_listening_data(json_file_paths)
+     total_tracks, total_ms_played, track_artist_mapping, artist_first_track) = analyze_listening_data(json_file_paths)
 
     if total_tracks == 0:
         output_text.config(state="normal")
@@ -155,14 +167,14 @@ def update_display(tab_name, track_artist_mapping):
     sort_by = sort_option.get()
     sort_direction = sort_direction_option.get()
     search_term = search_entry.get().strip()
-    if tab_name == "Tracks":
-        results_text = display_results("Tracks", track_playtimes, track_counts, track_first_playtimes, sort_by, sort_direction, track_artist_mapping, search_term)
-        track_text.delete(1.0, tk.END)
-        track_text.insert(tk.END, results_text)
-    elif tab_name == "Artists":
-        results_text = display_results("Artists", artist_playtimes, artist_counts, artist_first_playtimes, sort_by, sort_direction, track_artist_mapping, search_term)
+    if tab_name == "Artists":
+        results_text = display_results("Artists", artist_playtimes, artist_counts, artist_first_playtimes, sort_by, sort_direction, track_artist_mapping, artist_first_track, search_term)
         artist_text.delete(1.0, tk.END)
         artist_text.insert(tk.END, results_text)
+    elif tab_name == "Tracks":
+        results_text = display_results("Tracks", track_playtimes, track_counts, track_first_playtimes, sort_by, sort_direction, track_artist_mapping, search_term=search_term)
+        track_text.delete(1.0, tk.END)
+        track_text.insert(tk.END, results_text)
 
 def save_results():
     save_path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files", "*.txt")])
