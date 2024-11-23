@@ -1,4 +1,4 @@
-# This code is property of IDGBAN
+# IMPORANT; GNU General Public License v3.0 attached. Copyright (c) 2024 Parsa Rasouli Baghi.
 # https://github.com/IDGBAN/Sortify
 
 import json
