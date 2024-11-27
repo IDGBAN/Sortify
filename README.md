@@ -5,8 +5,5 @@ Sortify is a small GUI based program developed by me, which uses your spotify ex
 to get started request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/), when you recieve your data download and extract them, then download the latest version of [python](https://www.python.org/downloads/) and [Sortify.py](https://github.com/IDGBAN/Sortify/blob/main/Sortify.py), run it, and press the *Run Analysis* button. From your Spotify data Select the json files you want included in your statistics. This shouldn't take long to process unless your data is huge or your computer is very old.
 ## Disclaimer
 - I am **not** affiliated with Spotify.
-- This code accesses your computer's files.
-- This code has only been tested on windows.
 - No data is sent from this program to me.
 - You should **review the code** before downloading it.
-- Im not responsible for any unexpected behaviour from this program.
