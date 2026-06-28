@@ -65,6 +65,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     [ObservableProperty] private ISeries[] _artistShareSeries = Array.Empty<ISeries>();
 
+    // Heights that drive the scrollable horizontal bar charts (one per ~bar).
+    [ObservableProperty] private double _tracksChartHeight = 480;
+    [ObservableProperty] private double _artistsChartHeight = 480;
+
     public MainViewModel()
     {
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
@@ -180,6 +184,13 @@ public sealed partial class MainViewModel : ObservableObject
         (DayOfWeekSeries, DayOfWeekX, DayOfWeekY) = ChartBuilder.ByDayOfWeek(_result);
         (OverTimeSeries, OverTimeX, OverTimeY) = ChartBuilder.OverTime(_result);
         ArtistShareSeries = ChartBuilder.ArtistShare(_result);
+
+        // Size each bar chart to its full content so every track/artist is reachable
+        // by scrolling, with comfortable spacing per bar.
+        const double perBar = 34;
+        const double axisPadding = 70;
+        TracksChartHeight = Math.Max(220, _result.Tracks.Count * perBar + axisPadding);
+        ArtistsChartHeight = Math.Max(220, _result.Artists.Count * perBar + axisPadding);
     }
 
     private bool CanExport() => HasData && _result.TotalPlays > 0;

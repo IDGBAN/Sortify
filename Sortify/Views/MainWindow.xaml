@@ -86,13 +86,13 @@
                                 </Border>
                             </UniformGrid>
 
-                            <Border Style="{StaticResource Card}" Height="420">
+                            <Border Style="{StaticResource Card}" Height="520">
                                 <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Top Artists - Share of Listening Time"
+                                    <TextBlock DockPanel.Dock="Top" Text="Top 25 Artists - Share of Listening Time"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
                                     <lvc:PieChart Series="{Binding ArtistShareSeries}"
                                                   Background="Transparent"
-                                                  LegendPosition="Right" />
+                                                  LegendPosition="Bottom" LegendTextSize="12" />
                                 </DockPanel>
                             </Border>
 
@@ -126,18 +126,22 @@
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Text="Top Tracks by Time"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <lvc:CartesianChart Series="{Binding TracksByTimeSeries}"
-                                                        Background="Transparent"
-                                                        XAxes="{Binding TracksByTimeX}" YAxes="{Binding TracksByTimeY}" />
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <lvc:CartesianChart Series="{Binding TracksByTimeSeries}"
+                                                            Background="Transparent" Height="{Binding TracksChartHeight}"
+                                                            XAxes="{Binding TracksByTimeX}" YAxes="{Binding TracksByTimeY}" />
+                                    </ScrollViewer>
                                 </DockPanel>
                             </Border>
                             <Border Grid.Column="1" Style="{StaticResource Card}">
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Text="Top Tracks by Play Count"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <lvc:CartesianChart Series="{Binding TracksByCountSeries}"
-                                                        Background="Transparent"
-                                                        XAxes="{Binding TracksByCountX}" YAxes="{Binding TracksByCountY}" />
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <lvc:CartesianChart Series="{Binding TracksByCountSeries}"
+                                                            Background="Transparent" Height="{Binding TracksChartHeight}"
+                                                            XAxes="{Binding TracksByCountX}" YAxes="{Binding TracksByCountY}" />
+                                    </ScrollViewer>
                                 </DockPanel>
                             </Border>
                         </Grid>
@@ -178,18 +182,22 @@
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Text="Top Artists by Time"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <lvc:CartesianChart Series="{Binding ArtistsByTimeSeries}"
-                                                        Background="Transparent"
-                                                        XAxes="{Binding ArtistsByTimeX}" YAxes="{Binding ArtistsByTimeY}" />
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <lvc:CartesianChart Series="{Binding ArtistsByTimeSeries}"
+                                                            Background="Transparent" Height="{Binding ArtistsChartHeight}"
+                                                            XAxes="{Binding ArtistsByTimeX}" YAxes="{Binding ArtistsByTimeY}" />
+                                    </ScrollViewer>
                                 </DockPanel>
                             </Border>
                             <Border Grid.Column="1" Style="{StaticResource Card}">
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Text="Top Artists by Play Count"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <lvc:CartesianChart Series="{Binding ArtistsByCountSeries}"
-                                                        Background="Transparent"
-                                                        XAxes="{Binding ArtistsByCountX}" YAxes="{Binding ArtistsByCountY}" />
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <lvc:CartesianChart Series="{Binding ArtistsByCountSeries}"
+                                                            Background="Transparent" Height="{Binding ArtistsChartHeight}"
+                                                            XAxes="{Binding ArtistsByCountX}" YAxes="{Binding ArtistsByCountY}" />
+                                    </ScrollViewer>
                                 </DockPanel>
                             </Border>
                         </Grid>
