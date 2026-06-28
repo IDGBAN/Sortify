@@ -69,6 +69,15 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private double _tracksChartHeight = 480;
     [ObservableProperty] private double _artistsChartHeight = 480;
 
+    // Infinite-scroll paging for the horizontal bar charts: start with one page and
+    // append more bars as the user scrolls toward the bottom of a chart.
+    private const int BarPageSize = 60;
+    private int _tracksShown;
+    private int _artistsShown;
+
+    private int MaxTracks => Math.Min(ChartBuilder.MaxBars, _result.Tracks.Count);
+    private int MaxArtists => Math.Min(ChartBuilder.MaxBars, _result.Artists.Count);
+
     public MainViewModel()
     {
         _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
@@ -176,21 +185,53 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void UpdateCharts()
     {
-        (TracksByTimeSeries, TracksByTimeX, TracksByTimeY) = ChartBuilder.TopTracksByTime(_result);
-        (TracksByCountSeries, TracksByCountX, TracksByCountY) = ChartBuilder.TopTracksByCount(_result);
-        (ArtistsByTimeSeries, ArtistsByTimeX, ArtistsByTimeY) = ChartBuilder.TopArtistsByTime(_result);
-        (ArtistsByCountSeries, ArtistsByCountX, ArtistsByCountY) = ChartBuilder.TopArtistsByCount(_result);
         (HourSeries, HourX, HourY) = ChartBuilder.ByHour(_result);
         (DayOfWeekSeries, DayOfWeekX, DayOfWeekY) = ChartBuilder.ByDayOfWeek(_result);
         (OverTimeSeries, OverTimeX, OverTimeY) = ChartBuilder.OverTime(_result);
         ArtistShareSeries = ChartBuilder.ArtistShare(_result);
 
-        // Size each bar chart to its full content so every track/artist is reachable
-        // by scrolling, with comfortable spacing per bar.
+        // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
+        _tracksShown = Math.Min(BarPageSize, MaxTracks);
+        _artistsShown = Math.Min(BarPageSize, MaxArtists);
+        BuildTrackCharts();
+        BuildArtistCharts();
+    }
+
+    private static double BarHeight(int bars)
+    {
         const double perBar = 34;
         const double axisPadding = 70;
-        TracksChartHeight = Math.Max(220, _result.Tracks.Count * perBar + axisPadding);
-        ArtistsChartHeight = Math.Max(220, _result.Artists.Count * perBar + axisPadding);
+        return Math.Max(220, bars * perBar + axisPadding);
+    }
+
+    private void BuildTrackCharts()
+    {
+        (TracksByTimeSeries, TracksByTimeX, TracksByTimeY) = ChartBuilder.TopTracksByTime(_result, _tracksShown);
+        (TracksByCountSeries, TracksByCountX, TracksByCountY) = ChartBuilder.TopTracksByCount(_result, _tracksShown);
+        TracksChartHeight = BarHeight(_tracksShown);
+    }
+
+    private void BuildArtistCharts()
+    {
+        (ArtistsByTimeSeries, ArtistsByTimeX, ArtistsByTimeY) = ChartBuilder.TopArtistsByTime(_result, _artistsShown);
+        (ArtistsByCountSeries, ArtistsByCountX, ArtistsByCountY) = ChartBuilder.TopArtistsByCount(_result, _artistsShown);
+        ArtistsChartHeight = BarHeight(_artistsShown);
+    }
+
+    /// <summary>Appends another page of track bars; called as the user scrolls down.</summary>
+    public void LoadMoreTracks()
+    {
+        if (_tracksShown >= MaxTracks) return;
+        _tracksShown = Math.Min(_tracksShown + BarPageSize, MaxTracks);
+        BuildTrackCharts();
+    }
+
+    /// <summary>Appends another page of artist bars; called as the user scrolls down.</summary>
+    public void LoadMoreArtists()
+    {
+        if (_artistsShown >= MaxArtists) return;
+        _artistsShown = Math.Min(_artistsShown + BarPageSize, MaxArtists);
+        BuildArtistCharts();
     }
 
     private bool CanExport() => HasData && _result.TotalPlays > 0;

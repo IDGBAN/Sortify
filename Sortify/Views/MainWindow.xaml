@@ -117,34 +117,47 @@
                             <RowDefinition Height="460" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource Card}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Top Tracks by Time"
-                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <Border Grid.Row="0" Style="{StaticResource Card}">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <TextBlock Text="Top Tracks" Style="{StaticResource SectionHeader}"
+                                               Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Background="{StaticResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton x:Name="TracksTimeToggle" Content="By Time"
+                                                         GroupName="TracksMetric" IsChecked="True"
+                                                         Style="{StaticResource SegmentToggle}" />
+                                            <RadioButton x:Name="TracksCountToggle" Content="By Plays"
+                                                         GroupName="TracksMetric"
+                                                         Background="{StaticResource Accent2Brush}"
+                                                         Style="{StaticResource SegmentToggle}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Grid>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollChanged="OnTracksScrollChanged"
+                                                  Visibility="{Binding IsChecked, ElementName=TracksTimeToggle, Converter={StaticResource BoolToVis}}">
                                         <lvc:CartesianChart Series="{Binding TracksByTimeSeries}"
                                                             Background="Transparent" Height="{Binding TracksChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
                                                             XAxes="{Binding TracksByTimeX}" YAxes="{Binding TracksByTimeY}" />
                                     </ScrollViewer>
-                                </DockPanel>
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource Card}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Top Tracks by Play Count"
-                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollChanged="OnTracksScrollChanged"
+                                                  Visibility="{Binding IsChecked, ElementName=TracksCountToggle, Converter={StaticResource BoolToVis}}">
                                         <lvc:CartesianChart Series="{Binding TracksByCountSeries}"
                                                             Background="Transparent" Height="{Binding TracksChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
                                                             XAxes="{Binding TracksByCountX}" YAxes="{Binding TracksByCountY}" />
                                     </ScrollViewer>
-                                </DockPanel>
-                            </Border>
-                        </Grid>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
                             <DataGrid ItemsSource="{Binding Tracks}">
@@ -173,34 +186,47 @@
                             <RowDefinition Height="460" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <Grid Grid.Row="0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" Style="{StaticResource Card}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Top Artists by Time"
-                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <Border Grid.Row="0" Style="{StaticResource Card}">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <TextBlock Text="Top Artists" Style="{StaticResource SectionHeader}"
+                                               Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Background="{StaticResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton x:Name="ArtistsTimeToggle" Content="By Time"
+                                                         GroupName="ArtistsMetric" IsChecked="True"
+                                                         Style="{StaticResource SegmentToggle}" />
+                                            <RadioButton x:Name="ArtistsCountToggle" Content="By Plays"
+                                                         GroupName="ArtistsMetric"
+                                                         Background="{StaticResource Accent2Brush}"
+                                                         Style="{StaticResource SegmentToggle}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Grid>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollChanged="OnArtistsScrollChanged"
+                                                  Visibility="{Binding IsChecked, ElementName=ArtistsTimeToggle, Converter={StaticResource BoolToVis}}">
                                         <lvc:CartesianChart Series="{Binding ArtistsByTimeSeries}"
                                                             Background="Transparent" Height="{Binding ArtistsChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
                                                             XAxes="{Binding ArtistsByTimeX}" YAxes="{Binding ArtistsByTimeY}" />
                                     </ScrollViewer>
-                                </DockPanel>
-                            </Border>
-                            <Border Grid.Column="1" Style="{StaticResource Card}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Top Artists by Play Count"
-                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollChanged="OnArtistsScrollChanged"
+                                                  Visibility="{Binding IsChecked, ElementName=ArtistsCountToggle, Converter={StaticResource BoolToVis}}">
                                         <lvc:CartesianChart Series="{Binding ArtistsByCountSeries}"
                                                             Background="Transparent" Height="{Binding ArtistsChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
                                                             XAxes="{Binding ArtistsByCountX}" YAxes="{Binding ArtistsByCountY}" />
                                     </ScrollViewer>
-                                </DockPanel>
-                            </Border>
-                        </Grid>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
                             <DataGrid ItemsSource="{Binding Artists}">

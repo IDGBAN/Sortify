@@ -10,6 +10,14 @@ namespace Sortify.Services;
 /// <summary>Builds LiveCharts2 series and axes from an <see cref="AnalysisResult"/>.</summary>
 public static class ChartBuilder
 {
+    /// <summary>
+    /// Absolute safety ceiling on bars drawn in the scrollable horizontal charts. The charts
+    /// load more bars as you scroll, but a library with tens of thousands of entries would
+    /// eventually build a multi-million-pixel canvas and crash the renderer, so loading stops
+    /// here.
+    /// </summary>
+    public const int MaxBars = 1000;
+
     private static readonly SKColor Accent = new(29, 185, 84);   // Spotify green
     private static readonly SKColor Accent2 = new(80, 156, 248);
     private static readonly SKColor Text = new(220, 220, 220);
@@ -32,33 +40,33 @@ public static class ChartBuilder
 
     // ---- Horizontal bar charts (RowSeries) -------------------------------------------------
 
-    public static (ISeries[] series, Axis[] x, Axis[] y) TopTracksByTime(AnalysisResult r)
+    public static (ISeries[] series, Axis[] x, Axis[] y) TopTracksByTime(AnalysisResult r, int take)
     {
-        var items = r.Tracks.Reverse().ToList();
+        var items = r.Tracks.Take(take).Reverse().ToList();
         var values = items.Select(t => Math.Round(t.TotalHours, 2)).ToArray();
         var labels = items.Select(t => ShortLabel(t.Track)).ToArray();
         return Rows(values, labels, "Hours", Accent);
     }
 
-    public static (ISeries[] series, Axis[] x, Axis[] y) TopTracksByCount(AnalysisResult r)
+    public static (ISeries[] series, Axis[] x, Axis[] y) TopTracksByCount(AnalysisResult r, int take)
     {
-        var items = r.Tracks.OrderByDescending(t => t.PlayCount).Reverse().ToList();
+        var items = r.Tracks.OrderByDescending(t => t.PlayCount).Take(take).Reverse().ToList();
         var values = items.Select(t => (double)t.PlayCount).ToArray();
         var labels = items.Select(t => ShortLabel(t.Track)).ToArray();
         return Rows(values, labels, "Plays", Accent2);
     }
 
-    public static (ISeries[] series, Axis[] x, Axis[] y) TopArtistsByTime(AnalysisResult r)
+    public static (ISeries[] series, Axis[] x, Axis[] y) TopArtistsByTime(AnalysisResult r, int take)
     {
-        var items = r.Artists.Reverse().ToList();
+        var items = r.Artists.Take(take).Reverse().ToList();
         var values = items.Select(a => Math.Round(a.TotalHours, 2)).ToArray();
         var labels = items.Select(a => ShortLabel(a.Artist)).ToArray();
         return Rows(values, labels, "Hours", Accent);
     }
 
-    public static (ISeries[] series, Axis[] x, Axis[] y) TopArtistsByCount(AnalysisResult r)
+    public static (ISeries[] series, Axis[] x, Axis[] y) TopArtistsByCount(AnalysisResult r, int take)
     {
-        var items = r.Artists.OrderByDescending(a => a.PlayCount).Reverse().ToList();
+        var items = r.Artists.OrderByDescending(a => a.PlayCount).Take(take).Reverse().ToList();
         var values = items.Select(a => (double)a.PlayCount).ToArray();
         var labels = items.Select(a => ShortLabel(a.Artist)).ToArray();
         return Rows(values, labels, "Plays", Accent2);
@@ -93,9 +101,26 @@ public static class ChartBuilder
                 SeparatorsPaint = null,
             },
         };
+        // Leave headroom past the longest bar so the right-aligned data label isn't
+        // clipped at the chart edge. Wider for bigger numbers (more digits = wider label).
+        double maxValue = values.Length > 0 ? values.Max() : 0;
+        double maxLimit = maxValue <= 0 ? 1 : maxValue * 1.18;
+
         var x = new[]
         {
-            new Axis { Name = unit, NamePaint = Label(), LabelsPaint = Label(), TextSize = 11, MinLimit = 0 },
+            // The bar values are drawn as data labels on each bar, so the bottom value
+            // axis is redundant. Strip its line, ticks and number labels entirely.
+            new Axis
+            {
+                LabelsPaint = null,
+                TicksPaint = null,
+                SubticksPaint = null,
+                SeparatorsPaint = null,
+                SubseparatorsPaint = null,
+                ZeroPaint = null,
+                MinLimit = 0,
+                MaxLimit = maxLimit,
+            },
         };
         return (series, x, y);
     }
