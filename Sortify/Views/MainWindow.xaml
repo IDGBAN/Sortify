@@ -91,6 +91,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Top Artists - Share of Listening Time"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
                                     <lvc:PieChart Series="{Binding ArtistShareSeries}"
+                                                  Background="Transparent"
                                                   LegendPosition="Right" />
                                 </DockPanel>
                             </Border>
@@ -100,6 +101,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Listening Over Time"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
                                     <lvc:CartesianChart Series="{Binding OverTimeSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding OverTimeX}" YAxes="{Binding OverTimeY}"
                                                         TooltipPosition="Top" />
                                 </DockPanel>
@@ -125,6 +127,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Top Tracks by Time"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding TracksByTimeSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding TracksByTimeX}" YAxes="{Binding TracksByTimeY}" />
                                 </DockPanel>
                             </Border>
@@ -133,6 +136,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Top Tracks by Play Count"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding TracksByCountSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding TracksByCountX}" YAxes="{Binding TracksByCountY}" />
                                 </DockPanel>
                             </Border>
@@ -175,6 +179,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Top Artists by Time"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding ArtistsByTimeSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding ArtistsByTimeX}" YAxes="{Binding ArtistsByTimeY}" />
                                 </DockPanel>
                             </Border>
@@ -183,6 +188,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Top Artists by Play Count"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding ArtistsByCountSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding ArtistsByCountX}" YAxes="{Binding ArtistsByCountY}" />
                                 </DockPanel>
                             </Border>
@@ -214,6 +220,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Listening Over Time (hours/day)"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding OverTimeSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding OverTimeX}" YAxes="{Binding OverTimeY}"
                                                         TooltipPosition="Top" />
                                 </DockPanel>
@@ -223,6 +230,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Listening by Hour of Day"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding HourSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding HourX}" YAxes="{Binding HourY}" />
                                 </DockPanel>
                             </Border>
@@ -231,6 +239,7 @@
                                     <TextBlock DockPanel.Dock="Top" Text="Listening by Day of Week"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding DayOfWeekSeries}"
+                                                        Background="Transparent"
                                                         XAxes="{Binding DayOfWeekX}" YAxes="{Binding DayOfWeekY}" />
                                 </DockPanel>
                             </Border>
