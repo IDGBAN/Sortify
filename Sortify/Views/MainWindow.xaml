@@ -10,7 +10,22 @@
         mc:Ignorable="d"
         Title="Sortify" Height="900" Width="1500" MinHeight="620" MinWidth="900"
         Background="{StaticResource BgBrush}"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen" Opacity="0">
+
+    <Window.Triggers>
+        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+            <BeginStoryboard>
+                <Storyboard>
+                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                     From="0" To="1" Duration="0:0:0.35">
+                        <DoubleAnimation.EasingFunction>
+                            <QuadraticEase EasingMode="EaseOut" />
+                        </DoubleAnimation.EasingFunction>
+                    </DoubleAnimation>
+                </Storyboard>
+            </BeginStoryboard>
+        </EventTrigger>
+    </Window.Triggers>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -47,7 +62,7 @@
 
             <views:FilterPanel Grid.Column="0" DataContext="{Binding Filters}" />
 
-            <TabControl Grid.Column="1" Margin="6,8,6,0">
+            <TabControl Grid.Column="1" Margin="6,8,6,0" SelectionChanged="OnTabSelectionChanged">
                 <!-- OVERVIEW -->
                 <TabItem Header="Overview">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">

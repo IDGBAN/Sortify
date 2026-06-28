@@ -88,7 +88,27 @@
                 <ItemsControl ItemsSource="{Binding ExcludedArtists}" Margin="0,6,0,0">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{StaticResource PanelBrush2}" CornerRadius="4" Margin="0,0,0,4" Padding="8,4">
+                            <Border Background="{StaticResource PanelBrush2}" CornerRadius="4" Margin="0,0,0,4" Padding="8,4"
+                                    Opacity="0" RenderTransformOrigin="0,0.5">
+                                <Border.RenderTransform>
+                                    <TranslateTransform X="-10" />
+                                </Border.RenderTransform>
+                                <Border.Triggers>
+                                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="1" Duration="0:0:0.25" />
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                 To="0" Duration="0:0:0.3">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <QuadraticEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Border.Triggers>
                                 <DockPanel LastChildFill="False">
                                     <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                     <Button DockPanel.Dock="Right" Content="x" Padding="6,0" Margin="0"
@@ -115,7 +135,27 @@
                 <ItemsControl ItemsSource="{Binding ExcludedTracks}" Margin="0,6,0,12">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="{StaticResource PanelBrush2}" CornerRadius="4" Margin="0,0,0,4" Padding="8,4">
+                            <Border Background="{StaticResource PanelBrush2}" CornerRadius="4" Margin="0,0,0,4" Padding="8,4"
+                                    Opacity="0" RenderTransformOrigin="0,0.5">
+                                <Border.RenderTransform>
+                                    <TranslateTransform X="-10" />
+                                </Border.RenderTransform>
+                                <Border.Triggers>
+                                    <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard>
+                                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                 To="1" Duration="0:0:0.25" />
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                 To="0" Duration="0:0:0.3">
+                                                    <DoubleAnimation.EasingFunction>
+                                                        <QuadraticEase EasingMode="EaseOut" />
+                                                    </DoubleAnimation.EasingFunction>
+                                                </DoubleAnimation>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Border.Triggers>
                                 <DockPanel LastChildFill="False">
                                     <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                     <Button DockPanel.Dock="Right" Content="x" Padding="6,0" Margin="0"
