@@ -75,15 +75,26 @@ public static class ChartBuilder
                 DataLabelsPaint = new SolidColorPaint(Text),
                 DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Right,
                 DataLabelsFormatter = p => p.Coordinate.PrimaryValue.ToString("0.##"),
+                DataLabelsSize = 11,
+                Padding = 2,
             },
         };
         var y = new[]
         {
-            new Axis { Labels = labels, LabelsPaint = Label(), TextSize = 12 },
+            // One label per bar, smaller text so the 15 category names don't overlap.
+            new Axis
+            {
+                Labels = labels,
+                LabelsPaint = Label(),
+                TextSize = 11,
+                MinStep = 1,
+                ForceStepToMin = true,
+                SeparatorsPaint = null,
+            },
         };
         var x = new[]
         {
-            new Axis { Name = unit, NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 },
+            new Axis { Name = unit, NamePaint = Label(), LabelsPaint = Label(), TextSize = 11, MinLimit = 0 },
         };
         return (series, x, y);
     }

@@ -114,7 +114,7 @@
                 <TabItem Header="Tracks">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="320" />
+                            <RowDefinition Height="460" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
@@ -166,7 +166,7 @@
                 <TabItem Header="Artists">
                     <Grid>
                         <Grid.RowDefinitions>
-                            <RowDefinition Height="320" />
+                            <RowDefinition Height="460" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
                         <Grid Grid.Row="0">
