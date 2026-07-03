@@ -17,7 +17,7 @@ public sealed class FilterOptions
     /// <summary>Inclusive end of the date range (UTC). Null = no upper bound.</summary>
     public DateTime? EndDate { get; set; }
 
-    /// <summary>Case-insensitive substring matched against track or artist name. Empty = no search filter.</summary>
+    /// <summary>Case-insensitive substring matched against track, artist or album name. Empty = no search filter.</summary>
     public string SearchTerm { get; set; } = string.Empty;
 
     /// <summary>Artist names to exclude entirely (case-insensitive).</summary>

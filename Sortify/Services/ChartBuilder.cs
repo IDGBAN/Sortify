@@ -1,4 +1,7 @@
 using LiveChartsCore;
+using LiveChartsCore.Defaults;
+using LiveChartsCore.Drawing;
+using DateTimePoint = Sortify.Models.DateTimePoint;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
@@ -70,6 +73,30 @@ public static class ChartBuilder
         var values = items.Select(a => (double)a.PlayCount).ToArray();
         var labels = items.Select(a => ShortLabel(a.Artist)).ToArray();
         return Rows(values, labels, "Plays", Accent2);
+    }
+
+    public static (ISeries[] series, Axis[] x, Axis[] y) TopAlbumsByTime(AnalysisResult r, int take)
+    {
+        var items = r.Albums.Take(take).Reverse().ToList();
+        var values = items.Select(a => Math.Round(a.TotalHours, 2)).ToArray();
+        var labels = items.Select(a => ShortLabel(a.Album)).ToArray();
+        return Rows(values, labels, "Hours", Accent);
+    }
+
+    public static (ISeries[] series, Axis[] x, Axis[] y) TopAlbumsByCount(AnalysisResult r, int take)
+    {
+        var items = r.Albums.OrderByDescending(a => a.PlayCount).Take(take).Reverse().ToList();
+        var values = items.Select(a => (double)a.PlayCount).ToArray();
+        var labels = items.Select(a => ShortLabel(a.Album)).ToArray();
+        return Rows(values, labels, "Plays", Accent2);
+    }
+
+    public static (ISeries[] series, Axis[] x, Axis[] y) TopSkippedTracks(AnalysisResult r, int take = 15)
+    {
+        var items = r.SkippedTracks.Take(take).Reverse().ToList();
+        var values = items.Select(s => (double)s.SkipCount).ToArray();
+        var labels = items.Select(s => ShortLabel(s.Track)).ToArray();
+        return Rows(values, labels, "Skips", new SKColor(231, 111, 81));
     }
 
     private static (ISeries[], Axis[], Axis[]) Rows(double[] values, string[] labels, string unit, SKColor color)
@@ -159,18 +186,47 @@ public static class ChartBuilder
 
     // ---- Time series -----------------------------------------------------------------------
 
-    public static (ISeries[] series, Axis[] x, Axis[] y) OverTime(AnalysisResult r)
+    /// <summary>Bucket size for the listening-over-time chart.</summary>
+    public enum TimeGranularity { Daily, Weekly, Monthly }
+
+    public static (ISeries[] series, Axis[] x, Axis[] y) OverTime(
+        AnalysisResult r, TimeGranularity granularity = TimeGranularity.Daily)
     {
-        var points = r.PlaytimeByDay
+        IEnumerable<DateTimePoint> source = granularity switch
+        {
+            TimeGranularity.Weekly => r.PlaytimeByDay
+                .GroupBy(p => p.Date.AddDays(-(int)p.Date.DayOfWeek))
+                .Select(g => new DateTimePoint(g.Key, g.Sum(p => p.Value))),
+            TimeGranularity.Monthly => r.PlaytimeByDay
+                .GroupBy(p => new DateTime(p.Date.Year, p.Date.Month, 1))
+                .Select(g => new DateTimePoint(g.Key, g.Sum(p => p.Value))),
+            _ => r.PlaytimeByDay,
+        };
+
+        var points = source
+            .OrderBy(p => p.Date)
             .Select(p => new LcDateTimePoint(p.Date, Math.Round(p.Value, 2)))
             .ToArray();
+
+        string unitName = granularity switch
+        {
+            TimeGranularity.Weekly => "Hours/week",
+            TimeGranularity.Monthly => "Hours/month",
+            _ => "Hours/day",
+        };
+        long unitTicks = granularity switch
+        {
+            TimeGranularity.Weekly => TimeSpan.FromDays(7).Ticks,
+            TimeGranularity.Monthly => TimeSpan.FromDays(30).Ticks,
+            _ => TimeSpan.FromDays(1).Ticks,
+        };
 
         var series = new ISeries[]
         {
             new LineSeries<LcDateTimePoint>
             {
                 Values = points,
-                Name = "Hours/day",
+                Name = unitName,
                 Fill = new SolidColorPaint(Accent.WithAlpha(40)),
                 Stroke = new SolidColorPaint(Accent) { StrokeThickness = 2 },
                 GeometrySize = 0,
@@ -186,10 +242,57 @@ public static class ChartBuilder
                     try { return new DateTime((long)value).ToString("yyyy-MM"); }
                     catch { return string.Empty; }
                 },
-                UnitWidth = TimeSpan.FromDays(1).Ticks,
+                UnitWidth = unitTicks,
             },
         };
         var y = new[] { new Axis { Name = "Hours", NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } };
+        return (series, x, y);
+    }
+
+    // ---- Heatmap ---------------------------------------------------------------------------
+
+    /// <summary>Hour-of-day (x) by day-of-week (y) listening heatmap.</summary>
+    public static (ISeries[] series, Axis[] x, Axis[] y) DowHourHeat(AnalysisResult r)
+    {
+        var points = new List<WeightedPoint>(7 * 24);
+        for (int dow = 0; dow < 7; dow++)
+            for (int hour = 0; hour < 24; hour++)
+                points.Add(new WeightedPoint(hour, dow, Math.Round(r.PlaytimeByDowHour[dow, hour] / 3_600_000d, 2)));
+
+        var series = new ISeries[]
+        {
+            new HeatSeries<WeightedPoint>
+            {
+                Values = points,
+                Name = "Hours",
+                HeatMap = new[]
+                {
+                    new LvcColor(24, 24, 24),        // no listening: blends into the panel
+                    new LvcColor(16, 90, 45),
+                    new LvcColor(29, 185, 84),       // Spotify green at the hot end
+                    new LvcColor(30, 215, 96),
+                },
+            },
+        };
+        string[] dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+        var x = new[]
+        {
+            new Axis
+            {
+                Labels = Enumerable.Range(0, 24).Select(h => h.ToString("00")).ToArray(),
+                LabelsPaint = Label(),
+                TextSize = 10,
+            },
+        };
+        var y = new[]
+        {
+            new Axis
+            {
+                Labels = dayNames,
+                LabelsPaint = Label(),
+                TextSize = 11,
+            },
+        };
         return (series, x, y);
     }
 

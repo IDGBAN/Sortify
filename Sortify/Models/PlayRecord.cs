@@ -12,7 +12,7 @@ public sealed class PlayRecord
     public string AlbumName { get; init; } = "Unknown Album";
     public int MsPlayed { get; init; }
 
-    /// <summary>UTC timestamp the play ended (Spotify "ts" field).</summary>
+    /// <summary>Local-time timestamp the play ended (Spotify "ts" field, converted from UTC).</summary>
     public DateTime Timestamp { get; init; }
 
     /// <summary>Spotify "reason_end" (e.g. "trackdone", "fwdbtn", "endplay").</summary>

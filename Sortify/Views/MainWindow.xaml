@@ -10,7 +10,8 @@
         mc:Ignorable="d"
         Title="Sortify" Height="900" Width="1500" MinHeight="620" MinWidth="900"
         Background="{StaticResource BgBrush}"
-        WindowStartupLocation="CenterScreen" Opacity="0">
+        WindowStartupLocation="CenterScreen" Opacity="0"
+        AllowDrop="True" Drop="OnFileDrop" DragOver="OnFileDragOver">
 
     <Window.Triggers>
         <EventTrigger RoutedEvent="FrameworkElement.Loaded">
@@ -45,6 +46,7 @@
                 <Button Content="Export TXT" Command="{Binding ExportTxtCommand}" />
                 <Button Content="Export Tracks CSV" Command="{Binding ExportTracksCsvCommand}" />
                 <Button Content="Export Artists CSV" Command="{Binding ExportArtistsCsvCommand}" />
+                <Button Content="Export Albums CSV" Command="{Binding ExportAlbumsCsvCommand}" />
 
                 <ProgressBar DockPanel.Dock="Right" Width="120" Height="6" IsIndeterminate="True"
                              VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}"
@@ -175,7 +177,14 @@
                         </Border>
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
-                            <DataGrid ItemsSource="{Binding Tracks}">
+                            <DataGrid x:Name="TracksGrid" ItemsSource="{Binding Tracks}"
+                                      PreviewMouseRightButtonDown="OnGridRightClick">
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Exclude this track" Click="OnExcludeTrackFromTracks" />
+                                        <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromTracks" />
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
                                     <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
@@ -244,7 +253,13 @@
                         </Border>
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
-                            <DataGrid ItemsSource="{Binding Artists}">
+                            <DataGrid x:Name="ArtistsGrid" ItemsSource="{Binding Artists}"
+                                      PreviewMouseRightButtonDown="OnGridRightClick">
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromArtists" />
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" />
                                     <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
@@ -260,18 +275,120 @@
                     </Grid>
                 </TabItem>
 
+                <!-- ALBUMS -->
+                <TabItem Header="Albums">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="460" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource Card}">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
+                                    <TextBlock Text="Top Albums" Style="{StaticResource SectionHeader}"
+                                               Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                    <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            Background="{StaticResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                        <StackPanel Orientation="Horizontal">
+                                            <RadioButton x:Name="AlbumsTimeToggle" Content="By Time"
+                                                         GroupName="AlbumsMetric" IsChecked="True"
+                                                         Style="{StaticResource SegmentToggle}" />
+                                            <RadioButton x:Name="AlbumsCountToggle" Content="By Plays"
+                                                         GroupName="AlbumsMetric"
+                                                         Background="{StaticResource Accent2Brush}"
+                                                         Style="{StaticResource SegmentToggle}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+                                <Grid>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollChanged="OnAlbumsScrollChanged"
+                                                  Visibility="{Binding IsChecked, ElementName=AlbumsTimeToggle, Converter={StaticResource BoolToVis}}">
+                                        <lvc:CartesianChart Series="{Binding AlbumsByTimeSeries}"
+                                                            Background="Transparent" Height="{Binding AlbumsChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
+                                                            XAxes="{Binding AlbumsByTimeX}" YAxes="{Binding AlbumsByTimeY}" />
+                                    </ScrollViewer>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                                  ScrollChanged="OnAlbumsScrollChanged"
+                                                  Visibility="{Binding IsChecked, ElementName=AlbumsCountToggle, Converter={StaticResource BoolToVis}}">
+                                        <lvc:CartesianChart Series="{Binding AlbumsByCountSeries}"
+                                                            Background="Transparent" Height="{Binding AlbumsChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
+                                                            XAxes="{Binding AlbumsByCountX}" YAxes="{Binding AlbumsByCountY}" />
+                                    </ScrollViewer>
+                                </Grid>
+                            </DockPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource Card}">
+                            <DataGrid x:Name="AlbumsGrid" ItemsSource="{Binding Albums}"
+                                      PreviewMouseRightButtonDown="OnGridRightClick">
+                                <DataGrid.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromAlbums" />
+                                    </ContextMenu>
+                                </DataGrid.ContextMenu>
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" />
+                                    <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                    <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
+                                                        Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                    <DataGridTextColumn Header="First Played"
+                                                        Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd HH:mm}"
+                                                        Width="Auto" />
+                                    <DataGridTextColumn Header="Last Played"
+                                                        Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd HH:mm}"
+                                                        Width="Auto" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
                 <!-- TRENDS -->
                 <TabItem Header="Trends">
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <Border Style="{StaticResource Card}" Height="320">
                                 <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Listening Over Time (hours/day)"
-                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                                    <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                                        <TextBlock Text="Listening Over Time" Style="{StaticResource SectionHeader}"
+                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                        <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                Background="{StaticResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="Daily" GroupName="OverTimeGran" IsChecked="True"
+                                                             Tag="Daily" Checked="OnGranularityChecked"
+                                                             Style="{StaticResource SegmentToggle}" />
+                                                <RadioButton Content="Weekly" GroupName="OverTimeGran"
+                                                             Tag="Weekly" Checked="OnGranularityChecked"
+                                                             Style="{StaticResource SegmentToggle}" />
+                                                <RadioButton Content="Monthly" GroupName="OverTimeGran"
+                                                             Tag="Monthly" Checked="OnGranularityChecked"
+                                                             Style="{StaticResource SegmentToggle}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
                                     <lvc:CartesianChart Series="{Binding OverTimeSeries}"
                                                         Background="Transparent"
                                                         XAxes="{Binding OverTimeX}" YAxes="{Binding OverTimeY}"
                                                         TooltipPosition="Top" />
+                                </DockPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Height="340">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="Listening Heatmap (day of week vs. hour of day)"
+                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                                    <lvc:CartesianChart Series="{Binding HeatSeries}"
+                                                        Background="Transparent"
+                                                        XAxes="{Binding HeatX}" YAxes="{Binding HeatY}"
+                                                        TooltipPosition="Hidden" />
                                 </DockPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Height="300">
@@ -290,6 +407,79 @@
                                     <lvc:CartesianChart Series="{Binding DayOfWeekSeries}"
                                                         Background="Transparent"
                                                         XAxes="{Binding DayOfWeekX}" YAxes="{Binding DayOfWeekY}" />
+                                </DockPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </TabItem>
+
+                <!-- INSIGHTS -->
+                <TabItem Header="Insights">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel>
+                            <UniformGrid Columns="3" Margin="0,6,0,0">
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="LONGEST STREAK" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding LongestStreakText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Consecutive days with listening."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="BIGGEST DAY" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding BiggestDayText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="The single day with the most listening time."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="PEAK LISTENING" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding PeakHourText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Your most active hour and day of the week."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="ACTIVE DAYS" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding ActiveDaysText}" FontSize="16" FontWeight="Bold" />
+                                        <TextBlock Text="Days with at least one counted play."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="AVERAGE PER ACTIVE DAY" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding AvgPerDayText}" FontSize="16" FontWeight="Bold" />
+                                        <TextBlock Text="Listening time averaged over active days."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="SKIP RATE" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding SkipRateText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Plays Spotify flagged as skipped (short plays included)."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <Border Style="{StaticResource Card}" Height="560">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="Most Skipped Tracks (top 15)"
+                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                    <lvc:CartesianChart Series="{Binding SkippedSeries}"
+                                                        Background="Transparent"
+                                                        TooltipPosition="Hidden"
+                                                        XAxes="{Binding SkippedX}" YAxes="{Binding SkippedY}" />
                                 </DockPanel>
                             </Border>
                         </StackPanel>

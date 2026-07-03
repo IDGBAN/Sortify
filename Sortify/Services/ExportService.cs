@@ -37,6 +37,12 @@ public static class ExportService
             sb.AppendLine($"{rank++}. {TimeFormat.HhMmSs(a.TotalTime)} - {a.Artist}");
         sb.AppendLine();
 
+        sb.AppendLine("Albums Ranked by Time Listened:");
+        rank = 1;
+        foreach (var a in result.Albums.OrderByDescending(a => a.TotalMsPlayed))
+            sb.AppendLine($"{rank++}. {TimeFormat.HhMmSs(a.TotalTime)} - {a.Album} - {a.Artist}");
+        sb.AppendLine();
+
         await File.WriteAllTextAsync(path, sb.ToString(), Encoding.UTF8).ConfigureAwait(false);
     }
 
@@ -74,6 +80,26 @@ public static class ExportService
               .Append(a.PlayCount).Append(',')
               .Append(a.FirstPlayed == DateTime.MaxValue ? "" : TimeFormat.Timestamp(a.FirstPlayed)).Append(',')
               .Append(Csv(a.FirstTrack)).Append(',')
+              .Append(a.LastPlayed == DateTime.MinValue ? "" : TimeFormat.Timestamp(a.LastPlayed))
+              .AppendLine();
+        }
+        await File.WriteAllTextAsync(path, sb.ToString(), Encoding.UTF8).ConfigureAwait(false);
+    }
+
+    public static async Task SaveAlbumsCsvAsync(string path, AnalysisResult result)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("Rank,Album,Artist,TotalTime,Hours,PlayCount,FirstPlayed,LastPlayed");
+        int rank = 1;
+        foreach (var a in result.Albums.OrderByDescending(a => a.TotalMsPlayed))
+        {
+            sb.Append(rank++).Append(',')
+              .Append(Csv(a.Album)).Append(',')
+              .Append(Csv(a.Artist)).Append(',')
+              .Append(TimeFormat.HhMmSs(a.TotalTime)).Append(',')
+              .Append(a.TotalHours.ToString("0.00")).Append(',')
+              .Append(a.PlayCount).Append(',')
+              .Append(a.FirstPlayed == DateTime.MaxValue ? "" : TimeFormat.Timestamp(a.FirstPlayed)).Append(',')
               .Append(a.LastPlayed == DateTime.MinValue ? "" : TimeFormat.Timestamp(a.LastPlayed))
               .AppendLine();
         }

@@ -71,6 +71,10 @@ public sealed class HistoryParser
             {
                 result.Warnings.Add($"Could not read {Path.GetFileName(path)} ({ex.Message})");
             }
+            catch (UnauthorizedAccessException ex)
+            {
+                result.Warnings.Add($"Access denied to {Path.GetFileName(path)} ({ex.Message})");
+            }
         }
 
         return result;
@@ -82,12 +86,14 @@ public sealed class HistoryParser
         if (string.IsNullOrWhiteSpace(entry.TrackName) && string.IsNullOrWhiteSpace(entry.ArtistName))
             return null;
 
+        // Spotify "ts" is UTC; convert to local time so hour-of-day and day-of-week
+        // charts and filters reflect the user's clock, not UTC.
         DateTime timestamp = DateTime.MinValue;
         if (!string.IsNullOrEmpty(entry.Ts) &&
             DateTime.TryParse(entry.Ts, CultureInfo.InvariantCulture,
                 DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
         {
-            timestamp = parsed;
+            timestamp = parsed.ToLocalTime();
         }
 
         return new PlayRecord
