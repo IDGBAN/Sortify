@@ -77,12 +77,26 @@ public sealed partial class FilterViewModel : ObservableObject
         return opts;
     }
 
+    /// <summary>Adds an artist exclusion programmatically (e.g. from a grid context menu).</summary>
+    public void ExcludeArtist(string? name)
+    {
+        name = name?.Trim();
+        if (!string.IsNullOrEmpty(name) && !ExcludedArtists.Contains(name, StringComparer.OrdinalIgnoreCase))
+            ExcludedArtists.Add(name);
+    }
+
+    /// <summary>Adds a track exclusion programmatically (e.g. from a grid context menu).</summary>
+    public void ExcludeTrack(string? name)
+    {
+        name = name?.Trim();
+        if (!string.IsNullOrEmpty(name) && !ExcludedTracks.Contains(name, StringComparer.OrdinalIgnoreCase))
+            ExcludedTracks.Add(name);
+    }
+
     [RelayCommand]
     private void AddExcludedArtist()
     {
-        var name = NewExcludedArtist?.Trim();
-        if (!string.IsNullOrEmpty(name) && !ExcludedArtists.Contains(name))
-            ExcludedArtists.Add(name);
+        ExcludeArtist(NewExcludedArtist);
         NewExcludedArtist = string.Empty;
     }
 
@@ -95,9 +109,7 @@ public sealed partial class FilterViewModel : ObservableObject
     [RelayCommand]
     private void AddExcludedTrack()
     {
-        var name = NewExcludedTrack?.Trim();
-        if (!string.IsNullOrEmpty(name) && !ExcludedTracks.Contains(name))
-            ExcludedTracks.Add(name);
+        ExcludeTrack(NewExcludedTrack);
         NewExcludedTrack = string.Empty;
     }
 

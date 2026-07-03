@@ -5,14 +5,19 @@ namespace Sortify.Services;
 /// <summary>Applies user-configured FilterOptions to a sequence of raw play records.</summary>
 public static class FilterEngine
 {
-    public static IEnumerable<PlayRecord> Apply(IEnumerable<PlayRecord> records, FilterOptions filter)
+    /// <param name="ignoreMinDuration">
+    /// When true the minimum-duration cutoff is skipped, so short (usually skipped) plays
+    /// still come through. Used by the skip-rate statistics.
+    /// </param>
+    public static IEnumerable<PlayRecord> Apply(
+        IEnumerable<PlayRecord> records, FilterOptions filter, bool ignoreMinDuration = false)
     {
         bool hasSearch = !string.IsNullOrWhiteSpace(filter.SearchTerm);
         string search = filter.SearchTerm.Trim();
 
         foreach (var r in records)
         {
-            if (r.MsPlayed < filter.MinMsPlayed)
+            if (!ignoreMinDuration && r.MsPlayed < filter.MinMsPlayed)
                 continue;
 
             if (filter.StartDate is { } start && r.Timestamp < start)
@@ -39,7 +44,8 @@ public static class FilterEngine
 
             if (hasSearch &&
                 r.TrackName.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0 &&
-                r.ArtistName.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
+                r.ArtistName.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0 &&
+                r.AlbumName.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
                 continue;
 
             yield return r;
