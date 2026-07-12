@@ -1,6 +1,4 @@
 # Sortify
-
-## About
 Sortify reads your Spotify extended streaming history and turns it into statistics you can explore. It shows your top tracks and artists, how your listening changed over time, and how it breaks down by hour of the day and day of the week. It ships as a single portable `.exe` so there is no installation.
 
 ## Features
