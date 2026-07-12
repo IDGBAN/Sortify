@@ -38,3 +38,6 @@ The published `Sortify.exe` lands in `Sortify/bin/Release/net8.0-windows/win-x64
 - Sortify is not affiliated with Spotify.
 - Everything runs locally on your machine.
 - Please **review the code** before you download and run it.
+
+## License
+Released under the [GNU AGPLv3](LICENSE) license.
