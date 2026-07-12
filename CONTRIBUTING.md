@@ -1,0 +1,8 @@
+# Contribution License Agreement
+
+By submitting a contribution to this project (including via pull request, patch, or any other method), you agree to the following terms:
+1. Copyright license. You grant IDGBAN a perpetual, worldwide, non-exclusive, irrevocable, royalty-free license to use, reproduce, modify, distribute, sublicense, and relicense your contribution, in whole or in part, under any license terms, including proprietary or commercial licenses, as part of this project or derivative works of it.
+2. Patent license. You grant IDGBAN and all recipients of this project a perpetual, worldwide, non-exclusive, irrevocable, royalty-free patent license to make, use, sell, offer for sale, and distribute your contribution, covering any patent claims you hold that are necessarily infringed by your contribution alone or in combination with this project.
+3. Ownership. You represent that each contribution is your original work, that you have the legal right to grant these licenses, and that your contribution does not, to your knowledge, infringe any third party's rights. If your employer has rights to intellectual property you create, you represent that you have permission to submit the contribution on these terms or that your employer has waived such rights.
+4. No obligation. You understand that the decision to include your contribution is at the sole discretion of the project maintainer, and that this agreement does not obligate anyone to use or include your contribution.
+5. Outbound license. Unless relicensed under section 1, your contribution is distributed to the public under this project's current license (GNU AGPLv3).

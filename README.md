@@ -1,6 +1,4 @@
 # Sortify
-
-## About
 Sortify reads your Spotify extended streaming history and turns it into statistics you can explore. It shows your top tracks and artists, how your listening changed over time, and how it breaks down by hour of the day and day of the week. It ships as a single portable `.exe` so there is no installation.
 
 ## Features
@@ -38,3 +36,6 @@ The published `Sortify.exe` lands in `Sortify/bin/Release/net8.0-windows/win-x64
 - Sortify is not affiliated with Spotify.
 - Everything runs locally on your machine.
 - Please **review the code** before you download and run it.
+
+## License
+Released under the [GNU AGPLv3](LICENSE) license.
