@@ -23,6 +23,13 @@
                 <TextBlock Text="Listens shorter than this are ignored (default 5s)."
                            Foreground="{StaticResource MutedBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0" />
 
+                <!-- Content -->
+                <TextBlock Text="CONTENT" Style="{StaticResource SectionHeader}" />
+                <CheckBox Content="Count podcasts and audiobooks"
+                          IsChecked="{Binding IncludePodcasts}" />
+                <TextBlock Text="Off by default so shows don't outrank your music. The Podcasts tab always shows them."
+                           Foreground="{StaticResource MutedBrush}" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0" />
+
                 <!-- Date range -->
                 <TextBlock Text="DATE RANGE" Style="{StaticResource SectionHeader}" />
                 <TextBlock Text="From" Style="{StaticResource Caption}" />
@@ -31,7 +38,7 @@
                 <DatePicker SelectedDate="{Binding EndDate}" />
 
                 <!-- Search -->
-                <TextBlock Text="SEARCH (TRACK, ARTIST OR ALBUM)" Style="{StaticResource SectionHeader}" />
+                <TextBlock Text="SEARCH (TRACK, ARTIST, ALBUM OR SHOW)" Style="{StaticResource SectionHeader}" />
                 <TextBox Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged, Delay=400}" />
 
                 <!-- Time of day -->

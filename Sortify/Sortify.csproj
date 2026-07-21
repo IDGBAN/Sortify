@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>Sortify</AssemblyName>
     <RootNamespace>Sortify</RootNamespace>
-    <Version>3.0.0</Version>
+    <Version>3.2.0</Version>
     <Authors>Parsa Rasouli Baghi</Authors>
     <Product>Sortify</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -25,6 +25,10 @@
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.1.0-dev-798" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Sortify.Tests" />
   </ItemGroup>
 
 </Project>

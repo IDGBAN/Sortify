@@ -13,6 +13,11 @@
         WindowStartupLocation="CenterScreen" Opacity="0"
         AllowDrop="True" Drop="OnFileDrop" DragOver="OnFileDragOver">
 
+    <Window.InputBindings>
+        <KeyBinding Modifiers="Control" Key="O" Command="{Binding RunAnalysisCommand}" />
+        <KeyBinding Modifiers="Control+Shift" Key="O" Command="{Binding OpenFolderCommand}" />
+    </Window.InputBindings>
+
     <Window.Triggers>
         <EventTrigger RoutedEvent="FrameworkElement.Loaded">
             <BeginStoryboard>
@@ -42,11 +47,16 @@
                 <TextBlock Text="Sortify" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
                            Foreground="{StaticResource AccentBrush}" Margin="0,0,16,0" />
                 <Button Content="Run Analysis" Style="{StaticResource AccentButton}"
+                        ToolTip="Pick individual history JSON files (Ctrl+O)"
                         Command="{Binding RunAnalysisCommand}" />
+                <Button Content="Open Folder"
+                        ToolTip="Pick the extracted export folder; history files are found automatically (Ctrl+Shift+O)"
+                        Command="{Binding OpenFolderCommand}" />
                 <Button Content="Export TXT" Command="{Binding ExportTxtCommand}" />
                 <Button Content="Export Tracks CSV" Command="{Binding ExportTracksCsvCommand}" />
                 <Button Content="Export Artists CSV" Command="{Binding ExportArtistsCsvCommand}" />
                 <Button Content="Export Albums CSV" Command="{Binding ExportAlbumsCsvCommand}" />
+                <Button Content="Export Years CSV" Command="{Binding ExportYearsCsvCommand}" />
 
                 <ProgressBar DockPanel.Dock="Right" Width="120" Height="6" IsIndeterminate="True"
                              VerticalAlignment="Center" Foreground="{StaticResource AccentBrush}"
@@ -178,9 +188,13 @@
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
                             <DataGrid x:Name="TracksGrid" ItemsSource="{Binding Tracks}"
-                                      PreviewMouseRightButtonDown="OnGridRightClick">
+                                      PreviewMouseRightButtonDown="OnGridRightClick"
+                                      MouseDoubleClick="OnTracksGridDoubleClick">
                                 <DataGrid.ContextMenu>
                                     <ContextMenu>
+                                        <MenuItem Header="Copy track" Click="OnCopyTrackFromTracks" />
+                                        <MenuItem Header="Copy artist" Click="OnCopyArtistFromTracks" />
+                                        <Separator />
                                         <MenuItem Header="Exclude this track" Click="OnExcludeTrackFromTracks" />
                                         <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromTracks" />
                                     </ContextMenu>
@@ -254,9 +268,12 @@
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
                             <DataGrid x:Name="ArtistsGrid" ItemsSource="{Binding Artists}"
-                                      PreviewMouseRightButtonDown="OnGridRightClick">
+                                      PreviewMouseRightButtonDown="OnGridRightClick"
+                                      MouseDoubleClick="OnArtistsGridDoubleClick">
                                 <DataGrid.ContextMenu>
                                     <ContextMenu>
+                                        <MenuItem Header="Copy artist" Click="OnCopyArtistFromArtists" />
+                                        <Separator />
                                         <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromArtists" />
                                     </ContextMenu>
                                 </DataGrid.ContextMenu>
@@ -326,9 +343,13 @@
 
                         <Border Grid.Row="1" Style="{StaticResource Card}">
                             <DataGrid x:Name="AlbumsGrid" ItemsSource="{Binding Albums}"
-                                      PreviewMouseRightButtonDown="OnGridRightClick">
+                                      PreviewMouseRightButtonDown="OnGridRightClick"
+                                      MouseDoubleClick="OnAlbumsGridDoubleClick">
                                 <DataGrid.ContextMenu>
                                     <ContextMenu>
+                                        <MenuItem Header="Copy album" Click="OnCopyAlbumFromAlbums" />
+                                        <MenuItem Header="Copy artist" Click="OnCopyArtistFromAlbums" />
+                                        <Separator />
                                         <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromAlbums" />
                                     </ContextMenu>
                                 </DataGrid.ContextMenu>
@@ -347,6 +368,150 @@
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Border>
+                    </Grid>
+                </TabItem>
+
+                <!-- YEARS -->
+                <TabItem Header="Years">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="320" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+                        <Border Grid.Row="0" Style="{StaticResource Card}">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Top" Text="Listening Time per Year"
+                                           Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                <lvc:CartesianChart Series="{Binding YearSeries}"
+                                                    Background="Transparent"
+                                                    XAxes="{Binding YearX}" YAxes="{Binding YearY}" />
+                            </DockPanel>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource Card}">
+                            <DataGrid ItemsSource="{Binding Years}">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="Auto" />
+                                    <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N1}"
+                                                        Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                    <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists}" Width="Auto" />
+                                    <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks}" Width="Auto" />
+                                    <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
+                                    <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*" />
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </Border>
+                    </Grid>
+                </TabItem>
+
+                <!-- PODCASTS -->
+                <TabItem Header="Podcasts">
+                    <Grid>
+                        <!-- Nothing to show until an export actually contains shows. -->
+                        <TextBlock Text="No podcasts or audiobooks were found in this history."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   Visibility="{Binding HasNoPodcastData, Converter={StaticResource BoolToVis}}" />
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      Visibility="{Binding HasPodcastData, Converter={StaticResource BoolToVis}}">
+                            <StackPanel>
+                                <UniformGrid Columns="4" Margin="0,6,0,0">
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="TIME LISTENED" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding PodcastTimeText}" FontSize="16" FontWeight="Bold"
+                                                       TextWrapping="Wrap" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="PLAYS" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding PodcastPlaysText}" FontSize="16" FontWeight="Bold" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="SHOWS" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding UniqueShowsText}" FontSize="16" FontWeight="Bold" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
+                                            <TextBlock Text="EPISODES" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding UniqueEpisodesText}" FontSize="16" FontWeight="Bold" />
+                                        </StackPanel>
+                                    </Border>
+                                </UniformGrid>
+
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Top Shows and Audiobooks (top 20)"
+                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                        <lvc:CartesianChart Series="{Binding ShowSeries}"
+                                                            Background="Transparent"
+                                                            Height="{Binding ShowsChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            XAxes="{Binding ShowX}" YAxes="{Binding ShowY}" />
+                                    </DockPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Top Episodes and Chapters (top 20)"
+                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                        <lvc:CartesianChart Series="{Binding EpisodeSeries}"
+                                                            Background="Transparent"
+                                                            Height="{Binding EpisodesChartHeight}"
+                                                            TooltipPosition="Hidden"
+                                                            XAxes="{Binding EpisodeX}" YAxes="{Binding EpisodeY}" />
+                                    </DockPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}" Height="320">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Shows" Style="{StaticResource SectionHeader}"
+                                                   Margin="0,0,0,8" />
+                                        <DataGrid ItemsSource="{Binding Shows}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="2*" />
+                                                <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="Auto" />
+                                                <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
+                                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                <DataGridTextColumn Header="Episodes" Binding="{Binding EpisodeCount}" Width="Auto" />
+                                                <DataGridTextColumn Header="First Played"
+                                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}"
+                                                                    Width="Auto" />
+                                                <DataGridTextColumn Header="Last Played"
+                                                                    Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
+                                                                    Width="Auto" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}" Height="320">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Episodes" Style="{StaticResource SectionHeader}"
+                                                   Margin="0,0,0,8" />
+                                        <DataGrid ItemsSource="{Binding Episodes}">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Episode" Binding="{Binding Episode}" Width="2*" />
+                                                <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="*" />
+                                                <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
+                                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                <DataGridTextColumn Header="First Played"
+                                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}"
+                                                                    Width="Auto" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </TabItem>
 
@@ -393,6 +558,16 @@
                             </Border>
                             <Border Style="{StaticResource Card}" Height="300">
                                 <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="New Artists Discovered per Month"
+                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                                    <lvc:CartesianChart Series="{Binding DiscoverySeries}"
+                                                        Background="Transparent"
+                                                        XAxes="{Binding DiscoveryX}" YAxes="{Binding DiscoveryY}"
+                                                        TooltipPosition="Top" />
+                                </DockPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Height="300">
+                                <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Text="Listening by Hour of Day"
                                                Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
                                     <lvc:CartesianChart Series="{Binding HourSeries}"
@@ -424,6 +599,15 @@
                                         <TextBlock Text="{Binding LongestStreakText}" FontSize="16" FontWeight="Bold"
                                                    TextWrapping="Wrap" />
                                         <TextBlock Text="Consecutive days with listening."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="CURRENT STREAK" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding CurrentStreakText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Consecutive days ending on your most recent listening day."
                                                    Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
                                     </StackPanel>
                                 </Border>
@@ -463,6 +647,49 @@
                                 </Border>
                                 <Border Style="{StaticResource Card}">
                                     <StackPanel>
+                                        <TextBlock Text="LISTENING SESSIONS" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding SessionsText}" FontSize="16" FontWeight="Bold" />
+                                        <TextBlock Text="Runs of plays separated by breaks of 30+ minutes."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="AVERAGE SESSION" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding AvgSessionText}" FontSize="16" FontWeight="Bold" />
+                                        <TextBlock Text="Listening time in a typical session."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="LONGEST SESSION" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding LongestSessionText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Your single biggest uninterrupted listening stretch."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="WEEKDAYS VS WEEKENDS" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding WeekSplitText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="How your listening splits across the week."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="FAVORITE TIME OF DAY" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding TimeOfDayText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="The six-hour window you listen in most."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
                                         <TextBlock Text="SKIP RATE" Style="{StaticResource Caption}" />
                                         <TextBlock Text="{Binding SkipRateText}" FontSize="16" FontWeight="Bold"
                                                    TextWrapping="Wrap" />
@@ -471,6 +698,66 @@
                                     </StackPanel>
                                 </Border>
                             </UniformGrid>
+
+                            <UniformGrid Columns="3" Margin="0,6,0,0">
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="SHUFFLE RATE" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding ShuffleRateText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Plays that started in shuffle mode."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="OFFLINE LISTENING" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding OfflineRateText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Plays from downloads, with no connection."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}">
+                                    <StackPanel>
+                                        <TextBlock Text="TOP DEVICE" Style="{StaticResource Caption}" />
+                                        <TextBlock Text="{Binding TopDeviceText}" FontSize="16" FontWeight="Bold"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="Where most of your listening happens."
+                                                   Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,3,0,0" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <Border Style="{StaticResource Card}" Height="440">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="Why Plays Ended (short plays included)"
+                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                    <lvc:PieChart Series="{Binding ReasonEndSeries}"
+                                                  Background="Transparent"
+                                                  LegendPosition="Right" LegendTextSize="12" />
+                                </DockPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Height="400">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="Listening by Device"
+                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                    <lvc:PieChart Series="{Binding PlatformSeries}"
+                                                  Background="Transparent"
+                                                  LegendPosition="Right" LegendTextSize="12" />
+                                </DockPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource Card}" Height="400">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Top" Text="Listening by Country"
+                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                    <lvc:PieChart Series="{Binding CountrySeries}"
+                                                  Background="Transparent"
+                                                  LegendPosition="Right" LegendTextSize="12" />
+                                </DockPanel>
+                            </Border>
 
                             <Border Style="{StaticResource Card}" Height="560">
                                 <DockPanel>
