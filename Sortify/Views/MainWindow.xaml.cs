@@ -23,6 +23,16 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         DataContext = new MainViewModel();
+        Loaded += OnLoaded;
+    }
+
+    // Reopen last session's folder once the window is up, so the user sees the shell (and
+    // the loading status) rather than a blank pause before it appears.
+    private async void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        if (ViewModel is { } vm)
+            await vm.RestoreLastFolderAsync();
     }
 
     // Fade + slide the tab body in whenever the user switches tabs. Filtered to the
@@ -93,20 +103,32 @@ public partial class MainWindow : Window
             ViewModel?.LoadMoreAlbums();
     }
 
-    // ---- Drag & drop of history JSON files ------------------------------------------------
+    // ---- Drag & drop of history JSON files (or folders containing them) ---------------------
 
     private static string[] DroppedJsonFiles(DragEventArgs e)
     {
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] files)
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] items)
             return Array.Empty<string>();
-        return files
-            .Where(f => string.Equals(Path.GetExtension(f), ".json", StringComparison.OrdinalIgnoreCase))
-            .ToArray();
+
+        var files = new List<string>();
+        foreach (var item in items)
+        {
+            if (Directory.Exists(item))
+                files.AddRange(HistoryParser.FindHistoryFiles(item));
+            else if (string.Equals(Path.GetExtension(item), ".json", StringComparison.OrdinalIgnoreCase))
+                files.Add(item);
+        }
+        return files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
     private void OnFileDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = DroppedJsonFiles(e).Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        // DragOver fires continuously while hovering, so keep this check cheap:
+        // accept folders and .json files without scanning folder contents yet.
+        bool accept = e.Data.GetData(DataFormats.FileDrop) is string[] items &&
+                      items.Any(i => Directory.Exists(i) ||
+                                     string.Equals(Path.GetExtension(i), ".json", StringComparison.OrdinalIgnoreCase));
+        e.Effects = accept ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
@@ -168,6 +190,82 @@ public partial class MainWindow : Window
     {
         if (AlbumsGrid.SelectedItem is AlbumStat a)
             ViewModel?.ExcludeArtistFromGrid(a.Artist);
+    }
+
+    // ---- Drill-down --------------------------------------------------------------------------
+
+    private async void OnTracksGridDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (TracksGrid.SelectedItem is TrackStat t)
+            await ShowDetailAsync(DetailScope.Track, t.Track, t.Artist);
+    }
+
+    private async void OnArtistsGridDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (ArtistsGrid.SelectedItem is ArtistStat a)
+            await ShowDetailAsync(DetailScope.Artist, a.Artist, string.Empty);
+    }
+
+    private async void OnAlbumsGridDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (AlbumsGrid.SelectedItem is AlbumStat a)
+            await ShowDetailAsync(DetailScope.Album, a.Album, a.Artist);
+    }
+
+    private async Task ShowDetailAsync(DetailScope scope, string title, string subtitle)
+    {
+        if (ViewModel is not { } vm)
+            return;
+
+        var detail = await vm.BuildDetailAsync(scope, title, subtitle);
+        if (detail is null || detail.PlayCount == 0)
+            return;
+
+        new DetailWindow(detail) { Owner = this }.ShowDialog();
+    }
+
+    // ---- Copy to clipboard -------------------------------------------------------------------
+
+    private static void TryCopy(string text)
+    {
+        try
+        {
+            Clipboard.SetDataObject(text);
+        }
+        catch (Exception)
+        {
+            // The clipboard can be locked by another process; copying is best-effort.
+        }
+    }
+
+    private void OnCopyTrackFromTracks(object sender, RoutedEventArgs e)
+    {
+        if (TracksGrid.SelectedItem is TrackStat t)
+            TryCopy($"{t.Track} - {t.Artist}");
+    }
+
+    private void OnCopyArtistFromTracks(object sender, RoutedEventArgs e)
+    {
+        if (TracksGrid.SelectedItem is TrackStat t)
+            TryCopy(t.Artist);
+    }
+
+    private void OnCopyArtistFromArtists(object sender, RoutedEventArgs e)
+    {
+        if (ArtistsGrid.SelectedItem is ArtistStat a)
+            TryCopy(a.Artist);
+    }
+
+    private void OnCopyAlbumFromAlbums(object sender, RoutedEventArgs e)
+    {
+        if (AlbumsGrid.SelectedItem is AlbumStat a)
+            TryCopy($"{a.Album} - {a.Artist}");
+    }
+
+    private void OnCopyArtistFromAlbums(object sender, RoutedEventArgs e)
+    {
+        if (AlbumsGrid.SelectedItem is AlbumStat a)
+            TryCopy(a.Artist);
     }
 
     // ---- Listening-over-time granularity toggle ---------------------------------------------

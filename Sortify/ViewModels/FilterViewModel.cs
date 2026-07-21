@@ -16,6 +16,7 @@ public sealed partial class FilterViewModel : ObservableObject
     private bool _suppress;
 
     [ObservableProperty] private int _minSeconds = FilterOptions.DefaultMinMs / 1000;
+    [ObservableProperty] private bool _includePodcasts;
     [ObservableProperty] private DateTime? _startDate;
     [ObservableProperty] private DateTime? _endDate;
     [ObservableProperty] private string _searchTerm = string.Empty;
@@ -47,6 +48,7 @@ public sealed partial class FilterViewModel : ObservableObject
     }
 
     partial void OnMinSecondsChanged(int value) => Raise();
+    partial void OnIncludePodcastsChanged(bool value) => Raise();
     partial void OnStartDateChanged(DateTime? value) => Raise();
     partial void OnEndDateChanged(DateTime? value) => Raise();
     partial void OnSearchTermChanged(string value) => Raise();
@@ -64,7 +66,9 @@ public sealed partial class FilterViewModel : ObservableObject
     {
         var opts = new FilterOptions
         {
-            MinMsPlayed = Math.Max(0, MinSeconds) * 1000,
+            // long math + clamp so an absurd seconds value can't overflow to a negative cutoff.
+            MinMsPlayed = (int)Math.Clamp(MinSeconds * 1000L, 0L, int.MaxValue),
+            IncludePodcasts = IncludePodcasts,
             StartDate = StartDate?.Date,
             EndDate = EndDate?.Date.AddDays(1).AddTicks(-1),
             SearchTerm = SearchTerm ?? string.Empty,
@@ -124,6 +128,7 @@ public sealed partial class FilterViewModel : ObservableObject
     {
         _suppress = true;
         MinSeconds = FilterOptions.DefaultMinMs / 1000;
+        IncludePodcasts = false;
         StartDate = null;
         EndDate = null;
         SearchTerm = string.Empty;

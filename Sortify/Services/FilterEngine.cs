@@ -12,8 +12,15 @@ public static class FilterEngine
     public static IEnumerable<PlayRecord> Apply(
         IEnumerable<PlayRecord> records, FilterOptions filter, bool ignoreMinDuration = false)
     {
+        // Hoist per-filter invariants out of the per-record loop; HasAllDaysSelected in
+        // particular walks the day array, which adds up over hundreds of thousands of rows.
         bool hasSearch = !string.IsNullOrWhiteSpace(filter.SearchTerm);
         string search = filter.SearchTerm.Trim();
+        bool allDays = filter.HasAllDaysSelected;
+        bool fullHours = filter.HasFullHourRange;
+        bool hasExcludedArtists = filter.ExcludedArtists.Count > 0;
+        bool hasExcludedTracks = filter.ExcludedTracks.Count > 0;
+        bool checkTimeOfDay = !fullHours || !allDays;
 
         foreach (var r in records)
         {
@@ -26,29 +33,43 @@ public static class FilterEngine
             if (filter.EndDate is { } end && r.Timestamp > end)
                 continue;
 
-            if (filter.ExcludedArtists.Contains(r.ArtistName))
+            if (hasExcludedArtists && filter.ExcludedArtists.Contains(r.ArtistName))
                 continue;
 
-            if (filter.ExcludedTracks.Contains(r.TrackName))
+            if (hasExcludedTracks && filter.ExcludedTracks.Contains(r.TrackName))
                 continue;
 
             // Time-of-day / day-of-week only apply when a real timestamp exists.
-            if (r.Timestamp != DateTime.MinValue)
+            if (checkTimeOfDay && r.Timestamp != DateTime.MinValue)
             {
-                if (!filter.HourMatches(r.Timestamp.Hour))
+                if (!fullHours && !filter.HourMatches(r.Timestamp.Hour))
                     continue;
 
-                if (!filter.HasAllDaysSelected && !filter.IncludedDaysOfWeek[(int)r.Timestamp.DayOfWeek])
+                if (!allDays && !filter.IncludedDaysOfWeek[(int)r.Timestamp.DayOfWeek])
                     continue;
             }
 
-            if (hasSearch &&
-                r.TrackName.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0 &&
-                r.ArtistName.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0 &&
-                r.AlbumName.IndexOf(search, StringComparison.OrdinalIgnoreCase) < 0)
+            if (hasSearch && !Matches(r, search))
                 continue;
 
             yield return r;
         }
+    }
+
+    /// <summary>
+    /// Searches the fields that carry a name for this record's kind: track/artist/album for
+    /// music, show/episode (or audiobook/chapter) titles otherwise.
+    /// </summary>
+    private static bool Matches(PlayRecord r, string search)
+    {
+        if (r.Kind == ContentKind.Music)
+        {
+            return r.TrackName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || r.ArtistName.Contains(search, StringComparison.OrdinalIgnoreCase)
+                || r.AlbumName.Contains(search, StringComparison.OrdinalIgnoreCase);
+        }
+
+        return r.ShowName.Contains(search, StringComparison.OrdinalIgnoreCase)
+            || r.EpisodeName.Contains(search, StringComparison.OrdinalIgnoreCase);
     }
 }

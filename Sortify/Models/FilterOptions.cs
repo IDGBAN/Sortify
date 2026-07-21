@@ -11,10 +11,17 @@ public sealed class FilterOptions
     /// <summary>Minimum ms_played for a record to be counted.</summary>
     public int MinMsPlayed { get; set; } = DefaultMinMs;
 
-    /// <summary>Inclusive start of the date range (UTC). Null = no lower bound.</summary>
+    /// <summary>
+    /// When false (the default) only music plays feed the track/artist/album statistics,
+    /// so podcasts and audiobooks can't distort them. The Podcasts tab reads its own
+    /// aggregates and is unaffected by this.
+    /// </summary>
+    public bool IncludePodcasts { get; set; }
+
+    /// <summary>Inclusive start of the date range (local time, matching record timestamps). Null = no lower bound.</summary>
     public DateTime? StartDate { get; set; }
 
-    /// <summary>Inclusive end of the date range (UTC). Null = no upper bound.</summary>
+    /// <summary>Inclusive end of the date range (local time, matching record timestamps). Null = no upper bound.</summary>
     public DateTime? EndDate { get; set; }
 
     /// <summary>Case-insensitive substring matched against track, artist or album name. Empty = no search filter.</summary>

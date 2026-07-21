@@ -1,0 +1,118 @@
+<Window x:Class="Sortify.Views.DetailWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+        Title="Details" Height="760" Width="1080"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <DockPanel Grid.Row="0" Margin="0,0,0,10">
+            <Button DockPanel.Dock="Right" Content="Open in Spotify" Click="OnOpenInSpotify"
+                    Padding="12,6" VerticalAlignment="Top" />
+            <StackPanel>
+                <TextBlock x:Name="TitleText" FontSize="22" FontWeight="Bold"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock x:Name="SubtitleText" Foreground="{StaticResource MutedBrush}"
+                           FontSize="13" Margin="0,2,0,0" />
+            </StackPanel>
+        </DockPanel>
+
+        <!-- Summary cards -->
+        <UniformGrid Grid.Row="1" Columns="5">
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="TIME LISTENED" Style="{StaticResource Caption}" />
+                    <TextBlock x:Name="TotalTimeText" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="PLAYS" Style="{StaticResource Caption}" />
+                    <TextBlock x:Name="PlaysText" FontSize="15" FontWeight="Bold" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="ACTIVE DAYS" Style="{StaticResource Caption}" />
+                    <TextBlock x:Name="ActiveDaysText" FontSize="15" FontWeight="Bold" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="FIRST PLAYED" Style="{StaticResource Caption}" />
+                    <TextBlock x:Name="FirstPlayedText" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+            <Border Style="{StaticResource Card}">
+                <StackPanel>
+                    <TextBlock Text="LAST PLAYED" Style="{StaticResource Caption}" />
+                    <TextBlock x:Name="LastPlayedText" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Border Style="{StaticResource Card}" Height="280">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Listening Over Time (monthly)"
+                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                        <lvc:CartesianChart x:Name="MonthChart" Background="Transparent" TooltipPosition="Top" />
+                    </DockPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Height="260">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Listening by Hour of Day"
+                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
+                        <lvc:CartesianChart x:Name="HourChart" Background="Transparent" />
+                    </DockPanel>
+                </Border>
+
+                <Border x:Name="TracksCard" Style="{StaticResource Card}" Height="300">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Tracks" Style="{StaticResource SectionHeader}"
+                                   Margin="0,0,0,8" />
+                        <DataGrid x:Name="TracksGrid">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
+                                <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
+                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                <DataGridTextColumn Header="First Played"
+                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                                <DataGridTextColumn Header="Last Played"
+                                                    Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <Border x:Name="AlbumsCard" Style="{StaticResource Card}" Height="260">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Albums" Style="{StaticResource SectionHeader}"
+                                   Margin="0,0,0,8" />
+                        <DataGrid x:Name="AlbumsGrid">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" />
+                                <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
+                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                <DataGridTextColumn Header="First Played"
+                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>

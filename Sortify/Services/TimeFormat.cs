@@ -21,4 +21,7 @@ public static class TimeFormat
     }
 
     public static string Timestamp(DateTime dt) => dt.ToString("yyyy-MM-dd HH:mm");
+
+    /// <summary>Null-tolerant variant used by exports; empty string when no timestamp exists.</summary>
+    public static string Timestamp(DateTime? dt) => dt is { } d ? Timestamp(d) : string.Empty;
 }
