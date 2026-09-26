@@ -64,7 +64,7 @@ public sealed class AppSettings
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    private static string SettingsFile => Path.Combine(RecordCache.CacheDirectory, "settings.json");
+    private static string SettingsFile => Path.Combine(AppPaths.DataDirectory, "settings.json");
 
     public static AppSettings Load()
     {
@@ -89,7 +89,7 @@ public sealed class AppSettings
         try
         {
             Normalize();
-            Directory.CreateDirectory(RecordCache.CacheDirectory);
+            Directory.CreateDirectory(AppPaths.DataDirectory);
             File.WriteAllText(SettingsFile, JsonSerializer.Serialize(this, JsonOptions));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException

@@ -184,7 +184,7 @@ public class RecordCacheTests : IDisposable
         var file = WriteFile("a.json");
         RecordCache.TrySave(new[] { file }, new[] { Music() });
 
-        var cachePath = Path.Combine(RecordCache.CacheDirectory, "records.cache");
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
         File.WriteAllBytes(cachePath, bytes[..(bytes.Length / 2)]);
 
@@ -195,8 +195,8 @@ public class RecordCacheTests : IDisposable
     public void GarbageCache_IsTreatedAsAMiss()
     {
         var file = WriteFile("a.json");
-        Directory.CreateDirectory(RecordCache.CacheDirectory);
-        File.WriteAllText(Path.Combine(RecordCache.CacheDirectory, "records.cache"), "not a cache file");
+        Directory.CreateDirectory(AppPaths.DataDirectory);
+        File.WriteAllText(Path.Combine(AppPaths.DataDirectory, "records.cache"), "not a cache file");
 
         Assert.Null(RecordCache.TryLoad(new[] { file }));
     }
@@ -210,7 +210,7 @@ public class RecordCacheTests : IDisposable
         // Header layout: magic, format version, then the length-prefixed key, then the
         // record count. Overwriting the count is what a truncated write or a bit flip does,
         // and the reader must not try to allocate a list that size.
-        var cachePath = Path.Combine(RecordCache.CacheDirectory, "records.cache");
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
         int keyLength = RecordCache.BuildKey(new[] { file }).Length;
         int countOffset = 6 + sizeof(int) + 1 + keyLength;
@@ -227,7 +227,7 @@ public class RecordCacheTests : IDisposable
         var file = WriteFile("a.json");
         RecordCache.TrySave(new[] { file }, new[] { Music() });
 
-        var cachePath = Path.Combine(RecordCache.CacheDirectory, "records.cache");
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
         int keyLength = RecordCache.BuildKey(new[] { file }).Length;
         int poolOffset = 6 + sizeof(int) + 1 + keyLength + sizeof(int);
@@ -272,7 +272,7 @@ public class RecordCacheTests : IDisposable
 
         // Five continuation bytes are not a valid 7-bit length, which BinaryReader reports
         // with a FormatException rather than an IOException.
-        var cachePath = Path.Combine(RecordCache.CacheDirectory, "records.cache");
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
         new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }.CopyTo(bytes, FirstRecordOffset(bytes));
         File.WriteAllBytes(cachePath, bytes);
@@ -288,7 +288,7 @@ public class RecordCacheTests : IDisposable
 
         // Track, artist and album strings, ms played, ticks, the reason flag plus
         // "trackdone", then the skipped flag; the kind byte follows.
-        var cachePath = Path.Combine(RecordCache.CacheDirectory, "records.cache");
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
         int kindOffset = FirstRecordOffset(bytes) + 2 + 2 + 3 + sizeof(int) + sizeof(long) + 1 + 10 + 1;
         Assert.Equal((byte)ContentKind.Music, bytes[kindOffset]);

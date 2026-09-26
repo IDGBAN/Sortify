@@ -45,7 +45,7 @@ public partial class App : Application
             MainWindow,
             $"Something went wrong:\n\n{e.Exception.Message}\n\n" +
             "The app is still running - if it is behaving oddly, restart it. " +
-            $"Details were written to the log in {RecordCache.CacheDirectory}.",
+            $"Details were written to the log in {AppPaths.DataDirectory}.",
             "Sortify", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
@@ -53,9 +53,8 @@ public partial class App : Application
     {
         try
         {
-            Directory.CreateDirectory(RecordCache.CacheDirectory);
-            var path = Path.Combine(RecordCache.CacheDirectory, "error.log");
-            File.AppendAllText(path, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {exception}{Environment.NewLine}{Environment.NewLine}");
+            Directory.CreateDirectory(AppPaths.DataDirectory);
+            File.AppendAllText(AppPaths.ErrorLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {exception}{Environment.NewLine}{Environment.NewLine}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

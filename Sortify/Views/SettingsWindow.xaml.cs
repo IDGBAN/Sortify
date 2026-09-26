@@ -37,7 +37,7 @@ public partial class SettingsWindow : Window
         GapSlider.Value = _settings.SessionGapMinutes;
         GapValue.Text = _settings.SessionGapMinutes.ToString();
 
-        FolderText.Text = RecordCache.CacheDirectory;
+        FolderText.Text = AppPaths.DataDirectory;
         VersionText.Text = $"Sortify {Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?"}";
         RefreshCacheText();
         RefreshRecentText();
@@ -114,8 +114,8 @@ public partial class SettingsWindow : Window
     {
         try
         {
-            Directory.CreateDirectory(RecordCache.CacheDirectory);
-            Process.Start(new ProcessStartInfo(RecordCache.CacheDirectory) { UseShellExecute = true });
+            Directory.CreateDirectory(AppPaths.DataDirectory);
+            Process.Start(new ProcessStartInfo(AppPaths.DataDirectory) { UseShellExecute = true });
         }
         // The shell throws Win32Exception when no handler is registered, which is not an
         // IOException and would otherwise reach the app-level crash dialog.

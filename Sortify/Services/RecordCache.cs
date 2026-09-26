@@ -25,11 +25,7 @@ public static class RecordCache
 
     private static readonly byte[] Magic = "SRTFY\0"u8.ToArray();
 
-    /// <summary>%LOCALAPPDATA%\Sortify — created on demand.</summary>
-    public static string CacheDirectory { get; } = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Sortify");
-
-    private static string CacheFile => Path.Combine(CacheDirectory, "records.cache");
+    private static string CacheFile => Path.Combine(AppPaths.DataDirectory, "records.cache");
 
     /// <summary>
     /// Fingerprints the source files. Two runs over an unchanged export produce the same
@@ -158,7 +154,7 @@ public static class RecordCache
         var temp = CacheFile + ".tmp";
         try
         {
-            Directory.CreateDirectory(CacheDirectory);
+            Directory.CreateDirectory(AppPaths.DataDirectory);
 
             // Write to a temp file and move into place, so an interrupted save can't leave a
             // half-written cache behind.
