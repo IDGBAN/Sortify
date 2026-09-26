@@ -41,8 +41,10 @@
     </Style>
 
     <!-- ======================= TextBlocks / labels ===================== -->
+    <!-- No Foreground here. An implicit TextBlock style also reaches the TextBlocks that
+         ContentPresenter generates inside control templates, so a colour set here would
+         override every button and toggle foreground. Windows set TextBrush at the root. -->
     <Style TargetType="TextBlock">
-        <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="FontFamily" Value="Segoe UI" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Ideal" />
     </Style>

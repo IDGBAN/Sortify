@@ -9,7 +9,7 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         mc:Ignorable="d"
         Title="Sortify" Height="900" Width="1500" MinHeight="620" MinWidth="900"
-        Background="{DynamicResource BgBrush}"
+        Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterScreen" Opacity="0"
         AllowDrop="True" Drop="OnFileDrop" DragOver="OnFileDragOver">
 
