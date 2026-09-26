@@ -24,13 +24,16 @@ public sealed class FilterOptions
     /// <summary>Inclusive end of the date range (local time, matching record timestamps). Null = no upper bound.</summary>
     public DateTime? EndDate { get; set; }
 
-    /// <summary>Case-insensitive substring matched against track, artist or album name. Empty = no search filter.</summary>
+    /// <summary>
+    /// Case-insensitive substring matched against track, artist or album name (show or
+    /// episode name for podcasts and audiobooks). Empty = no search filter.
+    /// </summary>
     public string SearchTerm { get; set; } = string.Empty;
 
-    /// <summary>Artist names to exclude entirely (case-insensitive).</summary>
+    /// <summary>Artist names to exclude entirely (case-insensitive). Matches a podcast's show name.</summary>
     public HashSet<string> ExcludedArtists { get; } = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Track names to exclude entirely (case-insensitive).</summary>
+    /// <summary>Track names to exclude entirely (case-insensitive). Matches a podcast's episode name.</summary>
     public HashSet<string> ExcludedTracks { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Inclusive start hour of day (0-23).</summary>

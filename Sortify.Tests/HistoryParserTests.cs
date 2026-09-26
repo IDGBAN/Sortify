@@ -298,6 +298,18 @@ public class HistoryParserTests : IDisposable
     }
 
     [Fact]
+    public async Task FindHistoryFiles_StillFindsHiddenFiles()
+    {
+        // EnumerationOptions skips hidden files unless told otherwise; the scan must keep
+        // finding what the older SearchOption-based enumeration did.
+        var path = Path.Combine(_dir, "Streaming_History_Audio_2023.json");
+        await File.WriteAllTextAsync(path, "[]");
+        File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden);
+
+        Assert.Single(HistoryParser.FindHistoryFiles(_dir));
+    }
+
+    [Fact]
     public void FindHistoryFiles_MissingFolderReturnsEmpty()
     {
         Assert.Empty(HistoryParser.FindHistoryFiles(Path.Combine(_dir, "nope")));

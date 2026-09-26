@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Sortify.Services;
 
 /// <summary>Shared formatting helpers for durations and timestamps.</summary>
@@ -20,7 +22,11 @@ public static class TimeFormat
         return $"{td.Minutes}m {td.Seconds}s";
     }
 
-    public static string Timestamp(DateTime dt) => dt.ToString("yyyy-MM-dd HH:mm");
+    /// <summary>
+    /// Invariant because ':' in a custom format is the culture's time separator, and these
+    /// strings end up in CSV files that other tools parse.
+    /// </summary>
+    public static string Timestamp(DateTime dt) => dt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture);
 
     /// <summary>Null-tolerant variant used by exports; empty string when no timestamp exists.</summary>
     public static string Timestamp(DateTime? dt) => dt is { } d ? Timestamp(d) : string.Empty;

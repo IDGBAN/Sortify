@@ -183,6 +183,18 @@ public class DetailEngineTests
     }
 
     [Fact]
+    public void WebUrl_EscapesTheUriParts()
+    {
+        // The URI is read from a file and ends up handed to the shell, so a crafted one
+        // must not be able to smuggle extra path segments, a query or spaces through.
+        var records = new[] { Record(track: "A", artist: "X", uri: "spotify:track:abc/../x?y z") };
+
+        var d = DetailEngine.Build(records, NoFilter, DetailScope.Track, "A", "X");
+
+        Assert.Equal("https://open.spotify.com/track/abc%2F..%2Fx%3Fy%20z", d.WebUrl);
+    }
+
+    [Fact]
     public void WebUrl_IgnoresMalformedUris()
     {
         var records = new[] { Record(track: "A", artist: "X", uri: "spotify:track:") };

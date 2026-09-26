@@ -1,0 +1,93 @@
+<Window x:Class="Sortify.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings" Height="660" Width="520"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        Background="{DynamicResource BgBrush}"
+        Foreground="{DynamicResource TextBrush}">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <!-- Appearance -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Appearance" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+
+                        <TextBlock Text="THEME" Style="{StaticResource Caption}" />
+                        <ComboBox x:Name="ThemeBox" SelectionChanged="OnThemeChanged"
+                                  AutomationProperties.Name="Theme">
+                            <ComboBoxItem Content="Follow Windows" Tag="System" />
+                            <ComboBoxItem Content="Dark" Tag="Dark" />
+                            <ComboBoxItem Content="Light" Tag="Light" />
+                        </ComboBox>
+
+                        <CheckBox x:Name="AnimateBox" Content="Animate charts" Margin="0,14,0,0"
+                                  Checked="OnAnimateChanged" Unchecked="OnAnimateChanged" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Turn this off if charts feel sluggish on a very large history." />
+                    </StackPanel>
+                </Border>
+
+                <!-- Data -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Data" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+
+                        <CheckBox x:Name="ReopenBox" Content="Reopen the last folder on launch"
+                                  Checked="OnReopenChanged" Unchecked="OnReopenChanged" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Loads your most recent export automatically when Sortify starts." />
+
+                        <TextBlock Style="{StaticResource Caption}" Margin="0,14,0,3">
+                            <Run Text="SESSION GAP: " />
+                            <Run x:Name="GapValue" FontWeight="Bold" />
+                            <Run Text=" minutes" />
+                        </TextBlock>
+                        <!-- Range comes from AppSettings so the slider can always reach every
+                             value the settings file accepts. -->
+                        <Slider x:Name="GapSlider" TickFrequency="1"
+                                AutomationProperties.Name="Session gap in minutes"
+                                IsSnapToTickEnabled="True" ValueChanged="OnGapChanged" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="A break longer than this starts a new listening session. Affects the session counts on the Insights tab." />
+                    </StackPanel>
+                </Border>
+
+                <!-- Storage -->
+                <Border Style="{StaticResource Card}">
+                    <StackPanel>
+                        <TextBlock Text="Storage" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+
+                        <TextBlock x:Name="CacheText" Style="{StaticResource Hint}" Margin="0,0,0,10" />
+
+                        <WrapPanel>
+                            <Button x:Name="ClearCacheButton" Content="Clear cache" Click="OnClearCache"
+                                    ToolTip="Delete the parsed-history cache. The next load re-reads your JSON files." />
+                            <Button x:Name="ClearRecentButton" Content="Clear recent folders" Click="OnClearRecent"
+                                    ToolTip="Forget the folders in the Recent menu." />
+                            <Button Content="Open data folder" Click="OnOpenDataFolder"
+                                    ToolTip="Everything Sortify stores lives here." />
+                        </WrapPanel>
+
+                        <TextBlock x:Name="RecentText" Style="{StaticResource Hint}" Margin="0,10,0,0" />
+
+                        <TextBlock x:Name="FolderText" Style="{StaticResource Hint}" Margin="0,10,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <TextBlock x:Name="VersionText" Style="{StaticResource Hint}"
+                           HorizontalAlignment="Center" Margin="0,14,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <DockPanel Grid.Row="1" LastChildFill="False" Margin="0,12,0,0">
+            <Button DockPanel.Dock="Right" Content="Close" Style="{StaticResource AccentButton}"
+                    Margin="0" Padding="24,8" IsDefault="True" IsCancel="True" Click="OnClose" />
+        </DockPanel>
+    </Grid>
+</Window>

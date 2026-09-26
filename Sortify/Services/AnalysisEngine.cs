@@ -10,27 +10,39 @@ namespace Sortify.Services;
 /// </summary>
 public static class AnalysisEngine
 {
-    /// <summary>Plays separated by more than this gap belong to different listening sessions.</summary>
+    /// <summary>
+    /// Default gap between plays that starts a new listening session. Configurable per run;
+    /// see the <c>sessionGap</c> parameter on <see cref="Analyze"/>.
+    /// </summary>
     public static readonly TimeSpan SessionGap = TimeSpan.FromMinutes(30);
 
     /// <summary>Runs aggregation on a background thread so the UI stays responsive.</summary>
     public static Task<AnalysisResult> AnalyzeAsync(
         IReadOnlyList<PlayRecord> records,
         FilterOptions filter,
+        TimeSpan? sessionGap = null,
         CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => Analyze(records, filter, cancellationToken), cancellationToken);
+        return Task.Run(() => Analyze(records, filter, sessionGap, cancellationToken), cancellationToken);
     }
 
+    /// <param name="sessionGap">
+    /// Silence longer than this ends a listening session. Defaults to
+    /// <see cref="SessionGap"/> when null.
+    /// </param>
     public static AnalysisResult Analyze(
         IReadOnlyList<PlayRecord> records,
         FilterOptions filter,
+        TimeSpan? sessionGap = null,
         CancellationToken cancellationToken = default)
     {
+        // Tracks and albums are keyed by (name, artist) so the same title by two artists stays
+        // two rows. A tuple rather than a joined string: joining allocates a fresh key for
+        // every play, which on a large history is most of what a pass allocates.
         var artists = new Dictionary<string, ArtistStat>(StringComparer.Ordinal);
-        var tracks = new Dictionary<string, TrackStat>(StringComparer.Ordinal);
-        var albums = new Dictionary<string, AlbumStat>(StringComparer.Ordinal);
-        var skips = new Dictionary<string, (int Plays, int Skips)>(StringComparer.Ordinal);
+        var tracks = new Dictionary<(string Track, string Artist), TrackStat>();
+        var albums = new Dictionary<(string Album, string Artist), AlbumStat>();
+        var skips = new Dictionary<(string Track, string Artist), (int Plays, int Skips)>();
         var reasons = new Dictionary<string, ReasonEndStat>(StringComparer.OrdinalIgnoreCase);
         var years = new Dictionary<int, YearAccumulator>();
         var byDay = new Dictionary<DateTime, long>();
@@ -41,7 +53,7 @@ public static class AnalysisEngine
 
         var shows = new Dictionary<string, ShowStat>(StringComparer.Ordinal);
         var showEpisodeKeys = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
-        var episodes = new Dictionary<string, EpisodeStat>(StringComparer.Ordinal);
+        var episodes = new Dictionary<(string Episode, string Show), EpisodeStat>();
         var platforms = new Dictionary<string, ContextStat>(StringComparer.Ordinal);
         var countries = new Dictionary<string, ContextStat>(StringComparer.OrdinalIgnoreCase);
 
@@ -49,6 +61,7 @@ public static class AnalysisEngine
         long totalMs = 0;
         int skipEligiblePlays = 0;
         int totalSkips = 0;
+        int completedPlays = 0;
         long podcastMs = 0;
         int podcastPlays = 0;
         int shufflePlays = 0;
@@ -109,12 +122,14 @@ public static class AnalysisEngine
             string artistName = isMusic ? r.ArtistName : r.ShowName;
             string albumName = isMusic ? r.AlbumName : r.ShowName;
 
-            var trackKey = trackName + "\n" + artistName;
+            var trackKey = (trackName, artistName);
 
             // ---- Relaxed-duration statistics: skips and end reasons -------------------------
             skipEligiblePlays++;
             if (r.Skipped)
                 totalSkips++;
+            if (string.Equals(r.ReasonEnd, "trackdone", StringComparison.OrdinalIgnoreCase))
+                completedPlays++;
 
             // Counted as a plain value tuple: allocating a SkippedTrackStat per unique track
             // wastes one object for every track that was never skipped, which is most of them.
@@ -146,7 +161,6 @@ public static class AnalysisEngine
             artist.TotalMsPlayed += r.MsPlayed;
             artist.PlayCount++;
 
-            // Track aggregate keyed by "track\nartist" to avoid collisions across artists.
             if (!tracks.TryGetValue(trackKey, out var track))
             {
                 track = new TrackStat { Track = trackName, Artist = artistName };
@@ -155,8 +169,7 @@ public static class AnalysisEngine
             track.TotalMsPlayed += r.MsPlayed;
             track.PlayCount++;
 
-            // Album aggregate keyed the same way.
-            var albumKey = albumName + "\n" + artistName;
+            var albumKey = (albumName, artistName);
             if (!albums.TryGetValue(albumKey, out var album))
             {
                 album = new AlbumStat { Album = albumName, Artist = artistName };
@@ -165,34 +178,35 @@ public static class AnalysisEngine
             album.TotalMsPlayed += r.MsPlayed;
             album.PlayCount++;
 
-            if (r.Timestamp != DateTime.MinValue)
+            var ts = r.Timestamp;
+            if (ts != DateTime.MinValue)
             {
-                if (artist.FirstPlayed is null || r.Timestamp < artist.FirstPlayed)
+                if (artist.FirstPlayed is null || ts < artist.FirstPlayed)
                 {
-                    artist.FirstPlayed = r.Timestamp;
+                    artist.FirstPlayed = ts;
                     artist.FirstTrack = trackName;
                 }
-                if (artist.LastPlayed is null || r.Timestamp > artist.LastPlayed) artist.LastPlayed = r.Timestamp;
+                if (artist.LastPlayed is null || ts > artist.LastPlayed) artist.LastPlayed = ts;
 
-                if (track.FirstPlayed is null || r.Timestamp < track.FirstPlayed) track.FirstPlayed = r.Timestamp;
-                if (track.LastPlayed is null || r.Timestamp > track.LastPlayed) track.LastPlayed = r.Timestamp;
+                if (track.FirstPlayed is null || ts < track.FirstPlayed) track.FirstPlayed = ts;
+                if (track.LastPlayed is null || ts > track.LastPlayed) track.LastPlayed = ts;
 
-                if (album.FirstPlayed is null || r.Timestamp < album.FirstPlayed) album.FirstPlayed = r.Timestamp;
-                if (album.LastPlayed is null || r.Timestamp > album.LastPlayed) album.LastPlayed = r.Timestamp;
+                if (album.FirstPlayed is null || ts < album.FirstPlayed) album.FirstPlayed = ts;
+                if (album.LastPlayed is null || ts > album.LastPlayed) album.LastPlayed = ts;
 
-                if (firstListen is null || r.Timestamp < firstListen) firstListen = r.Timestamp;
-                if (lastListen is null || r.Timestamp > lastListen) lastListen = r.Timestamp;
+                if (firstListen is null || ts < firstListen) firstListen = ts;
+                if (lastListen is null || ts > lastListen) lastListen = ts;
 
-                var day = r.Timestamp.Date;
-                byDay[day] = byDay.TryGetValue(day, out var d) ? d + r.MsPlayed : r.MsPlayed;
-                byHour[r.Timestamp.Hour] += r.MsPlayed;
-                byDow[(int)r.Timestamp.DayOfWeek] += r.MsPlayed;
-                byDowHour[(int)r.Timestamp.DayOfWeek, r.Timestamp.Hour] += r.MsPlayed;
+                int hour = ts.Hour;
+                int dow = (int)ts.DayOfWeek;
+                CollectionsMarshal.GetValueRefOrAddDefault(byDay, ts.Date, out _) += r.MsPlayed;
+                byHour[hour] += r.MsPlayed;
+                byDow[dow] += r.MsPlayed;
+                byDowHour[dow, hour] += r.MsPlayed;
 
-                timedPlays.Add((r.Timestamp, r.MsPlayed));
+                timedPlays.Add((ts, r.MsPlayed));
 
-                // Per-year rollup.
-                int year = r.Timestamp.Year;
+                int year = ts.Year;
                 if (!years.TryGetValue(year, out var acc))
                 {
                     acc = new YearAccumulator();
@@ -200,8 +214,8 @@ public static class AnalysisEngine
                 }
                 acc.Ms += r.MsPlayed;
                 acc.Plays++;
-                acc.ArtistMs[artistName] = acc.ArtistMs.TryGetValue(artistName, out var am) ? am + r.MsPlayed : r.MsPlayed;
-                acc.TrackMs[trackKey] = acc.TrackMs.TryGetValue(trackKey, out var tm) ? tm + r.MsPlayed : r.MsPlayed;
+                CollectionsMarshal.GetValueRefOrAddDefault(acc.ArtistMs, artistName, out _) += r.MsPlayed;
+                CollectionsMarshal.GetValueRefOrAddDefault(acc.TrackMs, trackKey, out _) += r.MsPlayed;
             }
         }
 
@@ -220,11 +234,10 @@ public static class AnalysisEngine
         {
             if (counts.Skips == 0)
                 continue;
-            int sep = key.IndexOf('\n');
             skippedList.Add(new SkippedTrackStat
             {
-                Track = key[..sep],
-                Artist = key[(sep + 1)..],
+                Track = key.Track,
+                Artist = key.Artist,
                 SkipCount = counts.Skips,
                 PlayCount = counts.Plays,
             });
@@ -245,6 +258,7 @@ public static class AnalysisEngine
 
         var (streakDays, streakStart, streakEnd) = LongestStreak(dayPoints);
         int currentStreak = CurrentStreak(dayPoints);
+        var (breakDays, breakStart, breakEnd) = LongestBreak(dayPoints);
 
         DateTime? biggestDay = null;
         long biggestDayMs = 0;
@@ -257,7 +271,8 @@ public static class AnalysisEngine
             }
         }
 
-        var (sessionCount, avgSessionMs, longestSessionMs, longestSessionDate) = ComputeSessions(timedPlays);
+        var (sessionCount, avgSessionMs, longestSessionMs, longestSessionDate) =
+            ComputeSessions(timedPlays, sessionGap ?? SessionGap);
 
         var newArtistsByMonth = artistList
             .Where(a => a.FirstPlayed is not null)
@@ -308,8 +323,12 @@ public static class AnalysisEngine
             LongestStreakStart = streakStart,
             LongestStreakEnd = streakEnd,
             CurrentStreakDays = currentStreak,
+            LongestBreakDays = breakDays,
+            LongestBreakStart = breakStart,
+            LongestBreakEnd = breakEnd,
             BiggestDay = biggestDay,
             BiggestDayMs = biggestDayMs,
+            CompletedPlays = completedPlays,
             SessionCount = sessionCount,
             AvgSessionMs = avgSessionMs,
             LongestSessionMs = longestSessionMs,
@@ -321,7 +340,7 @@ public static class AnalysisEngine
     private static void AccumulateShow(
         Dictionary<string, ShowStat> shows,
         Dictionary<string, HashSet<string>> showEpisodeKeys,
-        Dictionary<string, EpisodeStat> episodes,
+        Dictionary<(string Episode, string Show), EpisodeStat> episodes,
         PlayRecord r)
     {
         if (!shows.TryGetValue(r.ShowName, out var show))
@@ -335,7 +354,7 @@ public static class AnalysisEngine
         if (showEpisodeKeys[r.ShowName].Add(r.EpisodeName))
             show.EpisodeCount++;
 
-        var episodeKey = r.EpisodeName + "\n" + r.ShowName;
+        var episodeKey = (r.EpisodeName, r.ShowName);
         if (!episodes.TryGetValue(episodeKey, out var episode))
         {
             episode = new EpisodeStat { Episode = r.EpisodeName, Show = r.ShowName };
@@ -405,7 +424,7 @@ public static class AnalysisEngine
         public long Ms;
         public int Plays;
         public readonly Dictionary<string, long> ArtistMs = new(StringComparer.Ordinal);
-        public readonly Dictionary<string, long> TrackMs = new(StringComparer.Ordinal);
+        public readonly Dictionary<(string Track, string Artist), long> TrackMs = new();
     }
 
     private static YearStat BuildYearStat(int year, YearAccumulator acc)
@@ -428,8 +447,7 @@ public static class AnalysisEngine
             if (ms > best)
             {
                 best = ms;
-                // Track keys are "track\nartist"; show just the track name.
-                topTrack = key[..key.IndexOf('\n')];
+                topTrack = key.Track;
             }
         }
 
@@ -478,6 +496,31 @@ public static class AnalysisEngine
         return (best, bestStart, bestEnd);
     }
 
+    /// <summary>
+    /// Finds the longest stretch of silence: the biggest gap between two consecutive
+    /// listening days. Returns the number of days with no listening, plus the active days
+    /// that bracket it.
+    /// </summary>
+    private static (int days, DateTime? start, DateTime? end) LongestBreak(IReadOnlyList<DateTimePoint> dayPoints)
+    {
+        int best = 0;
+        DateTime? bestStart = null, bestEnd = null;
+
+        for (int i = 1; i < dayPoints.Count; i++)
+        {
+            // Consecutive days are one day apart, which is a gap of zero silent days.
+            int gap = (int)(dayPoints[i].Date - dayPoints[i - 1].Date).TotalDays - 1;
+            if (gap > best)
+            {
+                best = gap;
+                bestStart = dayPoints[i - 1].Date;
+                bestEnd = dayPoints[i].Date;
+            }
+        }
+
+        return (best, bestStart, bestEnd);
+    }
+
     /// <summary>Length of the run of consecutive listening days ending on the last listening day.</summary>
     private static int CurrentStreak(IReadOnlyList<DateTimePoint> dayPoints)
     {
@@ -497,10 +540,10 @@ public static class AnalysisEngine
 
     /// <summary>
     /// Groups timestamped plays into sessions. A play whose start (end time minus duration)
-    /// falls within <see cref="SessionGap"/> of the previous play's end continues the session.
+    /// falls within <paramref name="gap"/> of the previous play's end continues the session.
     /// </summary>
     private static (int count, long avgMs, long longestMs, DateTime? longestDate) ComputeSessions(
-        List<(DateTime End, int Ms)> plays)
+        List<(DateTime End, int Ms)> plays, TimeSpan gap)
     {
         if (plays.Count == 0)
             return (0, 0, 0, null);
@@ -518,7 +561,7 @@ public static class AnalysisEngine
         for (int i = 1; i < plays.Count; i++)
         {
             var start = StartOf(plays[i]);
-            if (start - prevEnd > SessionGap)
+            if (start - prevEnd > gap)
             {
                 if (currentMs > longestMs)
                 {

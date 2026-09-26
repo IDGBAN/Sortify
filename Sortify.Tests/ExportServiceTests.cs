@@ -54,6 +54,43 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Csv_KeepsItsColumns_UnderADecimalCommaCulture()
+    {
+        // Regression: hours were formatted with the current culture, so on a German or
+        // French machine "1,50" split every row into one column too many.
+        var result = AnalysisEngine.Analyze(new[]
+        {
+            new PlayRecord
+            {
+                TrackName = "Song", ArtistName = "Artist", AlbumName = "Album",
+                MsPlayed = 5_400_000, Timestamp = new DateTime(2023, 5, 10, 14, 30, 0),
+            },
+        }, new FilterOptions { MinMsPlayed = 0 });
+
+        var paths = new[] { "tracks.csv", "artists.csv", "albums.csv", "years.csv" }
+            .Select(name => Path.Combine(_dir, name))
+            .ToArray();
+
+        using (CultureScope.Unusual())
+        {
+            await ExportService.SaveTracksCsvAsync(paths[0], result);
+            await ExportService.SaveArtistsCsvAsync(paths[1], result);
+            await ExportService.SaveAlbumsCsvAsync(paths[2], result);
+            await ExportService.SaveYearsCsvAsync(paths[3], result);
+        }
+
+        foreach (var path in paths)
+        {
+            var lines = await File.ReadAllLinesAsync(path);
+            int headerColumns = lines[0].Split(',').Length;
+            Assert.Equal(headerColumns, lines[1].Split(',').Length);
+            Assert.Contains("1.50", lines[1]);
+        }
+
+        Assert.Contains("2023-05-10 14:30", (await File.ReadAllLinesAsync(paths[0]))[1]);
+    }
+
+    [Fact]
     public async Task Txt_ContainsSummaryAndRankings()
     {
         var result = AnalysisEngine.Analyze(new[]

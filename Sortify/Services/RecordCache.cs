@@ -14,6 +14,15 @@ public static class RecordCache
     /// <summary>Bumped whenever the record layout changes, so stale caches are ignored.</summary>
     private const int FormatVersion = 1;
 
+    /// <summary>
+    /// Upper bounds on the two counts read out of the file header, so a truncated or
+    /// corrupt cache asks for a plausible allocation rather than an enormous one. Both are
+    /// far past any real export: Spotify's own limit is a few hundred thousand plays, and
+    /// the pool only ever holds device and country strings.
+    /// </summary>
+    private const int MaxRecords = 50_000_000;
+    private const int MaxPoolEntries = 100_000;
+
     private static readonly byte[] Magic = "SRTFY\0"u8.ToArray();
 
     /// <summary>%LOCALAPPDATA%\Sortify — created on demand.</summary>
@@ -25,7 +34,8 @@ public static class RecordCache
     /// <summary>
     /// Fingerprints the source files. Two runs over an unchanged export produce the same
     /// key; any change to the file set, a file's length or its write time produces a
-    /// different one.
+    /// different one. The local time zone is part of it too, because the cached timestamps
+    /// were already converted to local time when the export was parsed.
     /// </summary>
     internal static string BuildKey(IEnumerable<string> filePaths)
     {
@@ -37,7 +47,8 @@ public static class RecordCache
                 long ticks = info.Exists ? info.LastWriteTimeUtc.Ticks : -1;
                 return $"{info.FullName.ToLowerInvariant()}|{length}|{ticks}";
             })
-            .OrderBy(s => s, StringComparer.Ordinal);
+            .OrderBy(s => s, StringComparer.Ordinal)
+            .Prepend($"tz|{TimeZoneInfo.Local.Id}");
 
         var joined = string.Join("\n", parts);
         var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(joined));
@@ -69,12 +80,16 @@ public static class RecordCache
                 return null;
 
             int count = reader.ReadInt32();
-            if (count < 0)
+            if (count is < 0 or > MaxRecords)
                 return null;
 
             // Platform and country repeat constantly, so they are written once into a table
             // and referenced by index; this keeps the file small and restores the sharing.
-            var pool = new string[reader.ReadInt32()];
+            int poolSize = reader.ReadInt32();
+            if (poolSize is < 0 or > MaxPoolEntries)
+                return null;
+
+            var pool = new string[poolSize];
             for (int i = 0; i < pool.Length; i++)
                 pool[i] = reader.ReadString();
 
@@ -87,10 +102,10 @@ public static class RecordCache
                     ArtistName = reader.ReadString(),
                     AlbumName = reader.ReadString(),
                     MsPlayed = reader.ReadInt32(),
-                    Timestamp = new DateTime(reader.ReadInt64()),
+                    Timestamp = ReadTimestamp(reader),
                     ReasonEnd = reader.ReadBoolean() ? reader.ReadString() : null,
                     Skipped = reader.ReadBoolean(),
-                    Kind = (ContentKind)reader.ReadByte(),
+                    Kind = ReadKind(reader),
                     ShowName = reader.ReadString(),
                     EpisodeName = reader.ReadString(),
                     Uri = reader.ReadString(),
@@ -104,13 +119,34 @@ public static class RecordCache
             }
             return records;
         }
+        // FormatException is what BinaryReader.ReadString throws on a mangled length prefix.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                      or EndOfStreamException or ArgumentException
-                                     or IndexOutOfRangeException or OverflowException)
+                                     or IndexOutOfRangeException or OverflowException
+                                     or FormatException or InvalidDataException)
         {
             // A corrupt or partially written cache must never break loading.
             return null;
         }
+    }
+
+    /// <summary>
+    /// The parser hands out local-time timestamps, and DateTime.MinValue for rows with none. Ticks
+    /// alone lose that Kind, which would make a cached load serialize dates differently
+    /// (no UTC offset) from a fresh parse of the same export.
+    /// </summary>
+    private static DateTime ReadTimestamp(BinaryReader reader)
+    {
+        long ticks = reader.ReadInt64();
+        return ticks == DateTime.MinValue.Ticks
+            ? DateTime.MinValue
+            : new DateTime(ticks, DateTimeKind.Local);
+    }
+
+    private static ContentKind ReadKind(BinaryReader reader)
+    {
+        var kind = (ContentKind)reader.ReadByte();
+        return Enum.IsDefined(kind) ? kind : throw new InvalidDataException($"Unknown content kind {(int)kind}.");
     }
 
     /// <summary>
@@ -189,6 +225,20 @@ public static class RecordCache
 
     /// <summary>Removes the cache file, e.g. after a format change or on user request.</summary>
     public static void Clear() => TryDelete(CacheFile);
+
+    /// <summary>Size of the cache on disk in bytes, or zero when there is none.</summary>
+    public static long SizeBytes()
+    {
+        try
+        {
+            var info = new FileInfo(CacheFile);
+            return info.Exists ? info.Length : 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return 0;
+        }
+    }
 
     private static void TryDelete(string path)
     {

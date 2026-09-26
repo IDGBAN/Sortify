@@ -16,12 +16,23 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+          cache: true
+          cache-dependency-path: '**/*.csproj'
 
       - name: Restore
         run: dotnet restore
+
+      # .editorconfig is the style guide; without this check nothing enforces it.
+      - name: Check formatting
+        run: dotnet format --verify-no-changes --no-restore
 
       - name: Build
         run: dotnet build --configuration Debug --no-restore
 
       - name: Test
         run: dotnet test --configuration Debug --no-build --verbosity normal
+
+      # Release turns on self-contained single-file publishing, which fails in ways a Debug
+      # build never sees. This is what users actually download, so it has to keep working.
+      - name: Publish (win-x64)
+        run: dotnet publish Sortify/Sortify.csproj -c Release -r win-x64

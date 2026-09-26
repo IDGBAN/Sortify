@@ -1,8 +1,9 @@
+using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore;
-using LiveChartsCore.SkiaSharpView;
 using Microsoft.Win32;
 using Sortify.Models;
 using Sortify.Services;
@@ -12,12 +13,25 @@ namespace Sortify.ViewModels;
 public sealed partial class MainViewModel : ObservableObject
 {
     private readonly HistoryParser _parser = new();
-    private readonly AppSettings _settings = AppSettings.Load();
+    private readonly AppSettings _settings;
     private readonly DispatcherTimer _debounce;
     private List<PlayRecord> _rawRecords = new();
     private AnalysisResult _result = AnalysisResult.Empty;
     private CancellationTokenSource? _analysisCts;
+    private CancellationTokenSource? _loadCts;
     private ChartBuilder.TimeGranularity _overTimeGranularity = ChartBuilder.TimeGranularity.Daily;
+
+    /// <summary>Files behind the current results, so F5 can re-read them.</summary>
+    private IReadOnlyList<string> _loadedFiles = Array.Empty<string>();
+
+    /// <summary>Folder those files came from, or null when they were picked individually.</summary>
+    private string? _loadedFolder;
+
+    // IsBusy covers two independent things - a parse and any number of overlapping analysis
+    // passes - so it is derived from both rather than saved and restored, which loses track
+    // as soon as two recomputes overlap.
+    private bool _isLoading;
+    private int _pendingAnalyses;
 
     public FilterViewModel Filters { get; } = new();
 
@@ -32,9 +46,40 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<ShowStat> _shows = Array.Empty<ShowStat>();
     [ObservableProperty] private IReadOnlyList<EpisodeStat> _episodes = Array.Empty<EpisodeStat>();
 
-    [ObservableProperty] private string _statusText = "Click \"Run Analysis\" or drop your Spotify history JSON files (or their folder) here to begin.";
+    // Top-five lists shown on the Overview tab.
+    [ObservableProperty] private IReadOnlyList<RankedItem> _topTracks = Array.Empty<RankedItem>();
+    [ObservableProperty] private IReadOnlyList<RankedItem> _topArtists = Array.Empty<RankedItem>();
+    [ObservableProperty] private IReadOnlyList<RankedItem> _topAlbums = Array.Empty<RankedItem>();
+
+    // Per-grid quick filters. These narrow the rows already on screen without re-running
+    // analysis, which is what you want when hunting for one row in fifty thousand.
+    [ObservableProperty] private string _trackQuickFilter = string.Empty;
+    [ObservableProperty] private string _artistQuickFilter = string.Empty;
+    [ObservableProperty] private string _albumQuickFilter = string.Empty;
+    [ObservableProperty] private string _showQuickFilter = string.Empty;
+
+    [ObservableProperty]
+    private string _statusText = "Open your Spotify history to begin - or just drop the files here.";
+    [ObservableProperty] private bool _statusIsError;
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _hasData;
+
+    [ObservableProperty] private double _progressValue;
+    [ObservableProperty] private bool _isProgressIndeterminate = true;
+
+    /// <summary>Filter sidebar visibility, restored from and saved to settings.</summary>
+    [ObservableProperty] private bool _sidebarVisible = true;
+
+    /// <summary>Human-readable list of the filters currently narrowing the results.</summary>
+    public ObservableCollection<string> ActiveFilters { get; } = new();
+
+    [ObservableProperty] private bool _hasActiveFilters;
+
+    /// <summary>Folders opened previously, newest first; bound to the Open Recent menu.</summary>
+    public ObservableCollection<string> RecentFolders { get; } = new();
+
+    [ObservableProperty] private string _themeGlyph = "";
+    [ObservableProperty] private string _themeTooltip = "Switch to the light theme";
 
     // Summary (overview) ------------------------------------------------------------------
     [ObservableProperty] private string _totalTimeText = "-";
@@ -46,10 +91,15 @@ public sealed partial class MainViewModel : ObservableObject
     // Insights ------------------------------------------------------------------------------
     [ObservableProperty] private string _longestStreakText = "-";
     [ObservableProperty] private string _currentStreakText = "-";
+    [ObservableProperty] private string _longestBreakText = "-";
     [ObservableProperty] private string _biggestDayText = "-";
     [ObservableProperty] private string _activeDaysText = "-";
     [ObservableProperty] private string _avgPerDayText = "-";
     [ObservableProperty] private string _skipRateText = "-";
+    [ObservableProperty] private string _completionRateText = "-";
+    [ObservableProperty] private string _repeatRateText = "-";
+    [ObservableProperty] private string _discoveryRateText = "-";
+    [ObservableProperty] private string _topArtistShareText = "-";
     [ObservableProperty] private string _peakHourText = "-";
     [ObservableProperty] private string _sessionsText = "-";
     [ObservableProperty] private string _avgSessionText = "-";
@@ -69,74 +119,36 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uniqueEpisodesText = "-";
     [ObservableProperty] private bool _hasPodcastData;
 
-    /// <summary>Drives the Podcasts tab's empty state; WPF ships no inverting bool converter.</summary>
-    [ObservableProperty] private bool _hasNoPodcastData = true;
-
     // Charts ------------------------------------------------------------------------------
-    [ObservableProperty] private ISeries[] _tracksByTimeSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _tracksByTimeX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _tracksByTimeY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _tracksByCountSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _tracksByCountX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _tracksByCountY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _artistsByTimeSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _artistsByTimeX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _artistsByTimeY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _artistsByCountSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _artistsByCountX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _artistsByCountY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _albumsByTimeSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _albumsByTimeX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _albumsByTimeY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _albumsByCountSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _albumsByCountX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _albumsByCountY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _skippedSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _skippedX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _skippedY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _hourSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _hourX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _hourY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _dayOfWeekSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _dayOfWeekX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _dayOfWeekY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _heatSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _heatX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _heatY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _overTimeSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _overTimeX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _overTimeY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _yearSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _yearX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _yearY = Array.Empty<Axis>();
-
-    [ObservableProperty] private ISeries[] _discoverySeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _discoveryX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _discoveryY = Array.Empty<Axis>();
+    [ObservableProperty] private ChartData _tracksByTime = ChartData.Empty;
+    [ObservableProperty] private ChartData _tracksByCount = ChartData.Empty;
+    [ObservableProperty] private ChartData _artistsByTime = ChartData.Empty;
+    [ObservableProperty] private ChartData _artistsByCount = ChartData.Empty;
+    [ObservableProperty] private ChartData _albumsByTime = ChartData.Empty;
+    [ObservableProperty] private ChartData _albumsByCount = ChartData.Empty;
+    [ObservableProperty] private ChartData _skipped = ChartData.Empty;
+    [ObservableProperty] private ChartData _byHour = ChartData.Empty;
+    [ObservableProperty] private ChartData _byDayOfWeek = ChartData.Empty;
+    [ObservableProperty] private ChartData _heat = ChartData.Empty;
+    [ObservableProperty] private ChartData _overTime = ChartData.Empty;
+    [ObservableProperty] private ChartData _byYear = ChartData.Empty;
+    [ObservableProperty] private ChartData _discovery = ChartData.Empty;
+    [ObservableProperty] private ChartData _showsChart = ChartData.Empty;
+    [ObservableProperty] private ChartData _episodesChart = ChartData.Empty;
 
     [ObservableProperty] private ISeries[] _artistShareSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _reasonEndSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _platformSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _countrySeries = Array.Empty<ISeries>();
 
-    [ObservableProperty] private ISeries[] _showSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _showX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _showY = Array.Empty<Axis>();
+    /// <summary>Entry animation length for charts when animations are on.</summary>
+    private static readonly TimeSpan ChartAnimationDuration = TimeSpan.FromMilliseconds(500);
 
-    [ObservableProperty] private ISeries[] _episodeSeries = Array.Empty<ISeries>();
-    [ObservableProperty] private Axis[] _episodeX = Array.Empty<Axis>();
-    [ObservableProperty] private Axis[] _episodeY = Array.Empty<Axis>();
+    /// <summary>How long filter edits settle before analysis re-runs.</summary>
+    private static readonly TimeSpan FilterDebounce = TimeSpan.FromMilliseconds(300);
+
+    /// <summary>Entry animation length for charts; zero when the user turned animations off.</summary>
+    [ObservableProperty] private TimeSpan _chartAnimationSpeed = ChartAnimationDuration;
 
     // Heights that drive the scrollable horizontal bar charts (one per ~bar).
     [ObservableProperty] private double _tracksChartHeight = 480;
@@ -148,6 +160,11 @@ public sealed partial class MainViewModel : ObservableObject
     // Infinite-scroll paging for the horizontal bar charts: start with one page and
     // append more bars as the user scrolls toward the bottom of a chart.
     private const int BarPageSize = 60;
+
+    // Scrollable bar chart sizing, in device-independent pixels.
+    private const double BarRowHeight = 34;
+    private const double BarAxisPadding = 70;
+    private const double MinBarChartHeight = 220;
     private int _tracksShown;
     private int _artistsShown;
     private int _albumsShown;
@@ -156,9 +173,18 @@ public sealed partial class MainViewModel : ObservableObject
     private int MaxArtists => Math.Min(ChartBuilder.MaxBars, _result.Artists.Count);
     private int MaxAlbums => Math.Min(ChartBuilder.MaxBars, _result.Albums.Count);
 
-    public MainViewModel()
+    public MainViewModel() : this(null) { }
+
+    public MainViewModel(AppSettings? settings)
     {
-        _debounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
+        _settings = settings ?? AppSettings.Load();
+        _settings.PruneMissingFolders();
+        SidebarVisible = _settings.SidebarVisible;
+        ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
+        RefreshRecentFolders();
+        RefreshThemeButton();
+
+        _debounce = new DispatcherTimer { Interval = FilterDebounce };
         _debounce.Tick += async (_, _) =>
         {
             _debounce.Stop();
@@ -166,11 +192,24 @@ public sealed partial class MainViewModel : ObservableObject
         };
         Filters.FiltersChanged += (_, _) =>
         {
+            RefreshActiveFilters();
             if (!HasData) return;
             _debounce.Stop();
             _debounce.Start();
         };
+
+        // Charts bake their colours into Skia paints, so they have to be rebuilt rather
+        // than repainted when the palette changes.
+        ThemeService.Changed += (_, _) =>
+        {
+            RefreshThemeButton();
+            if (HasData) UpdateCharts();
+        };
+
+        RefreshActiveFilters();
     }
+
+    // ---- Loading ---------------------------------------------------------------------------
 
     [RelayCommand]
     private async Task RunAnalysisAsync()
@@ -197,16 +236,33 @@ public sealed partial class MainViewModel : ObservableObject
         if (dialog.ShowDialog() != true)
             return;
 
-        var files = HistoryParser.FindHistoryFiles(dialog.FolderName);
-        if (files.Count == 0)
+        await OpenFolderPathAsync(dialog.FolderName);
+    }
+
+    /// <summary>Loads a folder by path. Used by Open Folder, the recent list and drag &amp; drop.</summary>
+    [RelayCommand]
+    public async Task OpenFolderPathAsync(string? folder)
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+            return;
+
+        if (!Directory.Exists(folder))
         {
-            StatusText = "No Spotify history JSON files were found in that folder.";
+            SetStatus($"That folder no longer exists: {folder}", isError: true);
+            _settings.PruneMissingFolders();
+            _settings.Save();
+            RefreshRecentFolders();
             return;
         }
 
-        _settings.LastFolder = dialog.FolderName;
-        _settings.Save();
-        await LoadFilesAsync(files);
+        var files = HistoryParser.FindHistoryFiles(folder);
+        if (files.Count == 0)
+        {
+            SetStatus("No Spotify history JSON files were found in that folder.", isError: true);
+            return;
+        }
+
+        await LoadFilesAsync(files, folder);
     }
 
     /// <summary>
@@ -222,59 +278,120 @@ public sealed partial class MainViewModel : ObservableObject
         if (files.Count == 0)
             return;
 
-        await LoadFilesAsync(files);
+        await LoadFilesAsync(files, _settings.LastFolder);
+    }
+
+    /// <summary>Re-reads the files behind the current results, bypassing the cache.</summary>
+    [RelayCommand(CanExecute = nameof(HasData))]
+    private async Task ReloadAsync()
+    {
+        if (_loadedFiles.Count == 0)
+            return;
+
+        RecordCache.Clear();
+        await LoadFilesAsync(_loadedFiles, _loadedFolder);
+    }
+
+    /// <summary>
+    /// Stops whatever the status bar is currently reporting: a parse, an analysis or both.
+    /// The status is set here rather than where the cancellation lands, because a recompute
+    /// is also cancelled every time a newer one supersedes it, and that is not worth
+    /// announcing.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(IsBusy))]
+    private void CancelLoad()
+    {
+        _loadCts?.Cancel();
+        _analysisCts?.Cancel();
+        SetStatus("Cancelled. Change a filter or press F5 to run again.");
     }
 
     /// <summary>Parses the given history files and runs analysis. Also used by drag &amp; drop.</summary>
-    public async Task LoadFilesAsync(IReadOnlyList<string> filePaths)
+    public async Task LoadFilesAsync(IReadOnlyList<string> filePaths, string? folder = null)
     {
-        if (filePaths.Count == 0 || IsBusy)
+        if (filePaths.Count == 0 || _isLoading)
             return;
 
-        IsBusy = true;
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token;
+
+        _isLoading = true;
+        RefreshBusy();
+        IsProgressIndeterminate = true;
+        ProgressValue = 0;
         try
         {
+            _loadedFolder = folder;
+            if (folder is not null)
+            {
+                _settings.RememberFolder(folder);
+                _settings.Save();
+                RefreshRecentFolders();
+            }
+
             // Re-reading an unchanged export is the common case (relaunching the app, or
             // reopening the same folder), and parsing it again costs seconds for nothing.
-            StatusText = "Checking for cached results...";
-            var cached = await Task.Run(() => RecordCache.TryLoad(filePaths));
+            SetStatus("Checking for cached results...");
+            var cached = await Task.Run(() => RecordCache.TryLoad(filePaths), token);
             if (cached is { Count: > 0 })
             {
                 _rawRecords = cached.ToList();
-                StatusText = $"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...";
+                _loadedFiles = filePaths;
+                SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
                 HasData = true;
                 await RecomputeAsync();
                 return;
             }
 
-            var progress = new Progress<string>(s => StatusText = s);
-            var parsed = await _parser.ParseAsync(filePaths, progress);
+            IsProgressIndeterminate = false;
+            var progress = new Progress<ParseProgress>(p =>
+            {
+                ProgressValue = p.Percent;
+                StatusText = p.Message;
+                StatusIsError = false;
+            });
+
+            var parsed = await _parser.ParseAsync(filePaths, progress, token);
             _rawRecords = parsed.Records;
+            _loadedFiles = filePaths;
 
             if (_rawRecords.Count == 0)
             {
                 HasData = false;
-                StatusText = parsed.Warnings.Count > 0
+                SetStatus(parsed.Warnings.Count > 0
                     ? $"No valid listening data found. {parsed.Warnings[0]}"
-                    : "No valid listening data found in the selected files.";
+                    : "No valid listening data found in the selected files.", isError: true);
                 return;
             }
 
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
-            StatusText = $"Loaded {_rawRecords.Count:N0} plays from {filePaths.Count} file(s){warn}. Crunching numbers...";
+            IsProgressIndeterminate = true;
+            SetStatus($"Loaded {_rawRecords.Count:N0} plays from {filePaths.Count} file(s){warn}. Crunching numbers...");
             HasData = true;
             await RecomputeAsync();
 
             // Save after analysis so the user isn't waiting on disk I/O to see results.
             var toCache = _rawRecords;
-            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache));
+            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache), CancellationToken.None);
+        }
+        catch (OperationCanceledException)
+        {
+            SetStatus("Loading cancelled.");
         }
         finally
         {
-            IsBusy = false;
+            _isLoading = false;
+            RefreshBusy();
+            IsProgressIndeterminate = true;
+            ProgressValue = 0;
         }
     }
+
+    private void RefreshBusy() => IsBusy = _isLoading || _pendingAnalyses > 0;
+
+    // ---- Chart options ---------------------------------------------------------------------
 
     /// <summary>Changes the bucket size of the listening-over-time chart.</summary>
     public void SetOverTimeGranularity(ChartBuilder.TimeGranularity granularity)
@@ -283,7 +400,57 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         _overTimeGranularity = granularity;
         if (HasData)
-            (OverTimeSeries, OverTimeX, OverTimeY) = ChartBuilder.OverTime(_result, granularity);
+            OverTime = ChartBuilder.OverTime(_result, granularity);
+    }
+
+    // ---- Appearance and preferences ----------------------------------------------------------
+
+    [RelayCommand]
+    private void ToggleTheme()
+    {
+        var next = ThemeService.Next();
+        ThemeService.Apply(next);
+        _settings.Theme = next;
+        _settings.Save();
+    }
+
+    [RelayCommand]
+    private void ToggleSidebar()
+    {
+        SidebarVisible = !SidebarVisible;
+        _settings.SidebarVisible = SidebarVisible;
+        _settings.Save();
+    }
+
+    /// <summary>Re-reads preferences after the settings dialog closes and applies them.</summary>
+    public async Task ApplySettingsChangesAsync()
+    {
+        ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
+        RefreshRecentFolders();
+        if (HasData)
+            await RecomputeAsync();
+    }
+
+    private void RefreshRecentFolders()
+    {
+        RecentFolders.Clear();
+        foreach (var folder in _settings.RecentFolders)
+            RecentFolders.Add(folder);
+    }
+
+    private void RefreshThemeButton()
+    {
+        // Segoe MDL2 Assets: E706 is a sun, E708 a moon.
+        ThemeGlyph = ThemeService.IsDark ? "" : "";
+        ThemeTooltip = ThemeService.IsDark ? "Switch to the light theme" : "Switch to the dark theme";
+    }
+
+    private void RefreshActiveFilters()
+    {
+        ActiveFilters.Clear();
+        foreach (var description in Filters.Describe())
+            ActiveFilters.Add(description);
+        HasActiveFilters = ActiveFilters.Count > 0;
     }
 
     // ---- Grid-driven exclusions ----------------------------------------------------------
@@ -305,28 +472,36 @@ public sealed partial class MainViewModel : ObservableObject
         return await DetailEngine.BuildAsync(_rawRecords, Filters.ToOptions(), scope, title, subtitle);
     }
 
+    // ---- Analysis --------------------------------------------------------------------------
+
     private async Task RecomputeAsync()
     {
         if (!HasData) return;
 
-        _analysisCts?.Cancel();
-        _analysisCts?.Dispose();
+        // Cancel the previous pass but keep its source alive: the running task may still be
+        // reading the token, and disposing it out from under that is a race.
+        var previous = _analysisCts;
         _analysisCts = new CancellationTokenSource();
+        previous?.Cancel();
         var token = _analysisCts.Token;
 
         var options = Filters.ToOptions();
-        bool wasBusy = IsBusy;
-        IsBusy = true;
+        _pendingAnalyses++;
+        RefreshBusy();
         try
         {
             AnalysisResult result;
             try
             {
-                result = await AnalysisEngine.AnalyzeAsync(_rawRecords, options, token);
+                result = await AnalysisEngine.AnalyzeAsync(_rawRecords, options, _settings.SessionGap, token);
             }
             catch (OperationCanceledException)
             {
                 return;
+            }
+            finally
+            {
+                previous?.Dispose();
             }
 
             // A newer recompute may have started while this one ran; never let a stale
@@ -341,29 +516,90 @@ public sealed partial class MainViewModel : ObservableObject
             UpdateCharts();
             NotifyExportsChanged();
 
-            StatusText = _result.TotalPlays == 0
-                ? "No plays match the current filters."
+            SetStatus(_result.TotalPlays == 0
+                ? Filters.HasInvalidDateRange
+                    ? "No plays match: the From date is after the To date."
+                    : "No plays match the current filters."
                 : $"Showing {_result.TotalPlays:N0} plays across {_result.UniqueTracks:N0} tracks, " +
-                  $"{_result.UniqueArtists:N0} artists and {_result.UniqueAlbums:N0} albums.";
+                  $"{_result.UniqueArtists:N0} artists and {_result.UniqueAlbums:N0} albums.");
         }
         finally
         {
-            IsBusy = wasBusy;
+            _pendingAnalyses--;
+            RefreshBusy();
         }
     }
 
     private void UpdateCollections()
     {
-        Tracks = _result.Tracks;
-        Artists = _result.Artists;
-        Albums = _result.Albums;
+        ApplyTrackQuickFilter();
+        ApplyArtistQuickFilter();
+        ApplyAlbumQuickFilter();
+        ApplyShowQuickFilter();
+
         Years = _result.Years;
         SkippedTracks = _result.SkippedTracks;
-        Shows = _result.Shows;
-        Episodes = _result.Episodes;
         HasPodcastData = _result.Shows.Count > 0;
-        HasNoPodcastData = !HasPodcastData;
+
+        TopTracks = _result.Tracks.Take(5)
+            .Select((t, i) => new RankedItem(i + 1, t.Track, t.Artist, TimeFormat.Friendly(t.TotalTime), t.PlayCount))
+            .ToList();
+        TopArtists = _result.Artists.Take(5)
+            .Select((a, i) => new RankedItem(i + 1, a.Artist, string.Empty, TimeFormat.Friendly(a.TotalTime), a.PlayCount))
+            .ToList();
+        TopAlbums = _result.Albums.Take(5)
+            .Select((a, i) => new RankedItem(i + 1, a.Album, a.Artist, TimeFormat.Friendly(a.TotalTime), a.PlayCount))
+            .ToList();
     }
+
+    // ---- Quick filters ------------------------------------------------------------------------
+
+    partial void OnTrackQuickFilterChanged(string value) => ApplyTrackQuickFilter();
+    partial void OnArtistQuickFilterChanged(string value) => ApplyArtistQuickFilter();
+    partial void OnAlbumQuickFilterChanged(string value) => ApplyAlbumQuickFilter();
+    partial void OnShowQuickFilterChanged(string value) => ApplyShowQuickFilter();
+
+    private void ApplyTrackQuickFilter() =>
+        Tracks = Narrow(_result.Tracks, TrackQuickFilter, t => t.Track, t => t.Artist);
+
+    private void ApplyArtistQuickFilter() =>
+        Artists = Narrow(_result.Artists, ArtistQuickFilter, a => a.Artist);
+
+    private void ApplyAlbumQuickFilter() =>
+        Albums = Narrow(_result.Albums, AlbumQuickFilter, a => a.Album, a => a.Artist);
+
+    private void ApplyShowQuickFilter()
+    {
+        Shows = Narrow(_result.Shows, ShowQuickFilter, s => s.Show);
+        Episodes = Narrow(_result.Episodes, ShowQuickFilter, e => e.Episode, e => e.Show);
+    }
+
+    /// <summary>
+    /// Case-insensitive substring match over the given fields. Returns the original list
+    /// untouched when nothing is typed, so the common case allocates nothing.
+    /// </summary>
+    private static IReadOnlyList<T> Narrow<T>(IReadOnlyList<T> source, string term, params Func<T, string>[] fields)
+    {
+        if (string.IsNullOrWhiteSpace(term))
+            return source;
+
+        string needle = term.Trim();
+        var matches = new List<T>();
+        foreach (var item in source)
+        {
+            foreach (var field in fields)
+            {
+                if (field(item).Contains(needle, StringComparison.OrdinalIgnoreCase))
+                {
+                    matches.Add(item);
+                    break;
+                }
+            }
+        }
+        return matches;
+    }
+
+    // ---- Summary text -------------------------------------------------------------------------
 
     private void UpdateSummary()
     {
@@ -388,6 +624,10 @@ public sealed partial class MainViewModel : ObservableObject
             ? $"{r.CurrentStreakDays} day{(r.CurrentStreakDays == 1 ? "" : "s")}  (up to {lastListen:yyyy-MM-dd})"
             : "-";
 
+        LongestBreakText = r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be
+            ? $"{r.LongestBreakDays} day{(r.LongestBreakDays == 1 ? "" : "s")}  ({bs:yyyy-MM-dd} to {be:yyyy-MM-dd})"
+            : "-";
+
         BiggestDayText = r.BiggestDay is { } bd
             ? $"{bd:yyyy-MM-dd}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
             : "-";
@@ -400,6 +640,22 @@ public sealed partial class MainViewModel : ObservableObject
 
         SkipRateText = r.SkipEligiblePlays > 0
             ? $"{r.TotalSkips * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.TotalSkips:N0} of {r.SkipEligiblePlays:N0} plays)"
+            : "-";
+
+        CompletionRateText = r.SkipEligiblePlays > 0
+            ? $"{r.CompletedPlays * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.CompletedPlays:N0} plays)"
+            : "-";
+
+        RepeatRateText = r.UniqueTracks > 0
+            ? $"{r.PlaysPerTrack:0.0} plays per track"
+            : "-";
+
+        DiscoveryRateText = r.NewArtistsByMonth.Count > 0
+            ? $"{r.NewArtistsPerMonth:0.#} new artists / month"
+            : "-";
+
+        TopArtistShareText = r.Artists.Count > 0
+            ? $"{r.Artists[0].Artist}  ({r.TopArtistSharePercent:0.#}% of your time)"
             : "-";
 
         PeakHourText = BuildPeakHourText(r);
@@ -487,26 +743,28 @@ public sealed partial class MainViewModel : ObservableObject
         return $"{names[best]}  ({segments[best] * 100.0 / total:0}% of listening)";
     }
 
+    // ---- Charts ------------------------------------------------------------------------------
+
     private void UpdateCharts()
     {
-        (HourSeries, HourX, HourY) = ChartBuilder.ByHour(_result);
-        (DayOfWeekSeries, DayOfWeekX, DayOfWeekY) = ChartBuilder.ByDayOfWeek(_result);
-        (HeatSeries, HeatX, HeatY) = ChartBuilder.DowHourHeat(_result);
-        (OverTimeSeries, OverTimeX, OverTimeY) = ChartBuilder.OverTime(_result, _overTimeGranularity);
-        (YearSeries, YearX, YearY) = ChartBuilder.HoursPerYear(_result);
-        (DiscoverySeries, DiscoveryX, DiscoveryY) = ChartBuilder.NewArtistsByMonth(_result);
-        (SkippedSeries, SkippedX, SkippedY) = ChartBuilder.TopSkippedTracks(_result);
+        ByHour = ChartBuilder.ByHour(_result);
+        ByDayOfWeek = ChartBuilder.ByDayOfWeek(_result);
+        Heat = ChartBuilder.DowHourHeat(_result);
+        OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity);
+        ByYear = ChartBuilder.HoursPerYear(_result);
+        Discovery = ChartBuilder.NewArtistsByMonth(_result);
+        Skipped = ChartBuilder.TopSkippedTracks(_result);
         ArtistShareSeries = ChartBuilder.ArtistShare(_result);
         ReasonEndSeries = ChartBuilder.ReasonEndShare(_result);
         PlatformSeries = ChartBuilder.PlatformShare(_result);
         CountrySeries = ChartBuilder.CountryShare(_result);
+
         // Size these to their content: most libraries hold only a handful of shows, and a
         // fixed-height chart would space three bars across half a screen.
-        const int podcastBars = 20;
-        (ShowSeries, ShowX, ShowY) = ChartBuilder.TopShows(_result, podcastBars);
-        (EpisodeSeries, EpisodeX, EpisodeY) = ChartBuilder.TopEpisodes(_result, podcastBars);
-        ShowsChartHeight = BarHeight(Math.Min(podcastBars, _result.Shows.Count));
-        EpisodesChartHeight = BarHeight(Math.Min(podcastBars, _result.Episodes.Count));
+        ShowsChart = ChartBuilder.TopShows(_result);
+        EpisodesChart = ChartBuilder.TopEpisodes(_result);
+        ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
+        EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
 
         // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
         _tracksShown = Math.Min(BarPageSize, MaxTracks);
@@ -517,31 +775,26 @@ public sealed partial class MainViewModel : ObservableObject
         BuildAlbumCharts();
     }
 
-    private static double BarHeight(int bars)
-    {
-        const double perBar = 34;
-        const double axisPadding = 70;
-        return Math.Max(220, bars * perBar + axisPadding);
-    }
+    private static double BarHeight(int bars) => Math.Max(MinBarChartHeight, bars * BarRowHeight + BarAxisPadding);
 
     private void BuildTrackCharts()
     {
-        (TracksByTimeSeries, TracksByTimeX, TracksByTimeY) = ChartBuilder.TopTracksByTime(_result, _tracksShown);
-        (TracksByCountSeries, TracksByCountX, TracksByCountY) = ChartBuilder.TopTracksByCount(_result, _tracksShown);
+        TracksByTime = ChartBuilder.TopTracksByTime(_result, _tracksShown);
+        TracksByCount = ChartBuilder.TopTracksByCount(_result, _tracksShown);
         TracksChartHeight = BarHeight(_tracksShown);
     }
 
     private void BuildArtistCharts()
     {
-        (ArtistsByTimeSeries, ArtistsByTimeX, ArtistsByTimeY) = ChartBuilder.TopArtistsByTime(_result, _artistsShown);
-        (ArtistsByCountSeries, ArtistsByCountX, ArtistsByCountY) = ChartBuilder.TopArtistsByCount(_result, _artistsShown);
+        ArtistsByTime = ChartBuilder.TopArtistsByTime(_result, _artistsShown);
+        ArtistsByCount = ChartBuilder.TopArtistsByCount(_result, _artistsShown);
         ArtistsChartHeight = BarHeight(_artistsShown);
     }
 
     private void BuildAlbumCharts()
     {
-        (AlbumsByTimeSeries, AlbumsByTimeX, AlbumsByTimeY) = ChartBuilder.TopAlbumsByTime(_result, _albumsShown);
-        (AlbumsByCountSeries, AlbumsByCountX, AlbumsByCountY) = ChartBuilder.TopAlbumsByCount(_result, _albumsShown);
+        AlbumsByTime = ChartBuilder.TopAlbumsByTime(_result, _albumsShown);
+        AlbumsByCount = ChartBuilder.TopAlbumsByCount(_result, _albumsShown);
         AlbumsChartHeight = BarHeight(_albumsShown);
     }
 
@@ -569,72 +822,108 @@ public sealed partial class MainViewModel : ObservableObject
         BuildAlbumCharts();
     }
 
+    // ---- Exports -------------------------------------------------------------------------------
+
     private bool CanExport() => HasData && _result.TotalPlays > 0;
 
-    [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task ExportTxtAsync()
-    {
-        var path = AskSave("Text files (*.txt)|*.txt", ".txt", "Sortify_results");
-        if (path is null) return;
-        await ExportService.SaveTxtAsync(path, _result);
-        StatusText = $"Saved results to {path}";
-    }
+    private bool CanExportPodcasts() => HasData && _result.Shows.Count > 0;
 
     [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task ExportTracksCsvAsync()
-    {
-        var path = AskSave("CSV files (*.csv)|*.csv", ".csv", "Sortify_tracks");
-        if (path is null) return;
-        await ExportService.SaveTracksCsvAsync(path, _result);
-        StatusText = $"Saved tracks CSV to {path}";
-    }
+    private Task ExportTxtAsync() =>
+        ExportAsync("Text files (*.txt)|*.txt", ".txt", "Sortify_results",
+            path => ExportService.SaveTxtAsync(path, _result));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task ExportArtistsCsvAsync()
-    {
-        var path = AskSave("CSV files (*.csv)|*.csv", ".csv", "Sortify_artists");
-        if (path is null) return;
-        await ExportService.SaveArtistsCsvAsync(path, _result);
-        StatusText = $"Saved artists CSV to {path}";
-    }
+    private Task ExportMarkdownAsync() =>
+        ExportAsync("Markdown files (*.md)|*.md", ".md", "Sortify_report",
+            path => ExportService.SaveMarkdownAsync(path, _result));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task ExportAlbumsCsvAsync()
-    {
-        var path = AskSave("CSV files (*.csv)|*.csv", ".csv", "Sortify_albums");
-        if (path is null) return;
-        await ExportService.SaveAlbumsCsvAsync(path, _result);
-        StatusText = $"Saved albums CSV to {path}";
-    }
+    private Task ExportJsonAsync() =>
+        ExportAsync("JSON files (*.json)|*.json", ".json", "Sortify_results",
+            path => ExportService.SaveJsonAsync(path, _result));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
-    private async Task ExportYearsCsvAsync()
-    {
-        var path = AskSave("CSV files (*.csv)|*.csv", ".csv", "Sortify_years");
-        if (path is null) return;
-        await ExportService.SaveYearsCsvAsync(path, _result);
-        StatusText = $"Saved years CSV to {path}";
-    }
+    private Task ExportTracksCsvAsync() =>
+        ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_tracks",
+            path => ExportService.SaveTracksCsvAsync(path, _result));
 
-    partial void OnHasDataChanged(bool value) => NotifyExportsChanged();
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private Task ExportArtistsCsvAsync() =>
+        ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_artists",
+            path => ExportService.SaveArtistsCsvAsync(path, _result));
 
-    private void NotifyExportsChanged()
-    {
-        ExportTxtCommand.NotifyCanExecuteChanged();
-        ExportTracksCsvCommand.NotifyCanExecuteChanged();
-        ExportArtistsCsvCommand.NotifyCanExecuteChanged();
-        ExportAlbumsCsvCommand.NotifyCanExecuteChanged();
-        ExportYearsCsvCommand.NotifyCanExecuteChanged();
-    }
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private Task ExportAlbumsCsvAsync() =>
+        ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_albums",
+            path => ExportService.SaveAlbumsCsvAsync(path, _result));
 
-    private static string? AskSave(string filter, string ext, string defaultName)
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private Task ExportYearsCsvAsync() =>
+        ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_years",
+            path => ExportService.SaveYearsCsvAsync(path, _result));
+
+    [RelayCommand(CanExecute = nameof(CanExportPodcasts))]
+    private Task ExportShowsCsvAsync() =>
+        ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_shows",
+            path => ExportService.SaveShowsCsvAsync(path, _result));
+
+    /// <summary>
+    /// Shared save-file plumbing. A failed write is reported in the status bar: the disk
+    /// being full or the folder being read-only is the user's problem to fix, not a reason
+    /// to tear the app down.
+    /// </summary>
+    private async Task ExportAsync(string filter, string extension, string defaultName, Func<string, Task> write)
     {
         var dialog = new SaveFileDialog
         {
             Filter = filter,
-            DefaultExt = ext,
-            FileName = defaultName + ext,
+            DefaultExt = extension,
+            FileName = defaultName + extension,
         };
-        return dialog.ShowDialog() == true ? dialog.FileName : null;
+        if (dialog.ShowDialog() != true)
+            return;
+
+        try
+        {
+            await write(dialog.FileName);
+            SetStatus($"Saved {Path.GetFileName(dialog.FileName)} to {Path.GetDirectoryName(dialog.FileName)}");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
+        {
+            SetStatus($"Could not save that file: {ex.Message}", isError: true);
+        }
+    }
+
+    partial void OnHasDataChanged(bool value)
+    {
+        NotifyExportsChanged();
+        ReloadCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsBusyChanged(bool value) => CancelLoadCommand.NotifyCanExecuteChanged();
+
+    partial void OnSidebarVisibleChanged(bool value) => _settings.SidebarVisible = value;
+
+    private void NotifyExportsChanged()
+    {
+        ExportTxtCommand.NotifyCanExecuteChanged();
+        ExportMarkdownCommand.NotifyCanExecuteChanged();
+        ExportJsonCommand.NotifyCanExecuteChanged();
+        ExportTracksCsvCommand.NotifyCanExecuteChanged();
+        ExportArtistsCsvCommand.NotifyCanExecuteChanged();
+        ExportAlbumsCsvCommand.NotifyCanExecuteChanged();
+        ExportYearsCsvCommand.NotifyCanExecuteChanged();
+        ExportShowsCsvCommand.NotifyCanExecuteChanged();
+    }
+
+    /// <summary>Sets the status line, and whether it should be shown as a problem.</summary>
+    public void SetStatus(string text, bool isError = false)
+    {
+        StatusText = text;
+        StatusIsError = isError;
     }
 }
+
+/// <summary>One row of an Overview top-five list.</summary>
+public sealed record RankedItem(int Rank, string Name, string Secondary, string Time, int Plays);

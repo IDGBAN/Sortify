@@ -58,6 +58,25 @@ public class AnalysisEngineTests
     }
 
     [Fact]
+    public void NamesContainingLineBreaks_StayIntact()
+    {
+        // Track keys used to be "track\nartist" strings split back apart on the first
+        // newline, so a name with one in it came out truncated or merged with another.
+        var records = new[]
+        {
+            Record(track: "Line\nBreak", artist: "X", skipped: true),
+            Record(track: "Line", artist: "Break\nX", skipped: true),
+        };
+
+        var r = AnalysisEngine.Analyze(records, NoFilter);
+
+        Assert.Equal(2, r.UniqueTracks);
+        Assert.Contains(r.SkippedTracks, s => s.Track == "Line\nBreak" && s.Artist == "X");
+        Assert.Contains(r.SkippedTracks, s => s.Track == "Line" && s.Artist == "Break\nX");
+        Assert.Contains(r.Years[0].TopTrack, new[] { "Line\nBreak", "Line" });
+    }
+
+    [Fact]
     public void ByPlayCountViews_AreSortedByPlays()
     {
         var records = new[]

@@ -84,6 +84,52 @@ public class FilterEngineTests
         Assert.Equal("Other", kept[0].TrackName);
     }
 
+    private static PlayRecord Episode(string show, string episode) => new()
+    {
+        Kind = ContentKind.Podcast,
+        ShowName = show,
+        EpisodeName = episode,
+        MsPlayed = 60_000,
+        Timestamp = new DateTime(2023, 5, 10, 14, 0, 0),
+    };
+
+    [Fact]
+    public void ExcludedArtist_MatchesAPodcastByItsShowName()
+    {
+        // With podcasts counted, a show sits in the Artists grid under its own name, and
+        // "Exclude this artist" on that row hands the show name over.
+        var filter = new FilterOptions { MinMsPlayed = 0, IncludePodcasts = true };
+        filter.ExcludedArtists.Add("The Daily");
+
+        var kept = FilterEngine.Apply(new[] { Episode("The Daily", "Monday"), Episode("Other Show", "Ep 1") }, filter).ToList();
+
+        Assert.Equal("Other Show", Assert.Single(kept).ShowName);
+    }
+
+    [Fact]
+    public void ExcludedTrack_MatchesAPodcastByItsEpisodeName()
+    {
+        var filter = new FilterOptions { MinMsPlayed = 0, IncludePodcasts = true };
+        filter.ExcludedTracks.Add("Monday");
+
+        var kept = FilterEngine.Apply(new[] { Episode("The Daily", "Monday"), Episode("The Daily", "Tuesday") }, filter).ToList();
+
+        Assert.Equal("Tuesday", Assert.Single(kept).EpisodeName);
+    }
+
+    [Fact]
+    public void ExcludingUnknownArtist_LeavesPodcastsAlone()
+    {
+        // Podcast rows carry the "Unknown Artist" placeholder in ArtistName; excluding the
+        // music rows that genuinely have no artist must not take every podcast with them.
+        var filter = new FilterOptions { MinMsPlayed = 0 };
+        filter.ExcludedArtists.Add("Unknown Artist");
+
+        var kept = FilterEngine.Apply(new[] { Record(artist: "Unknown Artist"), Episode("The Daily", "Monday") }, filter).ToList();
+
+        Assert.Equal(ContentKind.Podcast, Assert.Single(kept).Kind);
+    }
+
     [Theory]
     [InlineData(23, true)]
     [InlineData(1, true)]

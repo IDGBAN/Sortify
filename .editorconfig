@@ -11,6 +11,10 @@ indent_size = 4
 [*.{json,yml,yaml}]
 indent_size = 2
 
+# matches .gitattributes, which checks yml out with LF
+[*.{yml,yaml}]
+end_of_line = lf
+
 [*.{xml,xaml,csproj,props,targets}]
 indent_size = 2
 

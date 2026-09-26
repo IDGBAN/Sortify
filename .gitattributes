@@ -1,0 +1,13 @@
+# Let git normalize text files in the repo and check them out with CRLF on Windows, so a
+# clone on a different machine or CI agent doesn't produce a whole-file diff.
+* text=auto
+
+*.cs      text eol=crlf
+*.xaml    text eol=crlf
+*.csproj  text eol=crlf
+*.sln     text eol=crlf
+*.md      text eol=crlf
+*.yml     text eol=lf
+
+*.png binary
+*.ico binary

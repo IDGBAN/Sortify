@@ -1,10 +1,14 @@
 # Build output
 bin/
 obj/
+publish/
+TestResults/
+*.binlog
 
 # IDE
 .vs/
 *.user
+*.suo
 
 # Rider
 .idea/

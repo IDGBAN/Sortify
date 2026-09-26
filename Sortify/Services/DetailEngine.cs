@@ -26,8 +26,9 @@ public static class DetailEngine
         string subtitle,
         CancellationToken cancellationToken = default)
     {
-        var tracks = new Dictionary<string, TrackStat>(StringComparer.Ordinal);
-        var albums = new Dictionary<string, AlbumStat>(StringComparer.Ordinal);
+        var tracks = new Dictionary<(string Track, string Artist), TrackStat>();
+        var albums = new Dictionary<(string Album, string Artist), AlbumStat>();
+        var artists = new Dictionary<string, ArtistStat>(StringComparer.Ordinal);
         var byMonth = new Dictionary<DateTime, long>();
         var days = new HashSet<DateTime>();
         var byHour = new long[24];
@@ -38,13 +39,27 @@ public static class DetailEngine
         DateTime? last = null;
         string uri = string.Empty;
 
+        // A year scope carries its number in the title; parsing it per record would repeat
+        // the same parse hundreds of thousands of times.
+        int scopeYear = 0;
+        if (scope == DetailScope.Year && !int.TryParse(title, out scopeYear))
+            return Empty(scope, title, subtitle);
+
         int counter = 0;
         foreach (var r in FilterEngine.Apply(records, filter))
         {
             if ((++counter & 0x3FFF) == 0)
                 cancellationToken.ThrowIfCancellationRequested();
 
-            if (!IsMatch(r, scope, title, subtitle))
+            // Mirror the main analysis: podcasts and audiobooks only feed these aggregates
+            // when the user asked for them, otherwise a year's totals would disagree with
+            // the Years tab they were opened from.
+            if (r.Kind != ContentKind.Music && !filter.IncludePodcasts)
+                continue;
+
+            var (trackName, artistName, albumName) = DisplayNames(r);
+
+            if (!IsMatch(r, trackName, artistName, albumName, scope, title, subtitle, scopeYear))
                 continue;
 
             totalMs += r.MsPlayed;
@@ -54,29 +69,54 @@ public static class DetailEngine
             if (uri.Length == 0 && r.Uri.Length > 0)
                 uri = r.Uri;
 
-            var trackKey = r.TrackName + "\n" + r.ArtistName;
+            var trackKey = (trackName, artistName);
             if (!tracks.TryGetValue(trackKey, out var track))
             {
-                track = new TrackStat { Track = r.TrackName, Artist = r.ArtistName };
+                track = new TrackStat { Track = trackName, Artist = artistName };
                 tracks[trackKey] = track;
             }
             track.TotalMsPlayed += r.MsPlayed;
             track.PlayCount++;
 
-            var albumKey = r.AlbumName + "\n" + r.ArtistName;
+            var albumKey = (albumName, artistName);
             if (!albums.TryGetValue(albumKey, out var album))
             {
-                album = new AlbumStat { Album = r.AlbumName, Artist = r.ArtistName };
+                album = new AlbumStat { Album = albumName, Artist = artistName };
                 albums[albumKey] = album;
             }
             album.TotalMsPlayed += r.MsPlayed;
             album.PlayCount++;
+
+            // Only a year spans multiple artists; for the other scopes this would be one
+            // row repeating what the header already says.
+            ArtistStat? artist = null;
+            if (scope == DetailScope.Year)
+            {
+                if (!artists.TryGetValue(artistName, out artist))
+                {
+                    artist = new ArtistStat { Artist = artistName, FirstTrack = trackName };
+                    artists[artistName] = artist;
+                }
+                artist.TotalMsPlayed += r.MsPlayed;
+                artist.PlayCount++;
+            }
 
             if (r.Timestamp == DateTime.MinValue)
                 continue;
 
             if (first is null || r.Timestamp < first) first = r.Timestamp;
             if (last is null || r.Timestamp > last) last = r.Timestamp;
+
+            if (artist is not null)
+            {
+                if (artist.FirstPlayed is null || r.Timestamp < artist.FirstPlayed)
+                {
+                    artist.FirstPlayed = r.Timestamp;
+                    artist.FirstTrack = trackName;
+                }
+                if (artist.LastPlayed is null || r.Timestamp > artist.LastPlayed) artist.LastPlayed = r.Timestamp;
+            }
+
             if (track.FirstPlayed is null || r.Timestamp < track.FirstPlayed) track.FirstPlayed = r.Timestamp;
             if (track.LastPlayed is null || r.Timestamp > track.LastPlayed) track.LastPlayed = r.Timestamp;
             if (album.FirstPlayed is null || r.Timestamp < album.FirstPlayed) album.FirstPlayed = r.Timestamp;
@@ -101,6 +141,7 @@ public static class DetailEngine
             ActiveDays = days.Count,
             Tracks = tracks.Values.OrderByDescending(t => t.TotalMsPlayed).ToList(),
             Albums = albums.Values.OrderByDescending(a => a.TotalMsPlayed).ToList(),
+            Artists = artists.Values.OrderByDescending(a => a.TotalMsPlayed).ToList(),
             ByMonth = byMonth.OrderBy(kv => kv.Key)
                 .Select(kv => new DateTimePoint(kv.Key, kv.Value / 3_600_000d))
                 .ToList(),
@@ -109,13 +150,33 @@ public static class DetailEngine
         };
     }
 
-    private static bool IsMatch(PlayRecord r, DetailScope scope, string title, string subtitle) => scope switch
+    /// <summary>
+    /// The names a record appears under in the grids. Podcasts and audiobooks stand in with
+    /// their episode and show titles exactly as <see cref="AnalysisEngine"/> folds them in,
+    /// so a row opened from a grid finds the plays it was built from.
+    /// </summary>
+    private static (string Track, string Artist, string Album) DisplayNames(PlayRecord r)
+        => r.Kind == ContentKind.Music
+            ? (r.TrackName, r.ArtistName, r.AlbumName)
+            : (r.EpisodeName, r.ShowName, r.ShowName);
+
+    private static bool IsMatch(
+        PlayRecord r, string track, string artist, string album,
+        DetailScope scope, string title, string subtitle, int scopeYear)
     {
-        DetailScope.Artist => string.Equals(r.ArtistName, title, StringComparison.Ordinal),
-        DetailScope.Track => string.Equals(r.TrackName, title, StringComparison.Ordinal)
-                             && string.Equals(r.ArtistName, subtitle, StringComparison.Ordinal),
-        DetailScope.Album => string.Equals(r.AlbumName, title, StringComparison.Ordinal)
-                             && string.Equals(r.ArtistName, subtitle, StringComparison.Ordinal),
-        _ => false,
-    };
+        return scope switch
+        {
+            DetailScope.Artist => string.Equals(artist, title, StringComparison.Ordinal),
+            DetailScope.Track => string.Equals(track, title, StringComparison.Ordinal)
+                                 && string.Equals(artist, subtitle, StringComparison.Ordinal),
+            DetailScope.Album => string.Equals(album, title, StringComparison.Ordinal)
+                                 && string.Equals(artist, subtitle, StringComparison.Ordinal),
+            // Undated rows belong to no year.
+            DetailScope.Year => r.Timestamp != DateTime.MinValue && r.Timestamp.Year == scopeYear,
+            _ => false,
+        };
+    }
+
+    private static DetailResult Empty(DetailScope scope, string title, string subtitle)
+        => new() { Scope = scope, Title = title, Subtitle = subtitle };
 }
