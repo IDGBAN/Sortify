@@ -60,9 +60,9 @@ public sealed class DetailResult
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
 
     /// <summary>
-    /// Browser URL for this selection. Prefers the exact track when the export carried a
-    /// URI, and otherwise falls back to a Spotify search, which always resolves to something.
-    /// Empty for scopes that don't name anything Spotify could open, such as a whole year.
+    /// Browser URL for this selection. A track opens its own page when the export carried a
+    /// URI. Artists and albums go through Spotify search instead: the export only records
+    /// track URIs, and opening one of those would land on a single song. Empty for a year.
     /// </summary>
     public string WebUrl
     {
@@ -72,7 +72,7 @@ public sealed class DetailResult
                 return string.Empty;
 
             // "spotify:track:abc" -> "https://open.spotify.com/track/abc"
-            if (Uri.StartsWith("spotify:", StringComparison.OrdinalIgnoreCase))
+            if (Scope == DetailScope.Track && Uri.StartsWith("spotify:", StringComparison.OrdinalIgnoreCase))
             {
                 var parts = Uri.Split(':');
                 // The URI comes straight out of a JSON file and ends up on a shell command

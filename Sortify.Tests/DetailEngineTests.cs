@@ -160,6 +160,19 @@ public class DetailEngineTests
         Assert.Equal("https://open.spotify.com/track/abc123", d.WebUrl);
     }
 
+    [Theory]
+    [InlineData(DetailScope.Artist, "X", "", "https://open.spotify.com/search/X")]
+    [InlineData(DetailScope.Album, "Al", "X", "https://open.spotify.com/search/Al%20X")]
+    public void WebUrl_SearchesForArtistsAndAlbums_EvenWithATrackUri(
+        DetailScope scope, string title, string subtitle, string expected)
+    {
+        var records = new[] { Record(track: "A", artist: "X", album: "Al", uri: "spotify:track:abc123") };
+
+        var d = DetailEngine.Build(records, NoFilter, scope, title, subtitle);
+
+        Assert.Equal(expected, d.WebUrl);
+    }
+
     [Fact]
     public void WebUrl_FallsBackToSearch_WhenThereIsNoUri()
     {
