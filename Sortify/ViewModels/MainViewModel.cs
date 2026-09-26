@@ -695,18 +695,22 @@ public sealed partial class MainViewModel : ObservableObject
         UniqueEpisodesText = r.Episodes.Count > 0 ? r.Episodes.Count.ToString("N0") : "-";
     }
 
-    private static string BuildPeakHourText(AnalysisResult r)
+    /// <summary>The busiest hour of the week, read off the same day-by-hour grid as the heatmap.</summary>
+    internal static string BuildPeakHourText(AnalysisResult r)
     {
-        if (r.TotalMsPlayed == 0)
+        int peakDow = 0, peakHour = 0;
+        for (int d = 0; d < 7; d++)
+        {
+            for (int h = 0; h < 24; h++)
+            {
+                if (r.PlaytimeByDowHour[d, h] > r.PlaytimeByDowHour[peakDow, peakHour])
+                    (peakDow, peakHour) = (d, h);
+            }
+        }
+
+        // Undated plays count toward the totals but never reach the grid.
+        if (r.PlaytimeByDowHour[peakDow, peakHour] == 0)
             return "-";
-
-        int peakHour = 0;
-        for (int h = 1; h < 24; h++)
-            if (r.PlaytimeByHour[h] > r.PlaytimeByHour[peakHour]) peakHour = h;
-
-        int peakDow = 0;
-        for (int d = 1; d < 7; d++)
-            if (r.PlaytimeByDayOfWeek[d] > r.PlaytimeByDayOfWeek[peakDow]) peakDow = d;
 
         string[] dayNames = { "Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays" };
         return $"{peakHour:00}:00-{(peakHour + 1) % 24:00}:00 on {dayNames[peakDow]}";

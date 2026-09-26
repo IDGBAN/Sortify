@@ -930,7 +930,7 @@
                                             <TextBlock Text="PEAK LISTENING" Style="{StaticResource Caption}" />
                                             <TextBlock Text="{Binding PeakHourText}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
-                                                       Text="Your most active hour and day of the week." />
+                                                       Text="The hour of the week you listen to most." />
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource Card}">

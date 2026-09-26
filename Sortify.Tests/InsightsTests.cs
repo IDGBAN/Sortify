@@ -1,5 +1,6 @@
 using Sortify.Models;
 using Sortify.Services;
+using Sortify.ViewModels;
 using Xunit;
 
 namespace Sortify.Tests;
@@ -21,6 +22,30 @@ public class InsightsTests
             Timestamp = ts ?? new DateTime(2023, 5, 10, 14, 0, 0),
             ReasonEnd = reasonEnd,
         };
+
+    [Fact]
+    public void PeakHour_IsTheBusiestCellOfTheWeek_NotTheBusiestHourAndDaySeparately()
+    {
+        // Friday wins as a day and 21:00 wins as an hour, but nothing played on Friday at 21:00.
+        var records = new[]
+        {
+            Record(ms: 100 * 60_000, ts: new DateTime(2023, 5, 8, 21, 30, 0)),  // Monday
+            Record(ms: 60 * 60_000, ts: new DateTime(2023, 5, 12, 9, 30, 0)),   // Friday
+            Record(ms: 60 * 60_000, ts: new DateTime(2023, 5, 12, 10, 30, 0)),  // Friday
+        };
+
+        var r = AnalysisEngine.Analyze(records, NoFilter);
+
+        Assert.Equal("21:00-22:00 on Mondays", MainViewModel.BuildPeakHourText(r));
+    }
+
+    [Fact]
+    public void PeakHour_IsBlank_WhenNoPlayCarriesATimestamp()
+    {
+        var r = AnalysisEngine.Analyze(new[] { Record(ts: DateTime.MinValue) }, NoFilter);
+
+        Assert.Equal("-", MainViewModel.BuildPeakHourText(r));
+    }
 
     [Fact]
     public void LongestBreak_CountsTheSilentDaysBetweenTwoActiveDays()
