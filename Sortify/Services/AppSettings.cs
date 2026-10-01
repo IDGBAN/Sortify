@@ -19,10 +19,12 @@ public sealed class AppSettings
 
     // ---- Data -------------------------------------------------------------------------------
 
-    /// <summary>Folder passed to Open Folder last time, reopened at startup when it still exists.</summary>
+    /// <summary>
+    /// Export folder (or export ZIP) opened last time, reopened at startup when it still exists.
+    /// </summary>
     public string? LastFolder { get; set; }
 
-    /// <summary>Most recently opened folders, newest first.</summary>
+    /// <summary>Most recently opened export folders and ZIPs, newest first.</summary>
     public List<string> RecentFolders { get; set; } = new();
 
     /// <summary>Whether to reload the last folder automatically on launch.</summary>
@@ -117,13 +119,16 @@ public sealed class AppSettings
         LastFolder = folder;
     }
 
-    /// <summary>Drops remembered folders that no longer exist on disk.</summary>
+    /// <summary>Drops remembered folders and ZIPs that no longer exist on disk.</summary>
     public void PruneMissingFolders()
     {
-        RecentFolders.RemoveAll(f => !Directory.Exists(f));
-        if (LastFolder is not null && !Directory.Exists(LastFolder))
+        RecentFolders.RemoveAll(f => !Exists(f));
+        if (LastFolder is not null && !Exists(LastFolder))
             LastFolder = null;
     }
+
+    private static bool Exists(string path) =>
+        ArchivePath.IsArchive(path) ? File.Exists(path) : Directory.Exists(path);
 
     /// <summary>
     /// <see cref="SessionGapMinutes"/> as a TimeSpan. Not persisted: it is derived, and

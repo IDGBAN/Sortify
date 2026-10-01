@@ -267,7 +267,7 @@ public partial class MainWindow : Window
 
         if (vm.RecentFolders.Count == 0)
         {
-            menu.Items.Add(new MenuItem { Header = "No folders opened yet", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = "Nothing opened yet", IsEnabled = false });
         }
         else
         {
@@ -378,7 +378,14 @@ public partial class MainWindow : Window
         return sv.VerticalOffset >= sv.ScrollableHeight - threshold;
     }
 
-    // ---- Drag & drop of history JSON files (or folders containing them) ---------------------
+    // ---- Drag & drop of history JSON files, export folders or export ZIPs ----------------------
+
+    private static bool IsJson(string path) =>
+        string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A folder or ZIP gets searched for history files rather than read as one.</summary>
+    private static bool IsExportContainer(string path) =>
+        Directory.Exists(path) || (ArchivePath.IsArchive(path) && File.Exists(path));
 
     private static string[] DroppedJsonFiles(DragEventArgs e)
     {
@@ -388,40 +395,46 @@ public partial class MainWindow : Window
         var files = new List<string>();
         foreach (var item in items)
         {
-            if (Directory.Exists(item))
+            if (IsExportContainer(item))
                 files.AddRange(HistoryParser.FindHistoryFiles(item));
-            else if (string.Equals(Path.GetExtension(item), ".json", StringComparison.OrdinalIgnoreCase))
+            else if (IsJson(item))
                 files.Add(item);
         }
         return files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 
-    /// <summary>The dropped folder, when exactly one was dropped, so it can be remembered.</summary>
+    /// <summary>The dropped folder or ZIP, when exactly one was dropped, so it can be remembered.</summary>
     private static string? DroppedFolder(DragEventArgs e)
     {
         if (e.Data.GetData(DataFormats.FileDrop) is not string[] items)
             return null;
 
-        var folders = items.Where(Directory.Exists).ToList();
-        return folders.Count == 1 ? folders[0] : null;
+        var containers = items.Where(IsExportContainer).ToList();
+        return containers.Count == 1 ? containers[0] : null;
     }
 
     private void OnFileDragOver(object sender, DragEventArgs e)
     {
-        // DragOver fires continuously while hovering, so keep this check cheap:
-        // accept folders and .json files without scanning folder contents yet.
+        // DragOver fires continuously while hovering, so keep this check cheap: accept
+        // folders, ZIPs and .json files without looking inside any of them yet.
         bool accept = e.Data.GetData(DataFormats.FileDrop) is string[] items &&
-                      items.Any(i => Directory.Exists(i) ||
-                                     string.Equals(Path.GetExtension(i), ".json", StringComparison.OrdinalIgnoreCase));
+                      items.Any(i => Directory.Exists(i) || IsJson(i) || ArchivePath.IsArchive(i));
         e.Effects = accept ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
     private async void OnFileDrop(object sender, DragEventArgs e)
     {
-        var files = DroppedJsonFiles(e);
-        if (files.Length == 0 || ViewModel is not { } vm)
+        if (ViewModel is not { } vm)
             return;
+
+        var files = DroppedJsonFiles(e);
+        if (files.Length == 0)
+        {
+            vm.SetStatus("Nothing that was dropped holds Spotify listening history. Drop the ZIP " +
+                         "Spotify sent, the folder it unpacks to, or its JSON files.", isError: true);
+            return;
+        }
 
         await vm.LoadFilesAsync(files, DroppedFolder(e));
     }

@@ -31,17 +31,25 @@ public static class RecordCache
     /// Fingerprints the source files. Two runs over an unchanged export produce the same
     /// key; any change to the file set, a file's length or its write time produces a
     /// different one. The local time zone is part of it too, because the cached timestamps
-    /// were already converted to local time when the export was parsed.
+    /// were already converted to local time when the export was parsed. A file inside a ZIP
+    /// is fingerprinted by the archive it came from plus its name within it.
     /// </summary>
     internal static string BuildKey(IEnumerable<string> filePaths)
     {
         var parts = filePaths
             .Select(p =>
             {
-                var info = new FileInfo(p);
+                string file = p, entry = string.Empty;
+                if (ArchivePath.TrySplit(p, out var archive, out var entryName))
+                {
+                    file = archive;
+                    entry = "|" + entryName;
+                }
+
+                var info = new FileInfo(file);
                 long length = info.Exists ? info.Length : -1;
                 long ticks = info.Exists ? info.LastWriteTimeUtc.Ticks : -1;
-                return $"{info.FullName.ToLowerInvariant()}|{length}|{ticks}";
+                return $"{info.FullName.ToLowerInvariant()}|{length}|{ticks}{entry}";
             })
             .OrderBy(s => s, StringComparer.Ordinal)
             .Prepend($"tz|{TimeZoneInfo.Local.Id}");

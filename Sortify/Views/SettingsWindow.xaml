@@ -38,7 +38,7 @@
                     <StackPanel>
                         <TextBlock Text="Data" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
 
-                        <CheckBox x:Name="ReopenBox" Content="Reopen the last folder on launch"
+                        <CheckBox x:Name="ReopenBox" Content="Reopen the last export on launch"
                                   Checked="OnReopenChanged" Unchecked="OnReopenChanged" />
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="Loads your most recent export automatically when Sortify starts." />
@@ -68,8 +68,8 @@
                         <WrapPanel>
                             <Button x:Name="ClearCacheButton" Content="Clear cache" Click="OnClearCache"
                                     ToolTip="Delete the parsed-history cache. The next load re-reads your JSON files." />
-                            <Button x:Name="ClearRecentButton" Content="Clear recent folders" Click="OnClearRecent"
-                                    ToolTip="Forget the folders in the Recent menu." />
+                            <Button x:Name="ClearRecentButton" Content="Clear recent" Click="OnClearRecent"
+                                    ToolTip="Forget the folders and ZIPs in the Recent menu." />
                             <Button Content="Open data folder" Click="OnOpenDataFolder"
                                     ToolTip="Everything Sortify stores lives here." />
                         </WrapPanel>

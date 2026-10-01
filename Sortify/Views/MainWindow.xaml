@@ -104,12 +104,12 @@
                         ToolTip="Pick the extracted export folder; history files are found automatically (Ctrl+Shift+O)"
                         Command="{Binding OpenFolderCommand}" />
                 <Button Content="Open Files"
-                        ToolTip="Pick individual history JSON files (Ctrl+O)"
+                        ToolTip="Pick the export ZIP Spotify sent, or individual history JSON files (Ctrl+O)"
                         Command="{Binding RunAnalysisCommand}" />
                 <!-- U+25BE, which the UI font has; the Segoe MDL2 chevron would be tofu here. -->
                 <Button Content="Recent  &#x25BE;" Click="OnRecentClick"
-                        AutomationProperties.Name="Recent folders"
-                        ToolTip="Folders you opened before" />
+                        AutomationProperties.Name="Recent exports"
+                        ToolTip="Export folders and ZIPs you opened before" />
 
                 <Button Content="Export  &#x25BE;" Click="OnDropdownClick"
                         AutomationProperties.Name="Export"
@@ -219,12 +219,12 @@
                         <TextBlock HorizontalAlignment="Center" TextAlignment="Center" Margin="0,10,0,0"
                                    TextWrapping="Wrap" FontSize="13"
                                    Foreground="{DynamicResource MutedBrush}"
-                                   Text="Drag the extracted export folder (or its JSON files) onto this window, or use the buttons below. Everything is processed on this machine - nothing is uploaded." />
+                                   Text="Drag the ZIP Spotify sent you onto this window. No need to unzip it first; the extracted folder or its JSON files work too. Everything is processed on this machine - nothing is uploaded." />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,22,0,0">
-                            <Button Content="Open Folder" Style="{StaticResource AccentButton}"
-                                    Padding="20,9" Command="{Binding OpenFolderCommand}" />
-                            <Button Content="Choose Files" Padding="20,9" Margin="0"
-                                    Command="{Binding RunAnalysisCommand}" />
+                            <Button Content="Open ZIP or Files" Style="{StaticResource AccentButton}"
+                                    Padding="20,9" Command="{Binding RunAnalysisCommand}" />
+                            <Button Content="Open Folder" Padding="20,9" Margin="0"
+                                    Command="{Binding OpenFolderCommand}" />
                         </StackPanel>
                         <TextBlock HorizontalAlignment="Center" TextAlignment="Center" Margin="0,20,0,0"
                                    FontSize="11" TextWrapping="Wrap"

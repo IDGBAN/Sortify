@@ -69,6 +69,28 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void PruneMissingFolders_KeepsAZipThatStillExists()
+    {
+        var zip = Path.Combine(Path.GetTempPath(), $"sortify-{Guid.NewGuid():N}.zip");
+        File.WriteAllText(zip, "zip");
+        try
+        {
+            var settings = new AppSettings();
+            settings.RememberFolder(Path.Combine(Path.GetTempPath(), "sortify-gone.zip"));
+            settings.RememberFolder(zip);
+
+            settings.PruneMissingFolders();
+
+            Assert.Equal(new[] { zip }, settings.RecentFolders);
+            Assert.Equal(zip, settings.LastFolder);
+        }
+        finally
+        {
+            File.Delete(zip);
+        }
+    }
+
+    [Fact]
     public void Normalize_CleansAHandEditedRecentList()
     {
         var settings = JsonSerializer.Deserialize<AppSettings>(

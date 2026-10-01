@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Text.Json;
 using Sortify.Models;
 
@@ -33,12 +34,16 @@ public sealed class HistoryParser
     };
 
     /// <summary>
-    /// Finds Spotify history JSON files under <paramref name="folder"/> (recursively).
-    /// Prefers files matching Spotify's export naming; falls back to any top-level
-    /// .json files so hand-renamed exports still work.
+    /// Finds Spotify history JSON files under <paramref name="folder"/> (recursively), or
+    /// inside it when it is the ZIP Spotify sends. Prefers files matching Spotify's export
+    /// naming; falls back to any top-level .json files so hand-renamed exports still work.
+    /// Entries inside a ZIP come back as <see cref="ArchivePath"/> paths.
     /// </summary>
     public static IReadOnlyList<string> FindHistoryFiles(string folder)
     {
+        if (ArchivePath.IsArchive(folder))
+            return File.Exists(folder) ? FindArchiveEntries(folder) : Array.Empty<string>();
+
         if (!Directory.Exists(folder))
             return Array.Empty<string>();
 
@@ -56,13 +61,7 @@ public sealed class HistoryParser
 
         var named = Directory
             .EnumerateFiles(folder, "*.json", recursive)
-            .Where(f =>
-            {
-                var name = Path.GetFileName(f);
-                return name.StartsWith("Streaming_History", StringComparison.OrdinalIgnoreCase)
-                    || name.StartsWith("StreamingHistory", StringComparison.OrdinalIgnoreCase)
-                    || name.StartsWith("endsong", StringComparison.OrdinalIgnoreCase);
-            })
+            .Where(f => IsHistoryFileName(Path.GetFileName(f)))
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
@@ -74,6 +73,39 @@ public sealed class HistoryParser
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
+
+    private static bool IsHistoryFileName(string name) =>
+        name.StartsWith("Streaming_History", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("StreamingHistory", StringComparison.OrdinalIgnoreCase)
+        || name.StartsWith("endsong", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The same search as for a folder, run over the entries of a ZIP.</summary>
+    private static IReadOnlyList<string> FindArchiveEntries(string archive)
+    {
+        try
+        {
+            using var zip = ZipFile.OpenRead(archive);
+            var json = zip.Entries
+                .Where(e => e.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.FullName)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var named = json.Where(n => IsHistoryFileName(Path.GetFileName(n))).ToList();
+            if (named.Count == 0)
+                named = json.Where(n => n.IndexOfAny(EntrySeparators) < 0).ToList();
+
+            return named.Select(n => ArchivePath.Combine(archive, n)).ToList();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            // A damaged or half-downloaded archive is reported the same way as one with no
+            // history in it; the caller says which ZIP it was.
+            return Array.Empty<string>();
+        }
+    }
+
+    private static readonly char[] EntrySeparators = { '/', '\\' };
 
     public async Task<ParseResult> ParseAsync(
         IEnumerable<string> filePaths,
@@ -123,6 +155,19 @@ public sealed class HistoryParser
     {
         try
         {
+            if (ArchivePath.TrySplit(path, out var archive, out var entryName))
+            {
+                // Each file gets its own handle on the archive: ZipArchive isn't safe to share
+                // between the concurrent parse tasks.
+                using var zip = ZipFile.OpenRead(archive);
+                var zipEntry = zip.GetEntry(entryName);
+                if (zipEntry is null || zipEntry.Length == 0)
+                    return new FileOutcome(null, path, null);
+
+                await using var entryStream = zipEntry.Open();
+                return await ReadAsync(path, entryStream, pool, cancellationToken).ConfigureAwait(false);
+            }
+
             var info = new FileInfo(path);
             if (!info.Exists || info.Length == 0)
                 return new FileOutcome(null, path, null);
@@ -131,25 +176,15 @@ public sealed class HistoryParser
                 path, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024,
                 FileOptions.Asynchronous | FileOptions.SequentialScan);
 
-            var entries = await JsonSerializer
-                .DeserializeAsync<List<SpotifyHistoryEntry>>(stream, JsonOptions, cancellationToken)
-                .ConfigureAwait(false);
-
-            if (entries is null)
-                return new FileOutcome(null, path, null);
-
-            var records = new List<PlayRecord>(entries.Count);
-            foreach (var entry in entries)
-            {
-                var record = Normalize(entry, pool);
-                if (record is not null)
-                    records.Add(record);
-            }
-            return new FileOutcome(records, null, null);
+            return await ReadAsync(path, stream, pool, cancellationToken).ConfigureAwait(false);
         }
         catch (JsonException ex)
         {
             return new FileOutcome(null, null, $"Skipping invalid JSON file: {Path.GetFileName(path)} ({ex.Message})");
+        }
+        catch (InvalidDataException ex)
+        {
+            return new FileOutcome(null, null, $"Could not unpack {Path.GetFileName(path)} from the ZIP ({ex.Message})");
         }
         catch (NotSupportedException ex)
         {
@@ -163,6 +198,26 @@ public sealed class HistoryParser
         {
             return new FileOutcome(null, null, $"Access denied to {Path.GetFileName(path)} ({ex.Message})");
         }
+    }
+
+    private static async Task<FileOutcome> ReadAsync(
+        string path, Stream stream, StringPool pool, CancellationToken cancellationToken)
+    {
+        var entries = await JsonSerializer
+            .DeserializeAsync<List<SpotifyHistoryEntry>>(stream, JsonOptions, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (entries is null)
+            return new FileOutcome(null, path, null);
+
+        var records = new List<PlayRecord>(entries.Count);
+        foreach (var entry in entries)
+        {
+            var record = Normalize(entry, pool);
+            if (record is not null)
+                records.Add(record);
+        }
+        return new FileOutcome(records, null, null);
     }
 
     /// <summary>

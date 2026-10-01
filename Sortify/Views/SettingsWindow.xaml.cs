@@ -143,8 +143,8 @@ public partial class SettingsWindow : Window
     {
         int count = _settings.RecentFolders.Count;
         RecentText.Text = count == 0
-            ? "No folders are remembered."
-            : $"{count} folder{(count == 1 ? "" : "s")} in the Recent menu.";
+            ? "No exports are remembered."
+            : $"{count} export{(count == 1 ? "" : "s")} in the Recent menu.";
         ClearRecentButton.IsEnabled = count > 0;
     }
 }

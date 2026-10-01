@@ -24,7 +24,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Files behind the current results, so F5 can re-read them.</summary>
     private IReadOnlyList<string> _loadedFiles = Array.Empty<string>();
 
-    /// <summary>Folder those files came from, or null when they were picked individually.</summary>
+    /// <summary>Folder or ZIP those files came from, or null when they were picked individually.</summary>
     private string? _loadedFolder;
 
     // IsBusy covers two independent things - a parse and any number of overlapping analysis
@@ -216,14 +216,30 @@ public sealed partial class MainViewModel : ObservableObject
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Select your Spotify streaming history JSON files",
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Select your Spotify history: the export ZIP or its JSON files",
+            Filter = "Spotify history (*.json, *.zip)|*.json;*.zip|JSON files (*.json)|*.json|" +
+                     "ZIP files (*.zip)|*.zip|All files (*.*)|*.*",
             Multiselect = true,
         };
         if (dialog.ShowDialog() != true)
             return;
 
-        await LoadFilesAsync(dialog.FileNames);
+        // A ZIP is opened up into the history files inside it; anything else is taken as
+        // picked, so a renamed export still loads.
+        var files = dialog.FileNames
+            .SelectMany(f => ArchivePath.IsArchive(f) ? HistoryParser.FindHistoryFiles(f) : new[] { f })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (files.Count == 0)
+        {
+            SetStatus("No Spotify history was found in that ZIP. If it is the file Spotify sent, " +
+                      "it may be damaged; try downloading it again.", isError: true);
+            return;
+        }
+
+        // A lone ZIP goes into Recent the way a folder does.
+        string? archive = dialog.FileNames is [var only] && ArchivePath.IsArchive(only) ? only : null;
+        await LoadFilesAsync(files, archive);
     }
 
     [RelayCommand]
@@ -239,16 +255,21 @@ public sealed partial class MainViewModel : ObservableObject
         await OpenFolderPathAsync(dialog.FolderName);
     }
 
-    /// <summary>Loads a folder by path. Used by Open Folder, the recent list and drag &amp; drop.</summary>
+    /// <summary>
+    /// Loads an export folder, or an export ZIP, by path. Used by Open Folder and the recent list.
+    /// </summary>
     [RelayCommand]
     public async Task OpenFolderPathAsync(string? folder)
     {
         if (string.IsNullOrWhiteSpace(folder))
             return;
 
-        if (!Directory.Exists(folder))
+        bool isArchive = ArchivePath.IsArchive(folder);
+        if (isArchive ? !File.Exists(folder) : !Directory.Exists(folder))
         {
-            SetStatus($"That folder no longer exists: {folder}", isError: true);
+            SetStatus(isArchive
+                ? $"That file no longer exists: {folder}"
+                : $"That folder no longer exists: {folder}", isError: true);
             _settings.PruneMissingFolders();
             _settings.Save();
             RefreshRecentFolders();
@@ -258,7 +279,10 @@ public sealed partial class MainViewModel : ObservableObject
         var files = HistoryParser.FindHistoryFiles(folder);
         if (files.Count == 0)
         {
-            SetStatus("No Spotify history JSON files were found in that folder.", isError: true);
+            SetStatus(isArchive
+                ? "No Spotify history was found in that ZIP. If it is the file Spotify sent, " +
+                  "it may be damaged; try downloading it again."
+                : "No Spotify history JSON files were found in that folder.", isError: true);
             return;
         }
 
@@ -306,7 +330,10 @@ public sealed partial class MainViewModel : ObservableObject
         SetStatus("Cancelled. Change a filter or press F5 to run again.");
     }
 
-    /// <summary>Parses the given history files and runs analysis. Also used by drag &amp; drop.</summary>
+    /// <summary>
+    /// Parses the given history files and runs analysis. Also used by drag &amp; drop.
+    /// <paramref name="folder"/> is the folder or ZIP they came from, remembered in Recent.
+    /// </summary>
     public async Task LoadFilesAsync(IReadOnlyList<string> filePaths, string? folder = null)
     {
         if (filePaths.Count == 0 || _isLoading)

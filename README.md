@@ -28,7 +28,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
   - Search by track, artist or album name.
   - An exclude list for specific artists or tracks.
   - Time of day and day of week. Time ranges may cross midnight, for example 22:00 to 02:00.
-- Load data your way: pick individual JSON files (Ctrl+O), point at the extracted export folder (**Open Folder**, Ctrl+Shift+O), reopen one of the last eight folders from **Recent**, or just drag & drop the files or the whole folder onto the window.
+- Load data your way: open the ZIP Spotify sends without unzipping it, pick individual JSON files (both with Ctrl+O), point at the extracted export folder (**Open Folder**, Ctrl+Shift+O), reopen one of the last eight exports from **Recent**, or just drag & drop the ZIP, the files or the whole folder onto the window.
 - Reads both the extended streaming history (`Streaming_History_Audio_*.json`) and the older account-data export (`StreamingHistory*.json`).
 - Reopens the folder you used last time when it starts, remembers your window size and layout, and caches the parsed history so an unchanged export loads instantly instead of being re-read.
 - Export a text summary, a Markdown report, everything as JSON, or tracks, artists, albums, years and shows as CSV.
@@ -37,7 +37,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 ## Keyboard Shortcuts
 | Shortcut | Action |
 | --- | --- |
-| `Ctrl+O` / `Ctrl+Shift+O` | Open files / open a folder |
+| `Ctrl+O` / `Ctrl+Shift+O` | Open the export ZIP or files / open a folder |
 | `F5` | Re-read the files from disk, ignoring the cache |
 | `Ctrl+1` … `Ctrl+8` | Jump to a tab |
 | `Ctrl+F` | Focus the current table's filter box (`Esc` clears it) |
@@ -48,9 +48,9 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 | `Ctrl+R` | Reset every filter |
 
 ## Get Started
-1. Request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/) from Spotify. When it arrives, download and extract the ZIP.
+1. Request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/) from Spotify. When it arrives, download the ZIP. There's no need to extract it.
 2. Download the latest `Sortify.exe` from the [releases page](https://github.com/IDGBAN/Sortify/releases/) and run it.
-3. Click **Open Folder** and pick the extracted folder (or click **Open Files** to choose individual JSON files, or drag & drop them onto the window).
+3. Drag the ZIP onto the window, or click **Open Files** and pick it. An extracted folder works too: use **Open Folder**, or drop the folder or its JSON files onto the window.
 4. Browse the Overview, Tracks, Artists, Albums, Years, Podcasts, Trends and Insights tabs, adjust the filters on the left, and export your results if you want a copy.
 
 Analysis is quick unless your history is unusually large.
