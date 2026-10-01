@@ -83,6 +83,14 @@ public class FilterViewModelTests
     }
 
     [Fact]
+    public void Describe_QuotesTheSearchTerm()
+    {
+        var vm = new FilterViewModel { SearchTerm = "  night  " };
+
+        Assert.Contains("Search “night”", vm.Describe());
+    }
+
+    [Fact]
     public void Describe_MentionsANarrowedHourRange()
     {
         var vm = new FilterViewModel { StartHour = 22, EndHour = 2 };

@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sortify.Models;
+using Sortify.Services;
 
 namespace Sortify.ViewModels;
 
@@ -13,7 +14,19 @@ public sealed partial class FilterViewModel : ObservableObject
 {
     public event EventHandler? FiltersChanged;
 
+    /// <summary>Raised when a preset is saved or deleted, so the owner can persist the list.</summary>
+    public event EventHandler? PresetsChanged;
+
+    /// <summary>A line for the status bar about something the presets did.</summary>
+    public event EventHandler<string>? Notice;
+
     private bool _suppress;
+
+    /// <summary>True while a preset is being applied, so the change doesn't deselect it again.</summary>
+    private bool _applyingPreset;
+
+    /// <summary>True while the preset list's selection is moved without applying anything.</summary>
+    private bool _selectingQuietly;
 
     [ObservableProperty] private int _minSeconds = FilterOptions.DefaultMinMs / 1000;
     [ObservableProperty] private bool _includePodcasts;
@@ -36,6 +49,31 @@ public sealed partial class FilterViewModel : ObservableObject
 
     public DayToggle[] Days { get; }
 
+    /// <summary>Saved filter sets, in the order they were made.</summary>
+    public ObservableCollection<FilterPreset> Presets { get; } = new();
+
+    /// <summary>
+    /// The preset whose filters are in effect. Picking one applies it; changing any filter
+    /// afterwards clears it, since the sidebar no longer matches what was saved.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(DeletePresetCommand))]
+    [NotifyPropertyChangedFor(nameof(HasSelectedPreset))]
+    private FilterPreset? _selectedPreset;
+
+    [ObservableProperty]
+    [NotifyCanExecuteChangedFor(nameof(SavePresetCommand))]
+    private string _newPresetName = string.Empty;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(PresetPrompt))]
+    private bool _hasPresets;
+
+    public bool HasSelectedPreset => SelectedPreset is not null;
+
+    /// <summary>Shown in the preset list while nothing in it is picked.</summary>
+    public string PresetPrompt => HasPresets ? "Choose a saved set" : "Nothing saved yet";
+
     /// <summary>
     /// True when the From date is after the To date. The filter still applies as asked (and
     /// matches nothing); this only exists so the panel can say why everything vanished.
@@ -56,6 +94,7 @@ public sealed partial class FilterViewModel : ObservableObject
         };
         ExcludedArtists.CollectionChanged += (_, _) => Raise();
         ExcludedTracks.CollectionChanged += (_, _) => Raise();
+        Presets.CollectionChanged += (_, _) => HasPresets = Presets.Count > 0;
     }
 
     partial void OnMinSecondsChanged(int value) => Raise();
@@ -69,8 +108,142 @@ public sealed partial class FilterViewModel : ObservableObject
     internal void Raise()
     {
         if (_suppress) return;
+        if (!_applyingPreset)
+            SelectQuietly(null);
         FiltersChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    // ---- Presets -----------------------------------------------------------------------------
+
+    /// <summary>Every filter as it stands, under <paramref name="name"/>.</summary>
+    public FilterPreset Snapshot(string name = "") => new()
+    {
+        Name = name,
+        MinSeconds = MinSeconds,
+        IncludePodcasts = IncludePodcasts,
+        StartDate = StartDate?.Date,
+        EndDate = EndDate?.Date,
+        SearchTerm = SearchTerm ?? string.Empty,
+        StartHour = StartHour,
+        EndHour = EndHour,
+        IncludedDays = Days.Select(d => d.IsSelected).ToArray(),
+        ExcludedArtists = ExcludedArtists.ToList(),
+        ExcludedTracks = ExcludedTracks.ToList(),
+    };
+
+    /// <summary>
+    /// Just the filters that are remembered between launches: what the user never wants
+    /// counted. Everything else is left at its default.
+    /// </summary>
+    public FilterPreset RememberedSnapshot() => new()
+    {
+        MinSeconds = MinSeconds,
+        IncludePodcasts = IncludePodcasts,
+        ExcludedArtists = ExcludedArtists.ToList(),
+        ExcludedTracks = ExcludedTracks.ToList(),
+    };
+
+    /// <summary>Replaces every filter with the preset's, raising a single change.</summary>
+    public void Apply(FilterPreset preset)
+    {
+        _suppress = true;
+        try
+        {
+            MinSeconds = Math.Max(0, preset.MinSeconds);
+            IncludePodcasts = preset.IncludePodcasts;
+            StartDate = preset.StartDate;
+            EndDate = preset.EndDate;
+            SearchTerm = preset.SearchTerm ?? string.Empty;
+            StartHour = Math.Clamp(preset.StartHour, 0, 23);
+            EndHour = Math.Clamp(preset.EndHour, 0, 23);
+
+            ExcludedArtists.Clear();
+            foreach (var artist in preset.ExcludedArtists ?? new List<string>())
+                ExcludeArtist(artist);
+            ExcludedTracks.Clear();
+            foreach (var track in preset.ExcludedTracks ?? new List<string>())
+                ExcludeTrack(track);
+
+            for (int i = 0; i < Days.Length; i++)
+                Days[i].IsSelected = preset.IncludedDays is { Length: 7 } days ? days[i] : true;
+        }
+        finally
+        {
+            _suppress = false;
+        }
+
+        _applyingPreset = true;
+        try { Raise(); }
+        finally { _applyingPreset = false; }
+    }
+
+    /// <summary>Fills the preset list from settings, without applying any of them.</summary>
+    public void LoadPresets(IEnumerable<FilterPreset> presets)
+    {
+        Presets.Clear();
+        foreach (var preset in presets)
+            Presets.Add(preset);
+    }
+
+    partial void OnSelectedPresetChanged(FilterPreset? value)
+    {
+        if (value is not null && !_selectingQuietly)
+            Apply(value);
+    }
+
+    private void SelectQuietly(FilterPreset? preset)
+    {
+        _selectingQuietly = true;
+        try { SelectedPreset = preset; }
+        finally { _selectingQuietly = false; }
+    }
+
+    private bool CanSavePreset() => !string.IsNullOrWhiteSpace(NewPresetName);
+
+    /// <summary>Saves the current filters under the typed name, replacing a preset of that name.</summary>
+    [RelayCommand(CanExecute = nameof(CanSavePreset))]
+    private void SavePreset()
+    {
+        string name = NewPresetName.Trim();
+        var preset = Snapshot(name);
+
+        int existing = Presets.ToList().FindIndex(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+        if (existing >= 0)
+        {
+            Presets[existing] = preset;
+        }
+        else if (Presets.Count >= AppSettings.MaxFilterPresets)
+        {
+            Notice?.Invoke(this, $"You already have {AppSettings.MaxFilterPresets} saved filter sets. " +
+                                 "Delete one before saving another.");
+            return;
+        }
+        else
+        {
+            Presets.Add(preset);
+        }
+
+        NewPresetName = string.Empty;
+        SelectQuietly(preset);
+        PresetsChanged?.Invoke(this, EventArgs.Empty);
+        Notice?.Invoke(this, existing >= 0
+            ? $"Updated the saved filters “{name}”."
+            : $"Saved the current filters as “{name}”.");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanDeletePreset))]
+    private void DeletePreset()
+    {
+        if (SelectedPreset is not { } preset)
+            return;
+
+        SelectQuietly(null);
+        Presets.Remove(preset);
+        PresetsChanged?.Invoke(this, EventArgs.Empty);
+        Notice?.Invoke(this, $"Deleted the saved filters “{preset.Name}”. The filters themselves are unchanged.");
+    }
+
+    private bool CanDeletePreset() => SelectedPreset is not null;
 
     /// <summary>Builds a fresh <see cref="FilterOptions"/> snapshot from current values.</summary>
     public FilterOptions ToOptions()

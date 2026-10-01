@@ -45,6 +45,51 @@
                             Padding="8,4" Margin="0" ToolTip="Clear every filter (Ctrl+R)" />
                 </DockPanel>
 
+                <!-- Saved filter sets -->
+                <TextBlock Text="SAVED FILTERS" Style="{StaticResource SectionHeader}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- An item template rather than DisplayMemberPath: the closed box in the
+                         app's ComboBox template only shows the selection through a template. -->
+                    <ComboBox Grid.Column="0" ItemsSource="{Binding Presets}"
+                              SelectedItem="{Binding SelectedPreset}" IsEnabled="{Binding HasPresets}"
+                              AutomationProperties.Name="Saved filter sets"
+                              ToolTip="Pick a saved set to put all of its filters back">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Grid.Column="0" Text="{Binding PresetPrompt}" Margin="11,0,0,0" FontSize="13"
+                               VerticalAlignment="Center" IsHitTestVisible="False"
+                               Foreground="{DynamicResource MutedBrush}"
+                               Visibility="{Binding HasSelectedPreset, Converter={StaticResource NotBoolToVis}}" />
+                    <Button Grid.Column="1" Content="Delete" Margin="6,0,0,0" Padding="10,4"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Forget the selected saved set (the filters stay as they are)" />
+                </Grid>
+                <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="40" AutomationProperties.Name="Name for the current filters"
+                             ToolTip="Name the current filters, then press Enter or Save">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SavePresetCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <Button Grid.Column="1" Content="Save" Margin="6,0,0,0" Padding="10,4"
+                            Command="{Binding SavePresetCommand}" />
+                </Grid>
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Saves every filter below under a name, and picking it puts them all back. Saving under a name that's already taken replaces it. Exclusions, the minimum duration and the podcast setting are kept between launches anyway." />
+
                 <!-- Minimum play duration -->
                 <TextBlock Text="MINIMUM PLAY DURATION (SECONDS)" Style="{StaticResource Caption}" />
                 <TextBox Text="{Binding MinSeconds, UpdateSourceTrigger=PropertyChanged, Delay=400}"

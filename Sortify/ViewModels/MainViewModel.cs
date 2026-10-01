@@ -184,6 +184,11 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshRecentFolders();
         RefreshThemeButton();
 
+        // Restored before anything listens for changes, so it doesn't trigger a save or a recompute.
+        if (_settings.Filters is { } remembered)
+            Filters.Apply(remembered);
+        Filters.LoadPresets(_settings.FilterPresets);
+
         _debounce = new DispatcherTimer { Interval = FilterDebounce };
         _debounce.Tick += async (_, _) =>
         {
@@ -193,10 +198,17 @@ public sealed partial class MainViewModel : ObservableObject
         Filters.FiltersChanged += (_, _) =>
         {
             RefreshActiveFilters();
+            RememberFilters();
             if (!HasData) return;
             _debounce.Stop();
             _debounce.Start();
         };
+        Filters.PresetsChanged += (_, _) =>
+        {
+            _settings.FilterPresets = Filters.Presets.ToList();
+            _settings.Save();
+        };
+        Filters.Notice += (_, message) => SetStatus(message);
 
         // Charts bake their colours into Skia paints, so they have to be rebuilt rather
         // than repainted when the palette changes.
@@ -477,6 +489,20 @@ public sealed partial class MainViewModel : ObservableObject
         // Segoe MDL2 Assets: E706 is a sun, E708 a moon.
         ThemeGlyph = ThemeService.IsDark ? "" : "";
         ThemeTooltip = ThemeService.IsDark ? "Switch to the light theme" : "Switch to the dark theme";
+    }
+
+    /// <summary>
+    /// Writes the filters that carry over between launches, when they changed. Most filter
+    /// edits touch none of them, so most calls write nothing.
+    /// </summary>
+    private void RememberFilters()
+    {
+        var remembered = Filters.RememberedSnapshot();
+        if (_settings.Filters is { } saved && saved.SameFiltersAs(remembered))
+            return;
+
+        _settings.Filters = remembered;
+        _settings.Save();
     }
 
     private void RefreshActiveFilters()

@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sortify.Models;
 
 namespace Sortify.Services;
 
@@ -17,6 +18,9 @@ public sealed class AppSettings
     public const int MinSessionGapMinutes = 1;
     public const int MaxSessionGapMinutes = 240;
 
+    /// <summary>How many named filter sets can be saved.</summary>
+    public const int MaxFilterPresets = 30;
+
     // ---- Data -------------------------------------------------------------------------------
 
     /// <summary>
@@ -32,6 +36,16 @@ public sealed class AppSettings
 
     /// <summary>Gap between plays that starts a new listening session, in minutes.</summary>
     public int SessionGapMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// The filters carried over to the next launch. Only the ones that describe what the
+    /// user never wants counted (exclusions, the minimum duration, podcasts) are kept here;
+    /// a date range or a search coming back days later would just be confusing.
+    /// </summary>
+    public FilterPreset? Filters { get; set; }
+
+    /// <summary>Named filter sets, in the order they were saved.</summary>
+    public List<FilterPreset> FilterPresets { get; set; } = new();
 
     // ---- Appearance -------------------------------------------------------------------------
 
@@ -153,6 +167,19 @@ public sealed class AppSettings
             .ToList();
         SessionGapMinutes = Math.Clamp(SessionGapMinutes, MinSessionGapMinutes, MaxSessionGapMinutes);
         LastTabIndex = Math.Max(0, LastTabIndex);
+
+        Filters?.Normalize();
+        FilterPresets = (FilterPresets ?? new List<FilterPreset>())
+            .Where(p => p is not null)
+            .Select(p =>
+            {
+                p.Normalize();
+                return p;
+            })
+            .Where(p => p.Name.Length > 0)
+            .DistinctBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(MaxFilterPresets)
+            .ToList();
 
         // Settings written before recent folders existed only have LastFolder.
         if (RecentFolders.Count == 0 && !string.IsNullOrWhiteSpace(LastFolder))
