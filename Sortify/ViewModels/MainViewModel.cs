@@ -399,6 +399,13 @@ public sealed partial class MainViewModel : ObservableObject
             HasData = true;
             await RecomputeAsync();
 
+            // Said after the analysis rather than before it, which would overwrite it at once.
+            if (parsed.DuplicatesRemoved > 0 && !StatusIsError)
+            {
+                SetStatus($"{StatusText} Left out {parsed.DuplicatesRemoved:N0} " +
+                          $"play{(parsed.DuplicatesRemoved == 1 ? "" : "s")} that more than one of the loaded files held.");
+            }
+
             // Save after analysis so the user isn't waiting on disk I/O to see results.
             var toCache = _rawRecords;
             _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache), CancellationToken.None);

@@ -13,6 +13,9 @@ public sealed class ParseResult
     public List<PlayRecord> Records { get; } = new();
     public List<string> SkippedFiles { get; } = new();
     public List<string> Warnings { get; } = new();
+
+    /// <summary>Plays left out because another loaded file already held them.</summary>
+    public int DuplicatesRemoved { get; set; }
 }
 
 /// <summary>How far a parse has got, for a determinate progress bar and a status line.</summary>
@@ -132,24 +135,26 @@ public sealed class HistoryParser
             }, cancellationToken))
             .ToList();
 
+        var sources = new List<OverlapFilter.SourceFile>(tasks.Count);
         foreach (var task in tasks)
         {
             var outcome = await task.ConfigureAwait(false);
             if (outcome.Records is { } records)
-            {
-                result.Records.EnsureCapacity(result.Records.Count + records.Count);
-                result.Records.AddRange(records);
-            }
+                sources.Add(new OverlapFilter.SourceFile(records, outcome.IsLegacy));
             if (outcome.SkippedFile is { } skipped)
                 result.SkippedFiles.Add(skipped);
             if (outcome.Warning is { } warning)
                 result.Warnings.Add(warning);
         }
 
+        cancellationToken.ThrowIfCancellationRequested();
+        result.Records.AddRange(OverlapFilter.Merge(sources, out int removed));
+        result.DuplicatesRemoved = removed;
         return result;
     }
 
-    private readonly record struct FileOutcome(List<PlayRecord>? Records, string? SkippedFile, string? Warning);
+    private readonly record struct FileOutcome(
+        List<PlayRecord>? Records, string? SkippedFile, string? Warning, bool IsLegacy = false);
 
     private static async Task<FileOutcome> ParseFileAsync(string path, StringPool pool, CancellationToken cancellationToken)
     {
@@ -211,13 +216,17 @@ public sealed class HistoryParser
             return new FileOutcome(null, path, null);
 
         var records = new List<PlayRecord>(entries.Count);
+        bool anyExtended = false, anyLegacy = false;
         foreach (var entry in entries)
         {
+            anyExtended |= entry.Ts is not null;
+            anyLegacy |= entry.LegacyEndTime is not null;
+
             var record = Normalize(entry, pool);
             if (record is not null)
                 records.Add(record);
         }
-        return new FileOutcome(records, null, null);
+        return new FileOutcome(records, null, null, IsLegacy: anyLegacy && !anyExtended);
     }
 
     /// <summary>

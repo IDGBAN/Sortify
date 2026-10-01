@@ -109,7 +109,7 @@ public class ExportArchiveTests : IDisposable
     public async Task ParseAsync_ReadsManyEntriesOfOneZipAtOnce()
     {
         var entries = Enumerable.Range(0, 12)
-            .Select(i => ($"Streaming_History_Audio_{2010 + i}.json", OnePlay))
+            .Select(i => ($"Streaming_History_Audio_{2010 + i}.json", OnePlay.Replace("2023", $"{2010 + i}")))
             .ToArray();
         var zip = WriteZip("export.zip", entries);
 
