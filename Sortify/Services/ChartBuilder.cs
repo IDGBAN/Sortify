@@ -39,6 +39,15 @@ public static class ChartBuilder
     private const int PlatformSlices = 8;
     private const int CountrySlices = 10;
 
+    // Axis text in pixels. LiveCharts defaults to 16 for labels and 20 for axis titles, which
+    // shouts next to the 11-13px UI text around the charts.
+    private const double AxisTextSize = 12;
+    private const double DenseAxisTextSize = 11;
+
+    // Month-labelled axes never step by less than this. Anything shorter than the longest
+    // month can land twice in one month and print the same "yyyy-MM" label twice.
+    private static readonly long MonthStepTicks = TimeSpan.FromDays(31).Ticks;
+
     // Donut hole radii in pixels. The artist donut is drawn larger, so it gets a bigger hole.
     private const double ArtistDonutInnerRadius = 75;
     private const double ContextDonutInnerRadius = 60;
@@ -167,7 +176,7 @@ public static class ChartBuilder
             {
                 Labels = labels,
                 LabelsPaint = Label(),
-                TextSize = 11,
+                TextSize = DenseAxisTextSize,
                 MinStep = 1,
                 ForceStepToMin = true,
                 SeparatorsPaint = null,
@@ -235,8 +244,19 @@ public static class ChartBuilder
         return new ChartData
         {
             Series = series,
-            XAxes = new[] { new Axis { Name = xName, Labels = labels, NamePaint = Label(), LabelsPaint = Label() } },
-            YAxes = new[] { new Axis { Name = unit, NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            XAxes = new[]
+            {
+                new Axis
+                {
+                    Name = xName,
+                    Labels = labels,
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                },
+            },
+            YAxes = new[] { ValueAxis(unit) },
         };
     }
 
@@ -291,7 +311,7 @@ public static class ChartBuilder
         {
             Series = series,
             XAxes = new[] { DateAxis(unitTicks) },
-            YAxes = new[] { new Axis { Name = "Hours", NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            YAxes = new[] { ValueAxis("Hours") },
         };
     }
 
@@ -317,15 +337,27 @@ public static class ChartBuilder
         {
             Series = series,
             XAxes = new[] { DateAxis(TimeSpan.FromDays(30).Ticks) },
-            YAxes = new[] { new Axis { Name = "New artists", NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            YAxes = new[] { ValueAxis("New artists") },
         };
     }
 
     private static Axis DateAxis(long unitTicks) => new()
     {
         LabelsPaint = Label(),
+        TextSize = AxisTextSize,
         Labeler = MonthLabel,
         UnitWidth = unitTicks,
+        MinStep = MonthStepTicks,
+    };
+
+    private static Axis ValueAxis(string name) => new()
+    {
+        Name = name,
+        NamePaint = Label(),
+        NameTextSize = AxisTextSize,
+        LabelsPaint = Label(),
+        TextSize = AxisTextSize,
+        MinLimit = 0,
     };
 
     /// <summary>
@@ -371,7 +403,9 @@ public static class ChartBuilder
                 {
                     Labels = Enumerable.Range(0, 24).Select(h => h.ToString("00")).ToArray(),
                     LabelsPaint = Label(),
-                    TextSize = 10,
+                    TextSize = DenseAxisTextSize,
+                    MinStep = 1,
+                    ForceStepToMin = true,
                 },
             },
             YAxes = new[]
@@ -380,7 +414,11 @@ public static class ChartBuilder
                 {
                     Labels = dayNames,
                     LabelsPaint = Label(),
-                    TextSize = 11,
+                    TextSize = DenseAxisTextSize,
+                    // Without this LiveCharts labels every other row and leaves Mon, Wed
+                    // and Fri blank.
+                    MinStep = 1,
+                    ForceStepToMin = true,
                 },
             },
         };
@@ -542,11 +580,12 @@ public static class ChartBuilder
                 {
                     Labeler = MonthLabel,
                     UnitWidth = TimeSpan.FromDays(30).Ticks,
+                    MinStep = MonthStepTicks,
                     LabelsPaint = Label(),
-                    TextSize = 11,
+                    TextSize = AxisTextSize,
                 },
             },
-            YAxes = new[] { new Axis { Name = "Hours", NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            YAxes = new[] { ValueAxis("Hours") },
         };
     }
 
