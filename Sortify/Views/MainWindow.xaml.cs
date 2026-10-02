@@ -551,18 +551,9 @@ public partial class MainWindow : Window
         await ShowDetailAsync(item);
     }
 
-    private static (DetailScope Scope, string Title, string Subtitle)? DetailTarget(object item) => item switch
-    {
-        TrackStat t => (DetailScope.Track, t.Track, t.Artist),
-        ArtistStat a => (DetailScope.Artist, a.Artist, string.Empty),
-        AlbumStat a => (DetailScope.Album, a.Album, a.Artist),
-        YearStat y => (DetailScope.Year, y.Year.ToString(CultureInfo.InvariantCulture), string.Empty),
-        _ => null,
-    };
-
     private async Task ShowDetailAsync(object item)
     {
-        if (_openingDetail || ViewModel is not { } vm || DetailTarget(item) is not { } target)
+        if (_openingDetail || ViewModel is not { } vm || DetailWindow.TargetFor(item) is not { } target)
             return;
 
         DetailResult? detail;
@@ -587,7 +578,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        new DetailWindow(detail) { Owner = this }.ShowDialog();
+        new DetailWindow(detail, vm.BuildDetailAsync) { Owner = this }.ShowDialog();
     }
 
     // ---- Copy to clipboard -------------------------------------------------------------------

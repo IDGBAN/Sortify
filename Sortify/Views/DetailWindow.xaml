@@ -6,6 +6,14 @@
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource BgBrush}"
         Foreground="{DynamicResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="RowHint" TargetType="TextBlock">
+            <Setter Property="Text" Value="Double-click a row, or press Enter, for its own breakdown" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+        </Style>
+    </Window.Resources>
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -84,9 +92,12 @@
                 <!-- Only populated for a year, which is the one scope spanning many artists. -->
                 <Border x:Name="ArtistsCard" Style="{StaticResource Card}" Height="300">
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Artists" Style="{StaticResource SectionHeader}"
-                                   Margin="0,0,0,8" />
-                        <DataGrid x:Name="ArtistsGrid">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <TextBlock x:Name="ArtistsHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
+                            <TextBlock Text="Artists" Style="{StaticResource SectionHeader}" Margin="0" />
+                        </DockPanel>
+                        <DataGrid x:Name="ArtistsGrid" AutomationProperties.Name="Artists"
+                                  MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
@@ -101,9 +112,12 @@
 
                 <Border x:Name="TracksCard" Style="{StaticResource Card}" Height="300">
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Tracks" Style="{StaticResource SectionHeader}"
-                                   Margin="0,0,0,8" />
-                        <DataGrid x:Name="TracksGrid">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <TextBlock x:Name="TracksHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
+                            <TextBlock Text="Tracks" Style="{StaticResource SectionHeader}" Margin="0" />
+                        </DockPanel>
+                        <DataGrid x:Name="TracksGrid" AutomationProperties.Name="Tracks"
+                                  MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
                                 <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
@@ -121,9 +135,12 @@
 
                 <Border x:Name="AlbumsCard" Style="{StaticResource Card}" Height="260">
                     <DockPanel>
-                        <TextBlock DockPanel.Dock="Top" Text="Albums" Style="{StaticResource SectionHeader}"
-                                   Margin="0,0,0,8" />
-                        <DataGrid x:Name="AlbumsGrid">
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <TextBlock x:Name="AlbumsHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
+                            <TextBlock Text="Albums" Style="{StaticResource SectionHeader}" Margin="0" />
+                        </DockPanel>
+                        <DataGrid x:Name="AlbumsGrid" AutomationProperties.Name="Albums"
+                                  MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" />
                                 <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />

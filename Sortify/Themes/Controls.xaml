@@ -85,6 +85,22 @@
         <Setter Property="FontSize" Value="16" />
     </Style>
 
+    <!-- Links inside text, such as the artist under a track's title. -->
+    <Style TargetType="Hyperlink">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="TextDecorations" Value="Underline" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+                <Setter Property="TextDecorations" Value="{x:Null}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <!-- ============================ Buttons ============================ -->
     <Style TargetType="Button">
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />

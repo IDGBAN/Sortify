@@ -1,7 +1,11 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using Sortify.Models;
 using Sortify.Services;
 
@@ -15,15 +19,50 @@ public partial class DetailWindow : Window
 {
     private readonly DetailResult _detail;
 
-    public DetailWindow(DetailResult detail)
+    /// <summary>Builds the breakdown for a row opened from this one; null when it can't drill further.</summary>
+    private readonly Func<DetailScope, string, string, Task<DetailResult?>>? _openDetail;
+
+    /// <summary>True while a nested breakdown is being built, so a second double-click can't stack another.</summary>
+    private bool _opening;
+
+    public DetailWindow(DetailResult detail) : this(detail, null) { }
+
+    /// <param name="openDetail">
+    /// Builds the breakdown for a track, album or artist double-clicked in this window, under
+    /// the same filters. Without it the rows are display only.
+    /// </param>
+    public DetailWindow(DetailResult detail, Func<DetailScope, string, string, Task<DetailResult?>>? openDetail)
     {
         InitializeComponent();
         _detail = detail;
+        _openDetail = openDetail;
 
         TitleText.Text = detail.Title;
-        SubtitleText.Text = detail.Subtitle.Length > 0
-            ? $"{detail.Scope} - {detail.Subtitle}"
-            : detail.Scope.ToString();
+        SubtitleText.Inlines.Add(new Run(detail.Scope.ToString()));
+        if (detail.Subtitle.Length > 0)
+        {
+            SubtitleText.Inlines.Add(new Run(" - "));
+            if (openDetail is not null && detail.Scope is DetailScope.Track or DetailScope.Album)
+            {
+                var link = new Hyperlink(new Run(detail.Subtitle))
+                {
+                    ToolTip = $"Open the breakdown for {detail.Subtitle}",
+                };
+                link.Click += OnArtistLinkClick;
+                SubtitleText.Inlines.Add(link);
+            }
+            else
+            {
+                SubtitleText.Inlines.Add(new Run(detail.Subtitle));
+            }
+        }
+
+        if (openDetail is null)
+        {
+            ArtistsHint.Visibility = Visibility.Collapsed;
+            TracksHint.Visibility = Visibility.Collapsed;
+            AlbumsHint.Visibility = Visibility.Collapsed;
+        }
         Title = detail.Subtitle.Length > 0
             ? $"{detail.Title} - {detail.Subtitle}"
             : detail.Title;
@@ -60,6 +99,76 @@ public partial class DetailWindow : Window
         // Spotify has nothing to open for a whole year.
         if (detail.WebUrl.Length == 0)
             OpenButton.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>What a row in one of the grids opens, or null for a row that opens nothing.</summary>
+    internal static (DetailScope Scope, string Title, string Subtitle)? TargetFor(object item) => item switch
+    {
+        TrackStat t => (DetailScope.Track, t.Track, t.Artist),
+        ArtistStat a => (DetailScope.Artist, a.Artist, string.Empty),
+        AlbumStat a => (DetailScope.Album, a.Album, a.Artist),
+        YearStat y => (DetailScope.Year, y.Year.ToString(CultureInfo.InvariantCulture), string.Empty),
+        _ => null,
+    };
+
+    private async void OnRowDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        // Double-clicks on the header or scrollbar land here too; only a row opens anything.
+        if (FindRow(e.OriginalSource as DependencyObject) is not { } row)
+            return;
+
+        e.Handled = true;
+        await OpenAsync(row.Item);
+    }
+
+    private async void OnGridKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || sender is not DataGrid { SelectedItem: { } item })
+            return;
+
+        e.Handled = true;
+        await OpenAsync(item);
+    }
+
+    private async void OnArtistLinkClick(object sender, RoutedEventArgs e)
+    {
+        if (_detail.Subtitle.Length > 0)
+            await OpenAsync(new ArtistStat { Artist = _detail.Subtitle });
+    }
+
+    private async Task OpenAsync(object item)
+    {
+        if (_opening || _openDetail is null || TargetFor(item) is not { } target)
+            return;
+
+        DetailResult? detail;
+        _opening = true;
+        Mouse.OverrideCursor = Cursors.AppStarting;
+        try
+        {
+            detail = await _openDetail(target.Scope, target.Title, target.Subtitle);
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+            _opening = false;
+        }
+
+        if (detail is not { PlayCount: > 0 })
+            return;
+
+        new DetailWindow(detail, _openDetail) { Owner = this }.ShowDialog();
+    }
+
+    private static DataGridRow? FindRow(DependencyObject? d)
+    {
+        while (d is not null and not DataGridRow)
+        {
+            d = d is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(d)
+                : LogicalTreeHelper.GetParent(d);
+        }
+        return d as DataGridRow;
     }
 
     /// <summary>Escape closes the dialog, as it would any other modal.</summary>
