@@ -544,6 +544,20 @@ public sealed partial class FilterViewModel : ObservableObject
             ExcludedTracks.Add(name);
     }
 
+    /// <summary>Excludes several artists as one change, so the results are worked out once.</summary>
+    public void ExcludeArtists(IEnumerable<string> names) => Batch(() =>
+    {
+        foreach (var name in names)
+            ExcludeArtist(name);
+    });
+
+    /// <summary>Excludes several tracks as one change, so the results are worked out once.</summary>
+    public void ExcludeTracks(IEnumerable<string> names) => Batch(() =>
+    {
+        foreach (var name in names)
+            ExcludeTrack(name);
+    });
+
     [RelayCommand]
     private void AddExcludedArtist()
     {

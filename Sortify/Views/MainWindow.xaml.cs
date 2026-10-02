@@ -442,18 +442,49 @@ public partial class MainWindow : Window
     // ---- Grid context menus ----------------------------------------------------------------
 
     // WPF DataGrids don't select the row under a right-click, so the context menu would act
-    // on a stale selection; select it manually before the menu opens.
+    // on a stale selection; select it manually before the menu opens. A right-click inside
+    // a multi-row selection keeps the whole selection, so the menu can act on all of it.
     private void OnGridRightClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not DataGrid grid)
             return;
 
         var row = FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        if (row is not null)
+        if (row is not null && !row.IsSelected)
         {
+            grid.SelectedItems.Clear();
             row.IsSelected = true;
             grid.SelectedItem = row.Item;
         }
+    }
+
+    /// <summary>
+    /// Words each menu item for the number of rows it will act on. An item's Tag holds
+    /// "singular|plural", where the plural may use {0} for the count.
+    /// </summary>
+    private void OnGridMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is not DataGrid { ContextMenu: { } menu } grid)
+            return;
+
+        int count = grid.SelectedItems.Count;
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is not string tag || tag.Split('|') is not [var one, var many])
+                continue;
+            item.Header = count > 1 ? string.Format(CultureInfo.CurrentCulture, many, count) : one;
+            item.IsEnabled = count > 0;
+        }
+    }
+
+    /// <summary>
+    /// The selected rows of a grid, in the order they appear in it. Looked up through a set:
+    /// Ctrl+A on a big library selects tens of thousands of rows.
+    /// </summary>
+    private static List<T> SelectedRows<T>(DataGrid grid)
+    {
+        var selected = new HashSet<object>(grid.SelectedItems.Cast<object>(), ReferenceEqualityComparer.Instance);
+        return grid.Items.OfType<T>().Where(item => selected.Contains(item!)).ToList();
     }
 
     private static T? FindParent<T>(DependencyObject? d) where T : DependencyObject
@@ -468,29 +499,17 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void OnExcludeTrackFromTracks(object sender, RoutedEventArgs e)
-    {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            ViewModel?.ExcludeTrackFromGrid(t.Track);
-    }
+    private void OnExcludeTrackFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeTracksFromGrid(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Track));
 
-    private void OnExcludeArtistFromTracks(object sender, RoutedEventArgs e)
-    {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            ViewModel?.ExcludeArtistFromGrid(t.Artist);
-    }
+    private void OnExcludeArtistFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeArtistsFromGrid(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist));
 
-    private void OnExcludeArtistFromArtists(object sender, RoutedEventArgs e)
-    {
-        if (ArtistsGrid.SelectedItem is ArtistStat a)
-            ViewModel?.ExcludeArtistFromGrid(a.Artist);
-    }
+    private void OnExcludeArtistFromArtists(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeArtistsFromGrid(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist));
 
-    private void OnExcludeArtistFromAlbums(object sender, RoutedEventArgs e)
-    {
-        if (AlbumsGrid.SelectedItem is AlbumStat a)
-            ViewModel?.ExcludeArtistFromGrid(a.Artist);
-    }
+    private void OnExcludeArtistFromAlbums(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeArtistsFromGrid(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
 
     private async void OnOpenYearDetail(object sender, RoutedEventArgs e)
     {
@@ -573,46 +592,55 @@ public partial class MainWindow : Window
 
     // ---- Copy to clipboard -------------------------------------------------------------------
 
-    private static void TryCopy(string text)
+    private static bool TryCopy(string text)
     {
         try
         {
             Clipboard.SetDataObject(text);
+            return true;
         }
         catch (Exception)
         {
             // The clipboard can be locked by another process; copying is best-effort.
+            return false;
         }
     }
 
-    private void OnCopyTrackFromTracks(object sender, RoutedEventArgs e)
+    /// <summary>One line per row, without repeating a line that two rows share.</summary>
+    private static void CopyLines(IEnumerable<string> lines)
     {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            TryCopy($"{t.Track} - {t.Artist}");
+        var text = string.Join(Environment.NewLine, lines.Distinct());
+        if (text.Length > 0)
+            TryCopy(text);
     }
 
-    private void OnCopyArtistFromTracks(object sender, RoutedEventArgs e)
-    {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            TryCopy(t.Artist);
-    }
+    private void OnCopyTrackFromTracks(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => $"{t.Track} - {t.Artist}"));
 
-    private void OnCopyArtistFromArtists(object sender, RoutedEventArgs e)
-    {
-        if (ArtistsGrid.SelectedItem is ArtistStat a)
-            TryCopy(a.Artist);
-    }
+    private void OnCopyArtistFromTracks(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist));
 
-    private void OnCopyAlbumFromAlbums(object sender, RoutedEventArgs e)
-    {
-        if (AlbumsGrid.SelectedItem is AlbumStat a)
-            TryCopy($"{a.Album} - {a.Artist}");
-    }
+    private void OnCopyArtistFromArtists(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist));
 
-    private void OnCopyArtistFromAlbums(object sender, RoutedEventArgs e)
+    private void OnCopyAlbumFromAlbums(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => $"{a.Album} - {a.Artist}"));
+
+    private void OnCopyArtistFromAlbums(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
+
+    private void OnCopyLinksFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(SelectedRows<TrackStat>(TracksGrid), TryCopy);
+
+    /// <summary>
+    /// Copies the first rows in the order the grid shows them, so a sort by plays or a row
+    /// filter decides which tracks make the cut.
+    /// </summary>
+    private void OnCopyTopTrackLinks(object sender, RoutedEventArgs e)
     {
-        if (AlbumsGrid.SelectedItem is AlbumStat a)
-            TryCopy(a.Artist);
+        if (sender is not MenuItem { Tag: string tag } || !int.TryParse(tag, out int count))
+            return;
+        ViewModel?.CopySpotifyLinks(TracksGrid.Items.OfType<TrackStat>().Take(count), TryCopy);
     }
 
     // ---- Listening-over-time granularity toggle ---------------------------------------------

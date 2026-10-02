@@ -30,6 +30,12 @@ public sealed class TrackStat
     public DateTime? FirstPlayed { get; set; }
     public DateTime? LastPlayed { get; set; }
 
+    /// <summary>
+    /// A Spotify URI seen on one of this track's plays ("spotify:track:..."). Empty when the
+    /// export never recorded one, as the older account-data export doesn't.
+    /// </summary>
+    public string Uri { get; set; } = string.Empty;
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }

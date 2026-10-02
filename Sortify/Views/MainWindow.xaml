@@ -384,7 +384,7 @@
 
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
-                                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
+                                    <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,8">
                                         <TextBox x:Name="TrackQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter track rows"
                                                  Text="{Binding TrackQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
@@ -392,22 +392,38 @@
                                         <TextBlock Text="Filter rows" VerticalAlignment="Center" DockPanel.Dock="Right"
                                                    Margin="0,0,8,0" FontSize="11"
                                                    Foreground="{DynamicResource MutedBrush}" />
-                                        <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown"
-                                                   VerticalAlignment="Center" FontSize="11"
+                                        <Button DockPanel.Dock="Right" Content="Copy as links  &#x25BE;" Click="OnDropdownClick"
+                                                Padding="10,5" FontSize="11" Margin="0,0,14,0" VerticalAlignment="Center"
+                                                AutomationProperties.Name="Copy tracks as Spotify links"
+                                                ToolTip="Copy rows as Spotify links, to paste into a playlist in the Spotify desktop app">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Top 25 rows" Tag="25" Click="OnCopyTopTrackLinks" />
+                                                    <MenuItem Header="Top 50 rows" Tag="50" Click="OnCopyTopTrackLinks" />
+                                                    <MenuItem Header="Top 100 rows" Tag="100" Click="OnCopyTopTrackLinks" />
+                                                    <Separator />
+                                                    <MenuItem Header="Selected rows" Click="OnCopyLinksFromTracks" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                        <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown. Ctrl- or Shift-click to pick several."
+                                                   VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
                                     <DataGrid x:Name="TracksGrid" ItemsSource="{Binding Tracks}"
                                               AutomationProperties.Name="Tracks"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                         <DataGrid.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Copy track" Click="OnCopyTrackFromTracks" />
-                                                <MenuItem Header="Copy artist" Click="OnCopyArtistFromTracks" />
+                                                <MenuItem Tag="Copy track|Copy {0} tracks" Click="OnCopyTrackFromTracks" />
+                                                <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromTracks" />
+                                                <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromTracks" />
                                                 <Separator />
-                                                <MenuItem Header="Exclude this track" Click="OnExcludeTrackFromTracks" />
-                                                <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromTracks" />
+                                                <MenuItem Tag="Exclude this track|Exclude these {0} tracks" Click="OnExcludeTrackFromTracks" />
+                                                <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromTracks" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
@@ -503,12 +519,13 @@
                                     <DataGrid x:Name="ArtistsGrid" ItemsSource="{Binding Artists}"
                                               AutomationProperties.Name="Artists"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                         <DataGrid.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Copy artist" Click="OnCopyArtistFromArtists" />
+                                                <MenuItem Tag="Copy artist|Copy {0} artists" Click="OnCopyArtistFromArtists" />
                                                 <Separator />
-                                                <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromArtists" />
+                                                <MenuItem Tag="Exclude this artist|Exclude these {0} artists" Click="OnExcludeArtistFromArtists" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
@@ -601,13 +618,14 @@
                                     <DataGrid x:Name="AlbumsGrid" ItemsSource="{Binding Albums}"
                                               AutomationProperties.Name="Albums"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                         <DataGrid.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Copy album" Click="OnCopyAlbumFromAlbums" />
-                                                <MenuItem Header="Copy artist" Click="OnCopyArtistFromAlbums" />
+                                                <MenuItem Tag="Copy album|Copy {0} albums" Click="OnCopyAlbumFromAlbums" />
+                                                <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromAlbums" />
                                                 <Separator />
-                                                <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromAlbums" />
+                                                <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromAlbums" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>

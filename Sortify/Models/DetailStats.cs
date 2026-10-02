@@ -71,15 +71,8 @@ public sealed class DetailResult
             if (Scope == DetailScope.Year)
                 return string.Empty;
 
-            // "spotify:track:abc" -> "https://open.spotify.com/track/abc"
-            if (Scope == DetailScope.Track && Uri.StartsWith("spotify:", StringComparison.OrdinalIgnoreCase))
-            {
-                var parts = Uri.Split(':');
-                // The URI comes straight out of a JSON file and ends up on a shell command
-                // line, so its parts are escaped rather than trusted to be plain ids.
-                if (parts.Length >= 3 && parts[1].Length > 0 && parts[2].Length > 0)
-                    return $"https://open.spotify.com/{System.Uri.EscapeDataString(parts[1])}/{System.Uri.EscapeDataString(parts[2])}";
-            }
+            if (Scope == DetailScope.Track && SpotifyLink.FromUri(Uri) is { Length: > 0 } link)
+                return link;
 
             var query = Subtitle.Length > 0 ? $"{Title} {Subtitle}" : Title;
             return "https://open.spotify.com/search/" + System.Uri.EscapeDataString(query);

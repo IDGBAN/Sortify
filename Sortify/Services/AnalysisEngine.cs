@@ -177,6 +177,8 @@ public static class AnalysisEngine
             }
             track.TotalMsPlayed += r.MsPlayed;
             track.PlayCount++;
+            if (track.Uri.Length == 0)
+                track.Uri = r.Uri;
 
             var albumKey = (albumName, artistName);
             if (!albums.TryGetValue(albumKey, out var album))

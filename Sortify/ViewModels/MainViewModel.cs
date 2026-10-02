@@ -586,6 +586,37 @@ public sealed partial class MainViewModel : ObservableObject
 
     public void ExcludeArtistFromGrid(string artist) => Filters.ExcludeArtist(artist);
     public void ExcludeTrackFromGrid(string track) => Filters.ExcludeTrack(track);
+    public void ExcludeArtistsFromGrid(IEnumerable<string> artists) => Filters.ExcludeArtists(artists);
+    public void ExcludeTracksFromGrid(IEnumerable<string> tracks) => Filters.ExcludeTracks(tracks);
+
+    /// <summary>
+    /// Puts Spotify links for <paramref name="tracks"/> on the clipboard via
+    /// <paramref name="copy"/>, and says in the status bar what was copied and what wasn't.
+    /// </summary>
+    public void CopySpotifyLinks(IEnumerable<TrackStat> tracks, Func<string, bool> copy)
+    {
+        var links = SpotifyLink.ForTracks(tracks);
+        if (links.Copied == 0)
+        {
+            SetStatus(links.Missing == 0
+                ? "There were no tracks to copy."
+                : "None of those tracks has a Spotify link. Only the extended streaming history records them.",
+                isError: true);
+            return;
+        }
+
+        if (!copy(links.Text))
+        {
+            SetStatus("Could not copy the links: another program is holding the clipboard. Try again.", isError: true);
+            return;
+        }
+
+        string missing = links.Missing == 0
+            ? string.Empty
+            : $" {links.Missing:N0} track{(links.Missing == 1 ? " has" : "s have")} no link in the export and {(links.Missing == 1 ? "was" : "were")} left out.";
+        SetStatus($"Copied {links.Copied:N0} Spotify link{(links.Copied == 1 ? "" : "s")}. " +
+                  $"Paste {(links.Copied == 1 ? "it" : "them")} into a playlist in the Spotify desktop app.{missing}");
+    }
 
     // ---- Drill-down ------------------------------------------------------------------------
 
