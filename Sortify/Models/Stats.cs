@@ -156,6 +156,15 @@ public sealed class AnalysisResult
     public IReadOnlyList<YearStat> Years { get; init; } = Array.Empty<YearStat>();
 
     /// <summary>
+    /// Tracks played a lot that then went quiet: nothing in the last stretch of the results.
+    /// Most played first. See the Forgotten* constants on AnalysisEngine.
+    /// </summary>
+    public IReadOnlyList<TrackStat> ForgottenTracks { get; init; } = Array.Empty<TrackStat>();
+
+    /// <summary>Artists played a lot that then went quiet, most played first.</summary>
+    public IReadOnlyList<ArtistStat> ForgottenArtists { get; init; } = Array.Empty<ArtistStat>();
+
+    /// <summary>
     /// Counts of Spotify "reason_end" values, most common first. Like the skip statistics,
     /// computed with the minimum-duration cutoff relaxed so skip-style endings show up.
     /// </summary>

@@ -16,6 +16,18 @@ public static class AnalysisEngine
     /// </summary>
     public static readonly TimeSpan SessionGap = TimeSpan.FromMinutes(30);
 
+    /// <summary>Plays a track needs before it can count as a forgotten favorite.</summary>
+    public const int ForgottenMinTrackPlays = 20;
+
+    /// <summary>Plays an artist needs before it can count as a forgotten favorite.</summary>
+    public const int ForgottenMinArtistPlays = 50;
+
+    /// <summary>How long a favorite has to go unplayed, before the end of the history, to count as forgotten.</summary>
+    public const int ForgottenAfterDays = 180;
+
+    /// <summary>How many forgotten tracks and artists are listed.</summary>
+    public const int ForgottenMaxRows = 50;
+
     /// <summary>Runs aggregation on a background thread so the UI stays responsive.</summary>
     public static Task<AnalysisResult> AnalyzeAsync(
         IReadOnlyList<PlayRecord> records,
@@ -297,6 +309,22 @@ public static class AnalysisEngine
             .Select(kv => BuildYearStat(kv.Key, kv.Value))
             .ToList();
 
+        // Measured from the last play in the results rather than from today: an export is a
+        // snapshot, and a filtered one can end years ago.
+        var forgottenBefore = lastListen?.AddDays(-ForgottenAfterDays);
+        var forgottenTracks = forgottenBefore is { } trackCutoff
+            ? tracksByCount
+                .Where(t => t.PlayCount >= ForgottenMinTrackPlays && t.LastPlayed < trackCutoff)
+                .Take(ForgottenMaxRows)
+                .ToList()
+            : new List<TrackStat>();
+        var forgottenArtists = forgottenBefore is { } artistCutoff
+            ? artistsByCount
+                .Where(a => a.PlayCount >= ForgottenMinArtistPlays && a.LastPlayed < artistCutoff)
+                .Take(ForgottenMaxRows)
+                .ToList()
+            : new List<ArtistStat>();
+
         return new AnalysisResult
         {
             Artists = artistList,
@@ -306,6 +334,8 @@ public static class AnalysisEngine
             TracksByPlayCount = tracksByCount,
             AlbumsByPlayCount = albumsByCount,
             Years = yearList,
+            ForgottenTracks = forgottenTracks,
+            ForgottenArtists = forgottenArtists,
             ReasonEnds = reasonList,
             SkippedTracks = skippedList,
             Shows = showList,

@@ -1119,6 +1119,68 @@
                                     </Border>
                                 </UniformGrid>
 
+                                <Border Style="{StaticResource Card}" Height="400">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">
+                                            <Button DockPanel.Dock="Right" Content="Copy tracks as links" Click="OnCopyForgottenLinks"
+                                                    Padding="10,5" FontSize="11" Margin="0" VerticalAlignment="Center"
+                                                    AutomationProperties.Name="Copy the forgotten tracks as Spotify links"
+                                                    ToolTip="Copy every track below as a Spotify link, to paste into a playlist and hear them again" />
+                                            <TextBlock Text="Forgotten Favorites" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="{Binding ForgottenHint}" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3*" />
+                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="2*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid Grid.Column="0">
+                                                <DataGrid x:Name="ForgottenTracksGrid" ItemsSource="{Binding ForgottenTracks}"
+                                                          AutomationProperties.Name="Forgotten tracks"
+                                                          PreviewMouseRightButtonDown="OnGridRightClick"
+                                                          ContextMenuOpening="OnGridMenuOpening"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromGrid" />
+                                                        </ContextMenu>
+                                                    </DataGrid.ContextMenu>
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Last Played"
+                                                                            Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
+                                                                            Width="108" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding ForgottenTracks, Converter={StaticResource EmptyToVis}}"
+                                                           Text="No forgotten tracks: everything you played that often is still in rotation." />
+                                            </Grid>
+                                            <Grid Grid.Column="2">
+                                                <DataGrid ItemsSource="{Binding ForgottenArtists}"
+                                                          AutomationProperties.Name="Forgotten artists"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Last Played"
+                                                                            Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
+                                                                            Width="108" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding ForgottenArtists, Converter={StaticResource EmptyToVis}}"
+                                                           Text="No forgotten artists." />
+                                            </Grid>
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+
                                 <Border Style="{StaticResource ChartCard}" Height="440">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Text="Why Plays Ended (short plays included)"

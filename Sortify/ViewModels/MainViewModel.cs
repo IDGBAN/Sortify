@@ -50,6 +50,14 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<SkippedTrackStat> _skippedTracks = Array.Empty<SkippedTrackStat>();
     [ObservableProperty] private IReadOnlyList<ShowStat> _shows = Array.Empty<ShowStat>();
     [ObservableProperty] private IReadOnlyList<EpisodeStat> _episodes = Array.Empty<EpisodeStat>();
+    [ObservableProperty] private IReadOnlyList<TrackStat> _forgottenTracks = Array.Empty<TrackStat>();
+    [ObservableProperty] private IReadOnlyList<ArtistStat> _forgottenArtists = Array.Empty<ArtistStat>();
+
+    /// <summary>The rule a forgotten favorite has to meet, worded for the Insights card.</summary>
+    public string ForgottenHint { get; } =
+        $"Tracks you played at least {AnalysisEngine.ForgottenMinTrackPlays} times and artists at least " +
+        $"{AnalysisEngine.ForgottenMinArtistPlays} times, with nothing in the last {AnalysisEngine.ForgottenAfterDays} " +
+        "days of the history shown. Double-click one for its breakdown.";
 
     // Top-five lists shown on the Overview tab.
     [ObservableProperty] private IReadOnlyList<RankedItem> _topTracks = Array.Empty<RankedItem>();
@@ -703,6 +711,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         Years = _result.Years;
         SkippedTracks = _result.SkippedTracks;
+        ForgottenTracks = _result.ForgottenTracks;
+        ForgottenArtists = _result.ForgottenArtists;
         HasPodcastData = _result.Shows.Count > 0;
 
         TopTracks = _result.Tracks.Take(5)

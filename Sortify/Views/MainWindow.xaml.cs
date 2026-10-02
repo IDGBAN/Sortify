@@ -734,6 +734,16 @@ public partial class MainWindow : Window
     private void OnCopyLinksFromTracks(object sender, RoutedEventArgs e) =>
         ViewModel?.CopySpotifyLinks(SelectedRows<TrackStat>(TracksGrid), TryCopy);
 
+    /// <summary>Copies the selected rows of whichever track grid the menu was opened on as Spotify links.</summary>
+    private void OnCopyLinksFromGrid(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: DataGrid grid } })
+            ViewModel?.CopySpotifyLinks(SelectedRows<TrackStat>(grid), TryCopy);
+    }
+
+    private void OnCopyForgottenLinks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(ForgottenTracksGrid.Items.OfType<TrackStat>(), TryCopy);
+
     /// <summary>
     /// Copies the first rows in the order the grid shows them, so a sort by plays or a row
     /// filter decides which tracks make the cut.
