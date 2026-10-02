@@ -19,6 +19,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _debounce;
     private List<PlayRecord> _rawRecords = new();
     private AnalysisResult _result = AnalysisResult.Empty;
+
+    /// <summary>The filters <see cref="_result"/> was computed under, as the chip row words them.</summary>
+    private IReadOnlyList<string> _resultFilters = Array.Empty<string>();
     private CancellationTokenSource? _analysisCts;
     private CancellationTokenSource? _loadCts;
     private ChartBuilder.TimeGranularity _overTimeGranularity = ChartBuilder.TimeGranularity.Daily;
@@ -612,6 +615,7 @@ public sealed partial class MainViewModel : ObservableObject
         var token = _analysisCts.Token;
 
         var options = Filters.ToOptions();
+        var described = Filters.Describe().ToList();
         _pendingAnalyses++;
         RefreshBusy();
         try
@@ -635,6 +639,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (token.IsCancellationRequested)
                 return;
             _result = result;
+            _resultFilters = described;
 
             UpdateCollections();
             UpdateSummary();
@@ -965,17 +970,17 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportTxtAsync() =>
         ExportAsync("Text files (*.txt)|*.txt", ".txt", "Sortify_results",
-            path => ExportService.SaveTxtAsync(path, _result));
+            path => ExportService.SaveTxtAsync(path, _result, _resultFilters));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportMarkdownAsync() =>
         ExportAsync("Markdown files (*.md)|*.md", ".md", "Sortify_report",
-            path => ExportService.SaveMarkdownAsync(path, _result));
+            path => ExportService.SaveMarkdownAsync(path, _result, _resultFilters));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportJsonAsync() =>
         ExportAsync("JSON files (*.json)|*.json", ".json", "Sortify_results",
-            path => ExportService.SaveJsonAsync(path, _result));
+            path => ExportService.SaveJsonAsync(path, _result, _resultFilters));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportTracksCsvAsync() =>
