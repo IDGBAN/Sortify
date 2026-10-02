@@ -71,6 +71,11 @@ public sealed partial class FilterViewModel : ObservableObject
 
     public bool HasSelectedPreset => SelectedPreset is not null;
 
+    /// <summary>One-click ranges for the loaded history; empty until something is loaded.</summary>
+    public ObservableCollection<DateRangeOption> QuickRanges { get; } = new();
+
+    [ObservableProperty] private bool _hasQuickRanges;
+
     /// <summary>Shown in the preset list while nothing in it is picked.</summary>
     public string PresetPrompt => HasPresets ? "Choose a saved set" : "Nothing saved yet";
 
@@ -99,8 +104,17 @@ public sealed partial class FilterViewModel : ObservableObject
 
     partial void OnMinSecondsChanged(int value) => Raise();
     partial void OnIncludePodcastsChanged(bool value) => Raise();
-    partial void OnStartDateChanged(DateTime? value) => Raise();
-    partial void OnEndDateChanged(DateTime? value) => Raise();
+    partial void OnStartDateChanged(DateTime? value)
+    {
+        RefreshQuickRanges();
+        Raise();
+    }
+
+    partial void OnEndDateChanged(DateTime? value)
+    {
+        RefreshQuickRanges();
+        Raise();
+    }
     partial void OnSearchTermChanged(string value) => Raise();
     partial void OnStartHourChanged(int value) => Raise();
     partial void OnEndHourChanged(int value) => Raise();
@@ -338,6 +352,41 @@ public sealed partial class FilterViewModel : ObservableObject
                 $"{ExcludedTracks.Count} track{(ExcludedTracks.Count == 1 ? "" : "s")} excluded",
                 "Stop excluding " + string.Join(", ", ExcludedTracks), ExcludedTracks.Clear);
         }
+    }
+
+    // ---- Date ranges -------------------------------------------------------------------------
+
+    /// <summary>Sets both ends of the date range as one change.</summary>
+    public void SetRange(DateTime? start, DateTime? end) => Batch(() =>
+    {
+        StartDate = start;
+        EndDate = end;
+    });
+
+    /// <summary>
+    /// Offers the quick ranges that make sense for the loaded history: the recent ones count
+    /// back from <paramref name="lastListen"/>, and there is one per year it covers.
+    /// </summary>
+    public void SetAvailableDates(DateTime? lastListen, IEnumerable<int> years)
+    {
+        QuickRanges.Clear();
+        foreach (var option in DateRangeOption.For(lastListen, years))
+            QuickRanges.Add(option);
+        HasQuickRanges = QuickRanges.Count > 0;
+        RefreshQuickRanges();
+    }
+
+    [RelayCommand]
+    private void ApplyQuickRange(DateRangeOption? option)
+    {
+        if (option is not null)
+            SetRange(option.Start, option.End);
+    }
+
+    private void RefreshQuickRanges()
+    {
+        foreach (var option in QuickRanges)
+            option.IsActive = option.Matches(StartDate, EndDate);
     }
 
     /// <summary>Makes several filter changes and raises them as one.</summary>

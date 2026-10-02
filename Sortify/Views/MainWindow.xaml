@@ -658,12 +658,19 @@
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
                                                Foreground="{DynamicResource MutedBrush}"
-                                               Text="Double-click a year, or select it and press Enter, for its own breakdown" />
+                                               Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year." />
                                     <Grid>
                                     <DataGrid x:Name="YearsGrid" ItemsSource="{Binding Years}"
                                               AutomationProperties.Name="Years"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                        <DataGrid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open this year's breakdown" Click="OnOpenYearDetail"
+                                                          InputGestureText="Enter" />
+                                                <MenuItem Header="Filter everything to this year" Click="OnFilterToYear" />
+                                            </ContextMenu>
+                                        </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="Auto" />
                                             <DataGridTextColumn Header="Time"

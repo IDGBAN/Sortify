@@ -24,7 +24,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 - Filters that update every chart and table as you change them, with a chip row showing which ones are active. The x on a chip clears just that filter:
   - Minimum play duration. The default is five seconds, which drops skips.
   - Whether podcasts and audiobooks count toward your track, artist and album statistics. Off by default, since a few long shows will otherwise outrank your music. The Podcasts tab shows them either way.
-  - Date range.
+  - Date range, typed in or picked with one click: all time, the last 30 days or 12 months of your history, or any single year. Right-click a year on the Years tab to filter everything to it.
   - Search by track, artist or album name.
   - An exclude list for specific artists or tracks.
   - Time of day and day of week. Time ranges may cross midnight, for example 22:00 to 02:00.

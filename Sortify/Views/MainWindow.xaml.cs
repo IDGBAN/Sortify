@@ -492,6 +492,18 @@ public partial class MainWindow : Window
             ViewModel?.ExcludeArtistFromGrid(a.Artist);
     }
 
+    private async void OnOpenYearDetail(object sender, RoutedEventArgs e)
+    {
+        if (YearsGrid.SelectedItem is YearStat y)
+            await ShowDetailAsync(y);
+    }
+
+    private void OnFilterToYear(object sender, RoutedEventArgs e)
+    {
+        if (YearsGrid.SelectedItem is YearStat y && ViewModel is { } vm)
+            vm.Filters.SetRange(new DateTime(y.Year, 1, 1), new DateTime(y.Year, 12, 31));
+    }
+
     // ---- Drill-down --------------------------------------------------------------------------
 
     /// <summary>True while a breakdown is being built, so a second double-click can't stack another.</summary>

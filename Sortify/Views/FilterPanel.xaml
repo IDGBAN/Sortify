@@ -117,6 +117,25 @@
                            Text="From is after To, so nothing can match. Swap the dates or clear one."
                            AutomationProperties.LiveSetting="Assertive"
                            Visibility="{Binding HasInvalidDateRange, Converter={StaticResource BoolToVis}}" />
+                <ItemsControl ItemsSource="{Binding QuickRanges}" Margin="0,8,0,0" Focusable="False"
+                              AutomationProperties.Name="Quick date ranges"
+                              Visibility="{Binding HasQuickRanges, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
+                                    ToolTip="{Binding Tooltip}"
+                                    AutomationProperties.HelpText="{Binding Tooltip}"
+                                    Command="{Binding DataContext.ApplyQuickRangeCommand,
+                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <!-- Search -->
                 <TextBlock Text="SEARCH ALL PLAYS" Style="{StaticResource SectionHeader}" />

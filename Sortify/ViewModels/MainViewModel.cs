@@ -377,6 +377,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 _rawRecords = cached.ToList();
                 _loadedFiles = filePaths;
+                OfferQuickRanges();
                 SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
                 HasData = true;
                 await RecomputeAsync();
@@ -404,6 +405,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
+            OfferQuickRanges();
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
             IsProgressIndeterminate = true;
@@ -436,6 +438,38 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private void RefreshBusy() => IsBusy = _isLoading || _pendingAnalyses > 0;
+
+    /// <summary>
+    /// Last dated play in the whole loaded history, whatever the filters say. The quick date
+    /// ranges count back from it.
+    /// </summary>
+    internal DateTime? LastListenInHistory { get; private set; }
+
+    /// <summary>Calendar years the loaded history has plays in, oldest first.</summary>
+    internal IReadOnlyList<int> YearsInHistory { get; private set; } = Array.Empty<int>();
+
+    /// <summary>
+    /// Offers the quick date ranges that fit the history just loaded. Read off the raw
+    /// records rather than the filtered results, so filtering to one year doesn't take the
+    /// other years' buttons away.
+    /// </summary>
+    private void OfferQuickRanges()
+    {
+        DateTime? last = null;
+        var years = new SortedSet<int>();
+        foreach (var r in _rawRecords)
+        {
+            if (r.Timestamp == DateTime.MinValue)
+                continue;
+            years.Add(r.Timestamp.Year);
+            if (last is null || r.Timestamp > last)
+                last = r.Timestamp;
+        }
+
+        LastListenInHistory = last;
+        YearsInHistory = years.ToList();
+        Filters.SetAvailableDates(last, years);
+    }
 
     // ---- Chart options ---------------------------------------------------------------------
 
