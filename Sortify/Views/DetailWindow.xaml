@@ -29,6 +29,9 @@
             <Button DockPanel.Dock="Right" Content="Copy summary" Click="OnCopySummary"
                     Padding="12,6" VerticalAlignment="Top"
                     ToolTip="Copy these figures as plain text" />
+            <Button x:Name="YearReviewButton" DockPanel.Dock="Right" Content="Year in review image"
+                    Click="OnYearReview" Padding="12,6" VerticalAlignment="Top" Visibility="Collapsed"
+                    ToolTip="Make a shareable picture of this year: top artists, top tracks and the big numbers" />
             <StackPanel>
                 <TextBlock x:Name="TitleText" FontSize="22" FontWeight="Bold"
                            TextTrimming="CharacterEllipsis" />

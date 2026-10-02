@@ -380,13 +380,13 @@ public sealed partial class FilterViewModel : ObservableObject
     /// One short phrase per filter that is currently narrowing the results, for the chip
     /// row above the tabs. Empty when nothing but the defaults are in effect.
     /// </summary>
-    public IEnumerable<string> Describe() => Chips().Select(c => c.Text);
+    public IEnumerable<string> Describe(bool includeDates = true) => Chips(includeDates).Select(c => c.Text);
 
     /// <summary>
     /// The filters currently narrowing the results, each able to clear itself without
-    /// touching the others.
+    /// touching the others. Leaving out the dates suits views that set their own range.
     /// </summary>
-    public IEnumerable<FilterChip> Chips()
+    public IEnumerable<FilterChip> Chips(bool includeDates = true)
     {
         if (MinSeconds != FilterOptions.DefaultMinMs / 1000)
         {
@@ -404,7 +404,7 @@ public sealed partial class FilterViewModel : ObservableObject
             (null, { } to) => $"Until {to:yyyy-MM-dd}",
             _ => null,
         };
-        if (range is not null)
+        if (range is not null && includeDates)
         {
             yield return new FilterChip(range, "Clear the date range", () => Batch(() =>
             {

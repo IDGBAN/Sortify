@@ -671,6 +671,38 @@ public partial class MainWindow : Window
             await ShowDetailAsync(y);
     }
 
+    private async void OnYearReview(object sender, RoutedEventArgs e)
+    {
+        if (YearsGrid.SelectedItem is YearStat y)
+            await ShowYearReviewAsync(y.Year, this);
+    }
+
+    /// <summary>True while a year-in-review card is being worked out.</summary>
+    private bool _buildingReview;
+
+    /// <summary>Works out a year's card and previews it over <paramref name="owner"/>.</summary>
+    private async Task ShowYearReviewAsync(int year, Window owner)
+    {
+        if (_buildingReview || ViewModel is not { } vm)
+            return;
+
+        YearReview? review;
+        _buildingReview = true;
+        Mouse.OverrideCursor = Cursors.AppStarting;
+        try
+        {
+            review = await vm.BuildYearReviewAsync(year);
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+            _buildingReview = false;
+        }
+
+        if (review is not null)
+            new YearReviewWindow(review) { Owner = owner }.ShowDialog();
+    }
+
     private void OnFilterToYear(object sender, RoutedEventArgs e)
     {
         if (YearsGrid.SelectedItem is YearStat y && ViewModel is { } vm)
@@ -732,7 +764,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        new DetailWindow(detail, vm.BuildDetailAsync) { Owner = this }.ShowDialog();
+        new DetailWindow(detail, vm.BuildDetailAsync) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
     }
 
     // ---- Copy to clipboard -------------------------------------------------------------------

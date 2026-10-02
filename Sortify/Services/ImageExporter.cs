@@ -27,8 +27,10 @@ public static class ImageExporter
     /// <summary>
     /// Renders <paramref name="element"/> onto <paramref name="background"/> and returns the
     /// bitmap, or null when the element has no size yet (never laid out, or collapsed).
+    /// <paramref name="scale"/> defaults to 2x; something already drawn at its final pixel
+    /// size, like the year-in-review card, passes 1.
     /// </summary>
-    public static BitmapSource? Render(FrameworkElement element, Brush? background)
+    public static BitmapSource? Render(FrameworkElement element, Brush? background, double scale = Scale)
     {
         double width = element.ActualWidth;
         double height = element.ActualHeight;
@@ -46,11 +48,11 @@ public static class ImageExporter
             context.DrawRectangle(new VisualBrush(element), null, bounds);
         }
 
-        double scale = ScaleFor(width, height);
+        double factor = ScaleFor(width, height, scale);
         var bitmap = new RenderTargetBitmap(
-            (int)Math.Ceiling(width * scale),
-            (int)Math.Ceiling(height * scale),
-            BaseDpi * scale, BaseDpi * scale,
+            (int)Math.Ceiling(width * factor),
+            (int)Math.Ceiling(height * factor),
+            BaseDpi * factor, BaseDpi * factor,
             PixelFormats.Pbgra32);
         bitmap.Render(visual);
         bitmap.Freeze();
@@ -62,20 +64,20 @@ public static class ImageExporter
     /// <see cref="MaxPixels"/>. An element large enough to need it downsamples rather than
     /// failing, which beats no image at all.
     /// </summary>
-    internal static double ScaleFor(double width, double height)
+    internal static double ScaleFor(double width, double height, double scale = Scale)
     {
-        double pixels = width * Scale * height * Scale;
+        double pixels = width * scale * height * scale;
         if (pixels <= MaxPixels)
-            return Scale;
+            return scale;
 
         // Both dimensions shrink, so the area shrinks by the square of the factor.
-        return Scale * Math.Sqrt(MaxPixels / pixels);
+        return scale * Math.Sqrt(MaxPixels / pixels);
     }
 
     /// <summary>Renders and writes a PNG. Returns false when there was nothing to render.</summary>
-    public static bool SavePng(FrameworkElement element, Brush? background, string path)
+    public static bool SavePng(FrameworkElement element, Brush? background, string path, double scale = Scale)
     {
-        var bitmap = Render(element, background);
+        var bitmap = Render(element, background, scale);
         if (bitmap is null)
             return false;
 
@@ -88,9 +90,9 @@ public static class ImageExporter
     }
 
     /// <summary>Renders onto the clipboard. Returns false when there was nothing to render.</summary>
-    public static bool CopyToClipboard(FrameworkElement element, Brush? background)
+    public static bool CopyToClipboard(FrameworkElement element, Brush? background, double scale = Scale)
     {
-        var bitmap = Render(element, background);
+        var bitmap = Render(element, background, scale);
         if (bitmap is null)
             return false;
 

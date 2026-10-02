@@ -704,7 +704,7 @@
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
                                                Foreground="{DynamicResource MutedBrush}"
-                                               Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year." />
+                                               Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
                                     <Grid>
                                     <DataGrid x:Name="YearsGrid" ItemsSource="{Binding Years}"
                                               AutomationProperties.Name="Years"
@@ -715,6 +715,8 @@
                                                 <MenuItem Header="Open this year's breakdown" Click="OnOpenYearDetail"
                                                           InputGestureText="Enter" />
                                                 <MenuItem Header="Filter everything to this year" Click="OnFilterToYear" />
+                                                <Separator />
+                                                <MenuItem Header="Make a year-in-review image..." Click="OnYearReview" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>

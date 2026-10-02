@@ -25,6 +25,30 @@ public partial class DetailWindow : Window
     /// <summary>True while a nested breakdown is being built, so a second double-click can't stack another.</summary>
     private bool _opening;
 
+    private readonly Func<int, Window, Task>? _openYearReview;
+
+    /// <summary>
+    /// Makes a year's summary image, shown over the given window. A year's breakdown offers
+    /// it with a button; breakdowns opened from this one are handed it too.
+    /// </summary>
+    public Func<int, Window, Task>? OpenYearReview
+    {
+        get => _openYearReview;
+        init
+        {
+            _openYearReview = value;
+            YearReviewButton.Visibility = value is not null && _detail.Scope == DetailScope.Year
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    private async void OnYearReview(object sender, RoutedEventArgs e)
+    {
+        if (_openYearReview is not null && int.TryParse(_detail.Title, NumberStyles.None, CultureInfo.InvariantCulture, out int year))
+            await _openYearReview(year, this);
+    }
+
     public DetailWindow(DetailResult detail) : this(detail, null) { }
 
     /// <param name="openDetail">
@@ -193,7 +217,7 @@ public partial class DetailWindow : Window
         if (detail is not { PlayCount: > 0 })
             return;
 
-        new DetailWindow(detail, _openDetail) { Owner = this }.ShowDialog();
+        new DetailWindow(detail, _openDetail) { Owner = this, OpenYearReview = _openYearReview }.ShowDialog();
     }
 
     private static DataGridRow? FindRow(DependencyObject? d)

@@ -661,6 +661,20 @@ public sealed partial class MainViewModel : ObservableObject
         return await DetailEngine.BuildAsync(_rawRecords, Filters.ToOptions(), scope, title, subtitle);
     }
 
+    /// <summary>
+    /// Works out a year's summary card under the sidebar filters, whatever dates the sidebar
+    /// has. Null when there is nothing loaded.
+    /// </summary>
+    public async Task<YearReview?> BuildYearReviewAsync(int year)
+    {
+        if (!HasData || _rawRecords.Count == 0)
+            return null;
+
+        var others = Filters.Describe(includeDates: false).ToList();
+        string note = others.Count == 0 ? string.Empty : "Filtered: " + string.Join("; ", others);
+        return await YearReviewBuilder.BuildAsync(_rawRecords, Filters.ToOptions(), year, note, _settings.SessionGap);
+    }
+
     // ---- Analysis --------------------------------------------------------------------------
 
     private async Task RecomputeAsync()
