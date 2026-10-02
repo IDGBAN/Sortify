@@ -377,6 +377,12 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshBusy();
         IsProgressIndeterminate = true;
         ProgressValue = 0;
+
+        // Reloading the same export keeps the artists being compared; a different one starts
+        // again from its own top artists.
+        if (!filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase))
+            _comparisonSeeded = false;
+
         try
         {
             _loadedFolder = folder;
@@ -698,6 +704,10 @@ public sealed partial class MainViewModel : ObservableObject
                     : "No plays match the current filters."
                 : $"Showing {_result.TotalPlays:N0} plays across {_result.UniqueTracks:N0} tracks, " +
                   $"{_result.UniqueArtists:N0} artists and {_result.UniqueAlbums:N0} albums.");
+
+            SeedComparison();
+            RefreshCompareSuggestions();
+            await RefreshArtistTimelineAsync();
         }
         finally
         {
@@ -778,6 +788,138 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
         return matches;
+    }
+
+    // ---- Comparing artists over time ------------------------------------------------------------
+
+    /// <summary>How many of the top artists the comparison starts with after a history loads.</summary>
+    private const int ComparedArtistsToStartWith = 3;
+
+    /// <summary>How many name suggestions show under the box while typing.</summary>
+    private const int CompareSuggestionCount = 6;
+
+    /// <summary>Artists on the comparison chart, in the order their lines are coloured.</summary>
+    public ObservableCollection<string> ComparedArtists { get; } = new();
+
+    [ObservableProperty] private string _compareQuery = string.Empty;
+    [ObservableProperty] private IReadOnlyList<string> _compareSuggestions = Array.Empty<string>();
+    [ObservableProperty] private ChartData _artistTimelineChart = ChartData.Empty;
+    [ObservableProperty] private string _compareHint = string.Empty;
+
+    private ArtistTimeline _artistTimeline = ArtistTimeline.Empty;
+    private ChartBuilder.TimeGranularity _compareGranularity = ChartBuilder.TimeGranularity.Monthly;
+    private CancellationTokenSource? _timelineCts;
+
+    /// <summary>
+    /// The comparison starts out with the top few artists, once per loaded history, so the
+    /// chart isn't blank. After that it only changes when the user changes it.
+    /// </summary>
+    private bool _comparisonSeeded;
+
+    partial void OnCompareQueryChanged(string value) => RefreshCompareSuggestions();
+
+    private void RefreshCompareSuggestions()
+    {
+        string query = CompareQuery.Trim();
+        CompareSuggestions = query.Length == 0
+            ? Array.Empty<string>()
+            : _result.Artists
+                .Where(a => !ComparedArtists.Contains(a.Artist))
+                .Select(a => (a.Artist, Rank: MatchRank(a.Artist, query), a.TotalMsPlayed))
+                .Where(x => x.Rank >= 0)
+                .OrderBy(x => x.Rank)
+                .ThenByDescending(x => x.TotalMsPlayed)
+                .Take(CompareSuggestionCount)
+                .Select(x => x.Artist)
+                .ToList();
+        RefreshCompareHint();
+    }
+
+    private void RefreshCompareHint()
+    {
+        CompareHint = ComparedArtists.Count == 0
+            ? $"Type an artist's name and pick from the matches to add them. Up to {ArtistComparison.MaxArtists} at once."
+            : CompareQuery.Trim().Length > 0 && CompareSuggestions.Count == 0
+                ? ComparedArtists.Count >= ArtistComparison.MaxArtists
+                    ? $"The chart already has {ArtistComparison.MaxArtists} artists. Remove one to add another."
+                    : $"No artist in the current results matches “{CompareQuery.Trim()}”."
+                : string.Empty;
+    }
+
+    [RelayCommand]
+    private async Task AddComparedArtistAsync(string? artist)
+    {
+        artist ??= CompareSuggestions.FirstOrDefault();
+        if (string.IsNullOrEmpty(artist) || ComparedArtists.Contains(artist))
+            return;
+        if (ComparedArtists.Count >= ArtistComparison.MaxArtists)
+        {
+            RefreshCompareHint();
+            SetStatus($"The comparison chart holds {ArtistComparison.MaxArtists} artists at most. Remove one to add {artist}.");
+            return;
+        }
+
+        ComparedArtists.Add(artist);
+        CompareQuery = string.Empty;
+        await RefreshArtistTimelineAsync();
+    }
+
+    [RelayCommand]
+    private async Task RemoveComparedArtistAsync(string? artist)
+    {
+        if (artist is null || !ComparedArtists.Remove(artist))
+            return;
+        RefreshCompareSuggestions();
+        await RefreshArtistTimelineAsync();
+    }
+
+    /// <summary>Switches the comparison between monthly and weekly buckets.</summary>
+    public async Task SetCompareGranularityAsync(ChartBuilder.TimeGranularity granularity)
+    {
+        if (_compareGranularity == granularity)
+            return;
+        _compareGranularity = granularity;
+        await RefreshArtistTimelineAsync();
+    }
+
+    private void SeedComparison()
+    {
+        if (_comparisonSeeded)
+            return;
+        _comparisonSeeded = true;
+        ComparedArtists.Clear();
+        foreach (var artist in _result.Artists.Take(ComparedArtistsToStartWith))
+            ComparedArtists.Add(artist.Artist);
+    }
+
+    /// <summary>Rebuilds the comparison under the current filters; a newer call cancels an older one.</summary>
+    private async Task RefreshArtistTimelineAsync()
+    {
+        RefreshCompareHint();
+        var previous = _timelineCts;
+        _timelineCts = new CancellationTokenSource();
+        previous?.Cancel();
+        var token = _timelineCts.Token;
+
+        try
+        {
+            var timeline = HasData && ComparedArtists.Count > 0
+                ? await ArtistComparison.BuildAsync(_rawRecords, Filters.ToOptions(), ComparedArtists.ToList(),
+                    _compareGranularity, token)
+                : ArtistTimeline.Empty;
+            if (token.IsCancellationRequested)
+                return;
+            _artistTimeline = timeline;
+            ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer refresh took over; it sets the chart.
+        }
+        finally
+        {
+            previous?.Dispose();
+        }
     }
 
     // ---- Jump to (Ctrl+K) ---------------------------------------------------------------------
@@ -1100,6 +1242,7 @@ public sealed partial class MainViewModel : ObservableObject
         EpisodesChart = ChartBuilder.TopEpisodes(_result);
         ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
         EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
+        ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity);
 
         // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
         _tracksShown = Math.Min(BarPageSize, MaxTracks);

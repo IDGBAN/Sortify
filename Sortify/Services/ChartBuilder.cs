@@ -344,6 +344,34 @@ public static class ChartBuilder
         };
     }
 
+    /// <summary>One line per compared artist, in the category colours, on a shared date axis.</summary>
+    public static ChartData ArtistTimelines(ArtistTimeline timeline, TimeGranularity granularity)
+    {
+        var series = timeline.Series
+            .Select((s, i) => (ISeries)new LineSeries<LcDateTimePoint>
+            {
+                Values = timeline.Buckets.Select((b, j) => new LcDateTimePoint(b, s.Hours.ElementAtOrDefault(j))).ToArray(),
+                Name = ShortLabel(s.Artist),
+                Fill = null,
+                Stroke = new SolidColorPaint(Category(i)) { StrokeThickness = 2 },
+                GeometrySize = 0,
+                // Straight segments: smoothing a line that drops to zero between busy months
+                // would swing it below zero and back.
+                LineSmoothness = 0,
+            })
+            .ToArray();
+
+        long unitTicks = granularity == TimeGranularity.Weekly
+            ? TimeSpan.FromDays(7).Ticks
+            : TimeSpan.FromDays(30).Ticks;
+        return new ChartData
+        {
+            Series = series,
+            XAxes = new[] { DateAxis(unitTicks) },
+            YAxes = new[] { ValueAxis("Hours") },
+        };
+    }
+
     private static Axis DateAxis(long unitTicks) => new()
     {
         LabelsPaint = Label(),

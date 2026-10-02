@@ -893,6 +893,87 @@
                                                             TooltipPosition="Top" />
                                     </DockPanel>
                                 </Border>
+                                <Border Style="{StaticResource ChartCard}" Height="460">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                                            <TextBlock Text="Compare Artists" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Content="Monthly" GroupName="CompareGran" IsChecked="True"
+                                                                 Tag="Monthly" Checked="OnCompareGranularityChecked"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                    <RadioButton Content="Weekly" GroupName="CompareGran"
+                                                                 Tag="Weekly" Checked="OnCompareGranularityChecked"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                        <DockPanel DockPanel.Dock="Top" Margin="0,2,0,4">
+                                            <TextBox DockPanel.Dock="Left" Width="220" VerticalAlignment="Center"
+                                                     Text="{Binding CompareQuery, UpdateSourceTrigger=PropertyChanged}"
+                                                     AutomationProperties.Name="Add an artist to compare"
+                                                     ToolTip="Type an artist's name, then pick a match or press Enter for the first one">
+                                                <TextBox.InputBindings>
+                                                    <KeyBinding Key="Enter" Command="{Binding AddComparedArtistCommand}" />
+                                                </TextBox.InputBindings>
+                                            </TextBox>
+                                            <ItemsControl ItemsSource="{Binding ComparedArtists}" Margin="10,0,0,0"
+                                                          VerticalAlignment="Center" Focusable="False"
+                                                          AutomationProperties.Name="Artists being compared">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Style="{StaticResource Chip}" Padding="10,1,3,1" Margin="0,2,6,2">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding}" FontSize="11" VerticalAlignment="Center" />
+                                                                <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
+                                                                        Command="{Binding DataContext.RemoveComparedArtistCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Take this artist off the chart"
+                                                                        AutomationProperties.Name="{Binding StringFormat='Stop comparing {0}'}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </DockPanel>
+                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CompareSuggestions}"
+                                                      Focusable="False" AutomationProperties.Name="Matching artists">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding}" ContentStringFormat="+  {0}" Style="{StaticResource QuickRangeButton}"
+                                                            Command="{Binding DataContext.AddComparedArtistCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            AutomationProperties.Name="{Binding StringFormat='Compare {0}'}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding CompareHint}" Style="{StaticResource Hint}"
+                                                   FontSize="11" Margin="0,0,0,4"
+                                                   Visibility="{Binding CompareHint, Converter={StaticResource TextToVis}}" />
+                                        <lvc:CartesianChart Series="{Binding ArtistTimelineChart.Series}"
+                                                            Background="Transparent"
+                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                            XAxes="{Binding ArtistTimelineChart.XAxes}"
+                                                            YAxes="{Binding ArtistTimelineChart.YAxes}"
+                                                            LegendPosition="Bottom" LegendTextSize="12"
+                                                            TooltipPosition="Top" />
+                                    </DockPanel>
+                                </Border>
                                 <Border Style="{StaticResource ChartCard}" Height="340">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,6">

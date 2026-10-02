@@ -786,6 +786,16 @@ public partial class MainWindow : Window
 
     // ---- Listening-over-time granularity toggle ---------------------------------------------
 
+    private async void OnCompareGranularityChecked(object sender, RoutedEventArgs e)
+    {
+        // Fires during InitializeComponent for the default button; the comparison starts monthly anyway.
+        if (ViewModel is not { } vm || sender is not RadioButton { Tag: string tag })
+            return;
+
+        if (Enum.TryParse<ChartBuilder.TimeGranularity>(tag, out var granularity))
+            await vm.SetCompareGranularityAsync(granularity);
+    }
+
     private void OnGranularityChecked(object sender, RoutedEventArgs e)
     {
         // Fires during InitializeComponent for the default-checked button, before the
