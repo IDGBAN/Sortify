@@ -128,6 +128,7 @@ public partial class DetailWindow : Window
         EpisodeStat e => (DetailScope.Episode, e.Episode, e.Show),
         SkippedTrackStat s => (DetailScope.Track, s.Track, s.Artist),
         MonthStat m => (DetailScope.Artist, m.TopArtist, string.Empty),
+        Milestone m => (DetailScope.Track, m.Track.Track, m.Track.Artist),
         _ => null,
     };
 

@@ -1161,6 +1161,32 @@
                                     </Border>
                                 </UniformGrid>
 
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Milestones"
+                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="The plays that mark your history: the first, the ones that reached round numbers of plays and hours, and the first time your top artist came on. Double-click one for that track's breakdown." />
+                                        <Grid>
+                                            <DataGrid ItemsSource="{Binding Milestones}" AutomationProperties.Name="Milestones"
+                                                      SelectionMode="Single" MinHeight="80"
+                                                      PreviewMouseWheel="OnPassWheelToPage"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Milestone" Binding="{Binding Label}" Width="1.4*" />
+                                                    <DataGridTextColumn Header="When" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}"
+                                                                        Width="145" SortMemberPath="Date" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="1.2*" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <TextBlock Style="{StaticResource EmptyRows}"
+                                                       Visibility="{Binding Milestones, Converter={StaticResource EmptyToVis}}"
+                                                       Text="No dated plays match the current filters." />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+
                                 <Border Style="{StaticResource Card}" Height="400">
                                     <DockPanel>
                                         <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">

@@ -461,6 +461,23 @@ public partial class MainWindow : Window
         vm.Filters.SetSlot(point.Index / 24, point.Index % 24);
     }
 
+    /// <summary>
+    /// A grid sized to its rows has nothing to scroll, but its own scroll viewer still swallows
+    /// the wheel, which would stall the page it sits in. Hand the wheel to the page instead.
+    /// </summary>
+    private void OnPassWheelToPage(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not UIElement grid || VisualTreeHelper.GetParent(grid) is not UIElement parent)
+            return;
+
+        e.Handled = true;
+        parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = MouseWheelEvent,
+            Source = grid,
+        });
+    }
+
     // ---- Infinite scroll -------------------------------------------------------------------------
 
     private void OnTracksScrollChanged(object sender, ScrollChangedEventArgs e)

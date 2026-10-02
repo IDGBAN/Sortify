@@ -71,6 +71,9 @@ public sealed class YearStat
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }
 
+/// <summary>A play that marks the history: the first one, the 10,000th, the one that passed 1,000 hours...</summary>
+public sealed record Milestone(string Label, DateTime Date, TrackStat Track);
+
 /// <summary>One calendar month: how much was played, and the artist and track that led it.</summary>
 public sealed class MonthStat
 {
@@ -177,6 +180,9 @@ public sealed class AnalysisResult
 
     /// <summary>Per-calendar-month rollups with each month's top artist and track, oldest first.</summary>
     public IReadOnlyList<MonthStat> Months { get; init; } = Array.Empty<MonthStat>();
+
+    /// <summary>The plays that mark the history, oldest first. See AnalysisEngine.Milestone*.</summary>
+    public IReadOnlyList<Milestone> Milestones { get; init; } = Array.Empty<Milestone>();
 
     /// <summary>
     /// Tracks played a lot that then went quiet: nothing in the last stretch of the results.

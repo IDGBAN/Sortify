@@ -53,6 +53,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Each month's top artist and track, newest month first.</summary>
     [ObservableProperty] private IReadOnlyList<MonthStat> _months = Array.Empty<MonthStat>();
     [ObservableProperty] private string _monthlyLeaderText = string.Empty;
+    [ObservableProperty] private IReadOnlyList<Milestone> _milestones = Array.Empty<Milestone>();
     [ObservableProperty] private IReadOnlyList<TrackStat> _forgottenTracks = Array.Empty<TrackStat>();
     [ObservableProperty] private IReadOnlyList<ArtistStat> _forgottenArtists = Array.Empty<ArtistStat>();
 
@@ -718,6 +719,7 @@ public sealed partial class MainViewModel : ObservableObject
         ForgottenArtists = _result.ForgottenArtists;
         Months = _result.Months.Reverse().ToList();
         MonthlyLeaderText = DescribeMonthlyLeader(_result.Months);
+        Milestones = _result.Milestones;
         HasPodcastData = _result.Shows.Count > 0;
 
         TopTracks = _result.Tracks.Take(5)
