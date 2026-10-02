@@ -134,8 +134,8 @@ public partial class MainWindow : Window
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
-        // Ctrl+1..8 jump straight to a tab.
-        if (ctrl && e.Key is >= Key.D1 and <= Key.D8)
+        // Ctrl+1..9 jump straight to a tab.
+        if (ctrl && e.Key is >= Key.D1 and <= Key.D9)
         {
             int index = e.Key - Key.D1;
             if (index < Tabs.Items.Count)
@@ -265,6 +265,16 @@ public partial class MainWindow : Window
         await ShowDetailAsync(result.Item);
     }
 
+    /// <summary>Below this width the Compare tab's paired tables go one above the other.</summary>
+    private const double CompareSideBySideMinWidth = 960;
+
+    private void OnCompareSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        int columns = e.NewSize.Width < CompareSideBySideMinWidth ? 1 : 2;
+        CompareRankings.Columns = columns;
+        CompareNewGone.Columns = columns;
+    }
+
     // ---- Tabs --------------------------------------------------------------------------------
 
     // Fade + slide the tab body in whenever the user switches tabs. Filtered to the
@@ -277,6 +287,10 @@ public partial class MainWindow : Window
 
         if (sender is not TabControl tabs)
             return;
+
+        // The comparison is only worked out while someone is looking at it.
+        if (ViewModel is { } vm)
+            vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
 
         var host = FindContentHost(tabs);
         if (host is null)

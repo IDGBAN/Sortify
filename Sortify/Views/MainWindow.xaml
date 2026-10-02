@@ -27,6 +27,23 @@
             <Setter Property="ContextMenu" Value="{StaticResource ChartMenu}" />
         </Style>
 
+        <!-- A movement or change on the Compare tab, coloured by which way it went. -->
+        <Style x:Key="TrendText" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Trend}" Value="Up">
+                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Trend}" Value="Down">
+                    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Trend}" Value="New">
+                    <Setter Property="Foreground" Value="{DynamicResource Accent2Brush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- One row of an Overview top-five list. -->
         <DataTemplate x:Key="RankedRow">
             <Grid Margin="0,5">
@@ -1376,6 +1393,212 @@
                                                             XAxes="{Binding Skipped.XAxes}" YAxes="{Binding Skipped.YAxes}" />
                                     </DockPanel>
                                 </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ============================= COMPARE ============================= -->
+                    <TabItem x:Name="CompareTab" Header="Compare">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel DataContext="{Binding Compare}" SizeChanged="OnCompareSizeChanged">
+                                <Border Style="{StaticResource Card}" Margin="6,6,6,6">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="Swap A and B" Command="{Binding SwapCommand}"
+                                                        Padding="10,5" FontSize="11" />
+                                                <Button Content="Make A the stretch before B" Command="{Binding MatchAToBCommand}"
+                                                        Padding="10,5" FontSize="11" Margin="0"
+                                                        ToolTip="Set period A to the same number of days, ending the day before B starts" />
+                                            </StackPanel>
+                                            <TextBlock Text="Compare Two Periods" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,10"
+                                                   Text="Every other filter in the sidebar applies to both periods. The sidebar's own date range is set aside here." />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding PeriodALabel}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <DatePicker Grid.Column="0" SelectedDate="{Binding StartA}"
+                                                                AutomationProperties.Name="Period A from" ToolTip="Period A starts" />
+                                                    <DatePicker Grid.Column="2" SelectedDate="{Binding EndA}"
+                                                                AutomationProperties.Name="Period A to" ToolTip="Period A ends (this day included)" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding RangesA}" Margin="0,8,0,0" Focusable="False"
+                                                              AutomationProperties.Name="Quick ranges for period A">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
+                                                                    ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
+                                                                    Command="{Binding DataContext.ApplyRangeACommand,
+                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="{Binding PeriodBLabel}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <DatePicker Grid.Column="0" SelectedDate="{Binding StartB}"
+                                                                AutomationProperties.Name="Period B from" ToolTip="Period B starts" />
+                                                    <DatePicker Grid.Column="2" SelectedDate="{Binding EndB}"
+                                                                AutomationProperties.Name="Period B to" ToolTip="Period B ends (this day included)" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding RangesB}" Margin="0,8,0,0" Focusable="False"
+                                                              AutomationProperties.Name="Quick ranges for period B">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
+                                                                    ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
+                                                                    Command="{Binding DataContext.ApplyRangeBCommand,
+                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                   Visibility="{Binding Message, Converter={StaticResource TextToVis}}" />
+                                        <TextBlock Text="Working out both periods..." Style="{StaticResource Hint}" FontSize="11"
+                                                   Margin="0,8,0,0"
+                                                   Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="At a Glance" Style="{StaticResource SectionHeader}"
+                                                   Margin="0,0,0,8" />
+                                        <DataGrid ItemsSource="{Binding Metrics}" AutomationProperties.Name="Headline figures for both periods"
+                                                  SelectionMode="Single" PreviewMouseWheel="OnPassWheelToPage">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" />
+                                                <DataGridTextColumn Header="Period A" Binding="{Binding A}" Width="*" />
+                                                <DataGridTextColumn Header="Period B" Binding="{Binding B}" Width="*" />
+                                                <DataGridTextColumn Header="Change" Binding="{Binding Change}" Width="*"
+                                                                    ElementStyle="{StaticResource TrendText}" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
+                                </Border>
+
+                                <UniformGrid x:Name="CompareRankings" Columns="2">
+                                    <Border Style="{StaticResource Card}" Height="480">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="Artists" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="Ranked by listening time in period B. ▲ climbed since A, ▼ fell, new wasn't played in A, out isn't played in B." />
+                                            <DataGrid ItemsSource="{Binding Artists}" AutomationProperties.Name="Artists in both periods"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
+                                                                        SortMemberPath="RankB" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                    <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsB" />
+                                                    <DataGridTextColumn Header="Hours A" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsA" />
+                                                    <DataGridTextColumn Header="Move" Binding="{Binding Movement}" Width="Auto"
+                                                                        ElementStyle="{StaticResource TrendText}" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}" Height="480">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="Tracks" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="The same for tracks. Double-click a row for its breakdown under the sidebar's filters." />
+                                            <DataGrid ItemsSource="{Binding Tracks}" AutomationProperties.Name="Tracks in both periods"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
+                                                                        SortMemberPath="RankB" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" />
+                                                    <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsB" />
+                                                    <DataGridTextColumn Header="Hours A" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsA" />
+                                                    <DataGridTextColumn Header="Move" Binding="{Binding Movement}" Width="Auto"
+                                                                        ElementStyle="{StaticResource TrendText}" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </DockPanel>
+                                    </Border>
+                                </UniformGrid>
+
+                                <UniformGrid x:Name="CompareNewGone" Columns="2">
+                                    <Border Style="{StaticResource Card}" Height="360">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="New in Period B" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="Artists you listened to for at least an hour in B and not at all in A." />
+                                            <Grid>
+                                                <DataGrid ItemsSource="{Binding NewInB}" AutomationProperties.Name="Artists new in period B"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                        <DataGridTextColumn Header="Hours in B" Binding="{Binding HoursB, StringFormat=N1}"
+                                                                            Width="Auto" SortMemberPath="MsB" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding NewInB, Converter={StaticResource EmptyToVis}}"
+                                                           Text="No artist is new in period B." />
+                                            </Grid>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}" Height="360">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="Gone Since Period A" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="Artists you listened to for at least an hour in A and not at all in B." />
+                                            <Grid>
+                                                <DataGrid ItemsSource="{Binding GoneSinceA}" AutomationProperties.Name="Artists gone since period A"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                        <DataGridTextColumn Header="Hours in A" Binding="{Binding HoursA, StringFormat=N1}"
+                                                                            Width="Auto" SortMemberPath="MsA" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding GoneSinceA, Converter={StaticResource EmptyToVis}}"
+                                                           Text="Every artist from period A was played again in B." />
+                                            </Grid>
+                                        </DockPanel>
+                                    </Border>
+                                </UniformGrid>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>

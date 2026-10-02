@@ -40,6 +40,12 @@ public sealed partial class MainViewModel : ObservableObject
 
     public FilterViewModel Filters { get; } = new();
 
+    /// <summary>The Compare tab.</summary>
+    public CompareViewModel Compare { get; }
+
+    /// <summary>True while the history being loaded is a different export from the one before.</summary>
+    private bool _newHistory = true;
+
     // Grid item sources. Swapped wholesale after each analysis pass instead of using
     // ObservableCollections: repopulating tens of thousands of rows item-by-item raises
     // a CollectionChanged per row and freezes the UI.
@@ -197,6 +203,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = settings ?? AppSettings.Load();
         _settings.PruneMissingFolders();
+        Compare = new CompareViewModel(() => HasData
+            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap)
+            : null);
         SidebarVisible = _settings.SidebarVisible;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
         RefreshRecentFolders();
@@ -378,9 +387,10 @@ public sealed partial class MainViewModel : ObservableObject
         IsProgressIndeterminate = true;
         ProgressValue = 0;
 
-        // Reloading the same export keeps the artists being compared; a different one starts
-        // again from its own top artists.
-        if (!filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase))
+        // Reloading the same export keeps the artists and periods being compared; a different
+        // one starts again from its own.
+        _newHistory = !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
+        if (_newHistory)
             _comparisonSeeded = false;
 
         try
@@ -500,6 +510,7 @@ public sealed partial class MainViewModel : ObservableObject
         LastListenInHistory = last;
         YearsInHistory = years.ToList();
         Filters.SetAvailableDates(last, years);
+        Compare.SetHistory(last, YearsInHistory, resetPeriods: _newHistory);
 
         var devices = platformMs
             .GroupBy(kv => AnalysisEngine.PlatformFamily(kv.Key))
@@ -707,6 +718,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             SeedComparison();
             RefreshCompareSuggestions();
+            Compare.Invalidate();
             await RefreshArtistTimelineAsync();
         }
         finally

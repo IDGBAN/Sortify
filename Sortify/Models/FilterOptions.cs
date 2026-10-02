@@ -76,6 +76,30 @@ public sealed class FilterOptions
 
     public bool HasAllDaysSelected => IncludedDaysOfWeek.All(d => d);
 
+    /// <summary>A copy with a different date range and every other filter the same.</summary>
+    public FilterOptions WithDateRange(DateTime? start, DateTime? end)
+    {
+        var copy = new FilterOptions
+        {
+            MinMsPlayed = MinMsPlayed,
+            IncludePodcasts = IncludePodcasts,
+            StartDate = start,
+            EndDate = end,
+            SearchTerm = SearchTerm,
+            StartHour = StartHour,
+            EndHour = EndHour,
+            Shuffle = Shuffle,
+            Offline = Offline,
+            Private = Private,
+        };
+        copy.ExcludedArtists.UnionWith(ExcludedArtists);
+        copy.ExcludedTracks.UnionWith(ExcludedTracks);
+        copy.ExcludedDevices.UnionWith(ExcludedDevices);
+        copy.ExcludedCountries.UnionWith(ExcludedCountries);
+        IncludedDaysOfWeek.CopyTo(copy.IncludedDaysOfWeek, 0);
+        return copy;
+    }
+
     public bool HasFullHourRange => StartHour == 0 && EndHour == 23;
 
     /// <summary>True when an hour falls within the configured range, supporting ranges that wrap past midnight.</summary>

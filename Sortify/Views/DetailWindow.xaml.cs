@@ -129,6 +129,7 @@ public partial class DetailWindow : Window
         SkippedTrackStat s => (DetailScope.Track, s.Track, s.Artist),
         MonthStat m => (DetailScope.Artist, m.TopArtist, string.Empty),
         Milestone m => (DetailScope.Track, m.Track.Track, m.Track.Artist),
+        ComparisonRow c => TargetFor(c.Item),
         _ => null,
     };
 
