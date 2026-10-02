@@ -56,7 +56,8 @@ public static class AnalysisEngine
         var albums = new Dictionary<(string Album, string Artist), AlbumStat>();
         var skips = new Dictionary<(string Track, string Artist), (int Plays, int Skips)>();
         var reasons = new Dictionary<string, ReasonEndStat>(StringComparer.OrdinalIgnoreCase);
-        var years = new Dictionary<int, YearAccumulator>();
+        var years = new Dictionary<int, PeriodAccumulator>();
+        var months = new Dictionary<DateTime, PeriodAccumulator>();
         var byDay = new Dictionary<DateTime, long>();
         var byHour = new long[24];
         var byDow = new long[7];
@@ -232,13 +233,18 @@ public static class AnalysisEngine
                 int year = ts.Year;
                 if (!years.TryGetValue(year, out var acc))
                 {
-                    acc = new YearAccumulator();
+                    acc = new PeriodAccumulator();
                     years[year] = acc;
                 }
-                acc.Ms += r.MsPlayed;
-                acc.Plays++;
-                CollectionsMarshal.GetValueRefOrAddDefault(acc.ArtistMs, artistName, out _) += r.MsPlayed;
-                CollectionsMarshal.GetValueRefOrAddDefault(acc.TrackMs, trackKey, out _) += r.MsPlayed;
+                acc.Add(artist, track, r.MsPlayed);
+
+                var month = new DateTime(ts.Year, ts.Month, 1);
+                if (!months.TryGetValue(month, out var monthAcc))
+                {
+                    monthAcc = new PeriodAccumulator();
+                    months[month] = monthAcc;
+                }
+                monthAcc.Add(artist, track, r.MsPlayed);
             }
         }
 
@@ -308,6 +314,10 @@ public static class AnalysisEngine
             .OrderBy(kv => kv.Key)
             .Select(kv => BuildYearStat(kv.Key, kv.Value))
             .ToList();
+        var monthList = months
+            .OrderBy(kv => kv.Key)
+            .Select(kv => BuildMonthStat(kv.Key, kv.Value))
+            .ToList();
 
         // Measured from the last play in the results rather than from today: an export is a
         // snapshot, and a filtered one can end years ago.
@@ -334,6 +344,7 @@ public static class AnalysisEngine
             TracksByPlayCount = tracksByCount,
             AlbumsByPlayCount = albumsByCount,
             Years = yearList,
+            Months = monthList,
             ForgottenTracks = forgottenTracks,
             ForgottenArtists = forgottenArtists,
             ReasonEnds = reasonList,
@@ -483,47 +494,82 @@ public static class AnalysisEngine
         "windows", "osx", "macos", "mac", "linux",
     };
 
-    private sealed class YearAccumulator
+    /// <summary>
+    /// Running totals for one year or one month, and who led it. Keyed by the artist and
+    /// track objects of the whole pass, which are already one per name, so each play costs a
+    /// reference hash rather than hashing the names again for every month and year.
+    /// </summary>
+    private sealed class PeriodAccumulator
     {
         public long Ms;
         public int Plays;
-        public readonly Dictionary<string, long> ArtistMs = new(StringComparer.Ordinal);
-        public readonly Dictionary<(string Track, string Artist), long> TrackMs = new();
+        public readonly Dictionary<ArtistStat, long> ArtistMs = new(ReferenceEqualityComparer.Instance);
+        public readonly Dictionary<TrackStat, long> TrackMs = new(ReferenceEqualityComparer.Instance);
+
+        public void Add(ArtistStat artist, TrackStat track, int ms)
+        {
+            Ms += ms;
+            Plays++;
+            CollectionsMarshal.GetValueRefOrAddDefault(ArtistMs, artist, out _) += ms;
+            CollectionsMarshal.GetValueRefOrAddDefault(TrackMs, track, out _) += ms;
+        }
+
+        public (string Artist, long Ms) TopArtist()
+        {
+            (string, long) top = ("-", 0);
+            long best = -1;
+            foreach (var (artist, ms) in ArtistMs)
+            {
+                if (ms > best)
+                {
+                    best = ms;
+                    top = (artist.Artist, ms);
+                }
+            }
+            return top;
+        }
+
+        public ((string Track, string Artist) Key, long Ms) TopTrack()
+        {
+            ((string, string), long) top = (("-", "-"), 0);
+            long best = -1;
+            foreach (var (track, ms) in TrackMs)
+            {
+                if (ms > best)
+                {
+                    best = ms;
+                    top = ((track.Track, track.Artist), ms);
+                }
+            }
+            return top;
+        }
     }
 
-    private static YearStat BuildYearStat(int year, YearAccumulator acc)
+    private static YearStat BuildYearStat(int year, PeriodAccumulator acc) => new()
     {
-        string topArtist = "-";
-        long best = -1;
-        foreach (var (name, ms) in acc.ArtistMs)
-        {
-            if (ms > best)
-            {
-                best = ms;
-                topArtist = name;
-            }
-        }
+        Year = year,
+        TotalMsPlayed = acc.Ms,
+        PlayCount = acc.Plays,
+        UniqueArtists = acc.ArtistMs.Count,
+        UniqueTracks = acc.TrackMs.Count,
+        TopArtist = acc.TopArtist().Artist,
+        TopTrack = acc.TopTrack().Key.Track,
+    };
 
-        string topTrack = "-";
-        best = -1;
-        foreach (var (key, ms) in acc.TrackMs)
+    private static MonthStat BuildMonthStat(DateTime month, PeriodAccumulator acc)
+    {
+        var (artist, artistMs) = acc.TopArtist();
+        var (track, trackMs) = acc.TopTrack();
+        return new MonthStat
         {
-            if (ms > best)
-            {
-                best = ms;
-                topTrack = key.Track;
-            }
-        }
-
-        return new YearStat
-        {
-            Year = year,
+            Month = month,
             TotalMsPlayed = acc.Ms,
             PlayCount = acc.Plays,
-            UniqueArtists = acc.ArtistMs.Count,
-            UniqueTracks = acc.TrackMs.Count,
-            TopArtist = topArtist,
-            TopTrack = topTrack,
+            TopArtist = artist,
+            TopArtistMs = artistMs,
+            TopTrack = track.Track,
+            TopTrackArtist = track.Artist,
+            TopTrackMs = trackMs,
         };
     }
 

@@ -917,6 +917,48 @@
                                                             TooltipPosition="Top" />
                                     </DockPanel>
                                 </Border>
+                                <Border Style="{StaticResource Card}" Height="400">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Your #1 Each Month"
+                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding MonthlyLeaderText}"
+                                                   FontSize="12" Margin="0,0,0,2" TextWrapping="Wrap" />
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="The artist and track you listened to longest each month. Double-click a month for its top artist; right-click for its top track." />
+                                        <Grid>
+                                            <DataGrid x:Name="MonthsGrid" ItemsSource="{Binding Months}"
+                                                      AutomationProperties.Name="Top artist and track per month"
+                                                      SelectionMode="Single"
+                                                      PreviewMouseRightButtonDown="OnGridRightClick"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Open the top artist" Click="OnOpenMonthArtist"
+                                                                  InputGestureText="Enter" />
+                                                        <MenuItem Header="Open the top track" Click="OnOpenMonthTrack" />
+                                                    </ContextMenu>
+                                                </DataGrid.ContextMenu>
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Month" Binding="{Binding Month, StringFormat=yyyy-MM}"
+                                                                        Width="Auto" SortMemberPath="Month" />
+                                                    <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
+                                                    <DataGridTextColumn Header="Hours" Binding="{Binding TopArtistHours, StringFormat=N1}"
+                                                                        Width="Auto" SortMemberPath="TopArtistMs" />
+                                                    <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="*" />
+                                                    <DataGridTextColumn Header="By" Binding="{Binding TopTrackArtist}" Width="0.7*" />
+                                                    <DataGridTextColumn Header="Hours" Binding="{Binding TopTrackHours, StringFormat=N1}"
+                                                                        Width="Auto" SortMemberPath="TopTrackMs" />
+                                                    <DataGridTextColumn Header="Month Total"
+                                                                        Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
+                                                                        Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <TextBlock Style="{StaticResource EmptyRows}"
+                                                       Visibility="{Binding Months, Converter={StaticResource EmptyToVis}}"
+                                                       Text="No dated plays match the current filters." />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
                                 <Border Style="{StaticResource ChartCard}" Height="300">
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Text="Listening by Hour of Day"

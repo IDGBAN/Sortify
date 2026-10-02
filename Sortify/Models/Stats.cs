@@ -71,6 +71,26 @@ public sealed class YearStat
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }
 
+/// <summary>One calendar month: how much was played, and the artist and track that led it.</summary>
+public sealed class MonthStat
+{
+    /// <summary>The first day of the month.</summary>
+    public required DateTime Month { get; init; }
+    public long TotalMsPlayed { get; init; }
+    public int PlayCount { get; init; }
+
+    public string TopArtist { get; init; } = "-";
+    public long TopArtistMs { get; init; }
+    public string TopTrack { get; init; } = "-";
+    public string TopTrackArtist { get; init; } = "-";
+    public long TopTrackMs { get; init; }
+
+    public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
+    public double TotalHours => TotalMsPlayed / 3_600_000d;
+    public double TopArtistHours => TopArtistMs / 3_600_000d;
+    public double TopTrackHours => TopTrackMs / 3_600_000d;
+}
+
 /// <summary>Aggregated listening statistics for one podcast show or audiobook.</summary>
 public sealed class ShowStat
 {
@@ -154,6 +174,9 @@ public sealed class AnalysisResult
 
     /// <summary>Per-calendar-year rollups, oldest year first.</summary>
     public IReadOnlyList<YearStat> Years { get; init; } = Array.Empty<YearStat>();
+
+    /// <summary>Per-calendar-month rollups with each month's top artist and track, oldest first.</summary>
+    public IReadOnlyList<MonthStat> Months { get; init; } = Array.Empty<MonthStat>();
 
     /// <summary>
     /// Tracks played a lot that then went quiet: nothing in the last stretch of the results.

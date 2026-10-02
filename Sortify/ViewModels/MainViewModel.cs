@@ -50,6 +50,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<SkippedTrackStat> _skippedTracks = Array.Empty<SkippedTrackStat>();
     [ObservableProperty] private IReadOnlyList<ShowStat> _shows = Array.Empty<ShowStat>();
     [ObservableProperty] private IReadOnlyList<EpisodeStat> _episodes = Array.Empty<EpisodeStat>();
+    /// <summary>Each month's top artist and track, newest month first.</summary>
+    [ObservableProperty] private IReadOnlyList<MonthStat> _months = Array.Empty<MonthStat>();
+    [ObservableProperty] private string _monthlyLeaderText = string.Empty;
     [ObservableProperty] private IReadOnlyList<TrackStat> _forgottenTracks = Array.Empty<TrackStat>();
     [ObservableProperty] private IReadOnlyList<ArtistStat> _forgottenArtists = Array.Empty<ArtistStat>();
 
@@ -713,6 +716,8 @@ public sealed partial class MainViewModel : ObservableObject
         SkippedTracks = _result.SkippedTracks;
         ForgottenTracks = _result.ForgottenTracks;
         ForgottenArtists = _result.ForgottenArtists;
+        Months = _result.Months.Reverse().ToList();
+        MonthlyLeaderText = DescribeMonthlyLeader(_result.Months);
         HasPodcastData = _result.Shows.Count > 0;
 
         TopTracks = _result.Tracks.Take(5)
@@ -978,6 +983,45 @@ public sealed partial class MainViewModel : ObservableObject
         PodcastPlaysText = r.PodcastPlays > 0 ? r.PodcastPlays.ToString("N0") : "-";
         UniqueShowsText = r.Shows.Count > 0 ? r.Shows.Count.ToString("N0") : "-";
         UniqueEpisodesText = r.Episodes.Count > 0 ? r.Episodes.Count.ToString("N0") : "-";
+    }
+
+    /// <summary>
+    /// Who topped the most months, and their longest run of back-to-back months on top. Ties
+    /// go to the artist with more listening in the months they led.
+    /// </summary>
+    internal static string DescribeMonthlyLeader(IReadOnlyList<MonthStat> months)
+    {
+        if (months.Count == 0)
+            return string.Empty;
+
+        var leader = months
+            .GroupBy(m => m.TopArtist)
+            .OrderByDescending(g => g.Count())
+            .ThenByDescending(g => g.Sum(m => m.TopArtistMs))
+            .First();
+
+        int best = 0, run = 0;
+        DateTime? previous = null;
+        DateTime runStart = default, bestStart = default, bestEnd = default;
+        foreach (var month in months.Where(m => m.TopArtist == leader.Key))
+        {
+            run = previous is { } p && p.AddMonths(1) == month.Month ? run + 1 : 1;
+            if (run == 1)
+                runStart = month.Month;
+            if (run > best)
+            {
+                best = run;
+                bestStart = runStart;
+                bestEnd = month.Month;
+            }
+            previous = month.Month;
+        }
+
+        int count = leader.Count();
+        string text = $"{leader.Key} was your #1 artist in {count} of {months.Count} month{(months.Count == 1 ? "" : "s")}";
+        return best > 1
+            ? $"{text}, {best} of them in a row ({bestStart:yyyy-MM} to {bestEnd:yyyy-MM})."
+            : text + ".";
     }
 
     /// <summary>The busiest hour of the week, read off the same day-by-hour grid as the heatmap.</summary>

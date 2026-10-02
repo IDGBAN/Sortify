@@ -622,6 +622,18 @@ public partial class MainWindow : Window
     private void OnExcludeArtistFromAlbums(object sender, RoutedEventArgs e) =>
         ViewModel?.ExcludeArtistsFromGrid(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
 
+    private async void OnOpenMonthArtist(object sender, RoutedEventArgs e)
+    {
+        if (MonthsGrid.SelectedItem is MonthStat m)
+            await ShowDetailAsync(new ArtistStat { Artist = m.TopArtist });
+    }
+
+    private async void OnOpenMonthTrack(object sender, RoutedEventArgs e)
+    {
+        if (MonthsGrid.SelectedItem is MonthStat m)
+            await ShowDetailAsync(new TrackStat { Track = m.TopTrack, Artist = m.TopTrackArtist });
+    }
+
     private async void OnOpenYearDetail(object sender, RoutedEventArgs e)
     {
         if (YearsGrid.SelectedItem is YearStat y)
