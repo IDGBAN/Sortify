@@ -34,4 +34,12 @@ public class TimeFormatTests
         Assert.Equal("2023-05-10 14:30", TimeFormat.Timestamp((DateTime?)new DateTime(2023, 5, 10, 14, 30, 0)));
         Assert.Equal(string.Empty, TimeFormat.Timestamp((DateTime?)null));
     }
+
+    [Fact]
+    public void Timestamp_IgnoresTheCulturesTimeSeparator()
+    {
+        using var _ = CultureScope.Unusual();
+
+        Assert.Equal("2023-05-10 14:30", TimeFormat.Timestamp(new DateTime(2023, 5, 10, 14, 30, 0)));
+    }
 }

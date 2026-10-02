@@ -184,7 +184,7 @@ public class RecordCacheTests : IDisposable
         var file = WriteFile("a.json");
         RecordCache.TrySave(new[] { file }, new[] { Music() });
 
-        var cachePath = Path.Combine(RecordCache.CacheDirectory, "records.cache");
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
         File.WriteAllBytes(cachePath, bytes[..(bytes.Length / 2)]);
 
@@ -195,8 +195,105 @@ public class RecordCacheTests : IDisposable
     public void GarbageCache_IsTreatedAsAMiss()
     {
         var file = WriteFile("a.json");
-        Directory.CreateDirectory(RecordCache.CacheDirectory);
-        File.WriteAllText(Path.Combine(RecordCache.CacheDirectory, "records.cache"), "not a cache file");
+        Directory.CreateDirectory(AppPaths.DataDirectory);
+        File.WriteAllText(Path.Combine(AppPaths.DataDirectory, "records.cache"), "not a cache file");
+
+        Assert.Null(RecordCache.TryLoad(new[] { file }));
+    }
+
+    [Fact]
+    public void AnImplausibleRecordCount_IsTreatedAsAMiss()
+    {
+        var file = WriteFile("a.json");
+        RecordCache.TrySave(new[] { file }, new[] { Music() });
+
+        // Header layout: magic, format version, then the length-prefixed key, then the
+        // record count. Overwriting the count is what a truncated write or a bit flip does,
+        // and the reader must not try to allocate a list that size.
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
+        var bytes = File.ReadAllBytes(cachePath);
+        int keyLength = RecordCache.BuildKey(new[] { file }).Length;
+        int countOffset = 6 + sizeof(int) + 1 + keyLength;
+
+        BitConverter.GetBytes(int.MaxValue).CopyTo(bytes, countOffset);
+        File.WriteAllBytes(cachePath, bytes);
+
+        Assert.Null(RecordCache.TryLoad(new[] { file }));
+    }
+
+    [Fact]
+    public void ANegativePoolSize_IsTreatedAsAMiss()
+    {
+        var file = WriteFile("a.json");
+        RecordCache.TrySave(new[] { file }, new[] { Music() });
+
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
+        var bytes = File.ReadAllBytes(cachePath);
+        int keyLength = RecordCache.BuildKey(new[] { file }).Length;
+        int poolOffset = 6 + sizeof(int) + 1 + keyLength + sizeof(int);
+
+        BitConverter.GetBytes(-5).CopyTo(bytes, poolOffset);
+        File.WriteAllBytes(cachePath, bytes);
+
+        Assert.Null(RecordCache.TryLoad(new[] { file }));
+    }
+
+    [Fact]
+    public void RoundTrips_TimestampsAsLocalTime()
+    {
+        // The parser hands out local-kind timestamps. Losing the kind made a cached load
+        // export dates without their UTC offset, unlike a fresh parse of the same files.
+        var file = WriteFile("a.json");
+        var dated = new PlayRecord { TrackName = "T", Timestamp = new DateTime(2023, 5, 10, 14, 30, 0, DateTimeKind.Local) };
+        var undated = new PlayRecord { TrackName = "U", Timestamp = DateTime.MinValue };
+
+        RecordCache.TrySave(new[] { file }, new[] { dated, undated });
+        var loaded = RecordCache.TryLoad(new[] { file })!;
+
+        Assert.Equal(DateTimeKind.Local, loaded[0].Timestamp.Kind);
+        Assert.Equal(dated.Timestamp, loaded[0].Timestamp);
+        Assert.Equal(DateTime.MinValue, loaded[1].Timestamp);
+    }
+
+    /// <summary>Where the first record starts, found by its track/artist/album strings rather than by offset arithmetic.</summary>
+    private static int FirstRecordOffset(byte[] bytes)
+    {
+        byte[] marker = { 1, (byte)'T', 1, (byte)'A', 2, (byte)'A', (byte)'l' };
+        int index = bytes.AsSpan().IndexOf(marker);
+        Assert.True(index >= 0, "record marker not found in the cache file");
+        return index;
+    }
+
+    [Fact]
+    public void AMangledStringLength_IsTreatedAsAMiss()
+    {
+        var file = WriteFile("a.json");
+        RecordCache.TrySave(new[] { file }, new[] { Music() });
+
+        // Five continuation bytes are not a valid 7-bit length, which BinaryReader reports
+        // with a FormatException rather than an IOException.
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
+        var bytes = File.ReadAllBytes(cachePath);
+        new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }.CopyTo(bytes, FirstRecordOffset(bytes));
+        File.WriteAllBytes(cachePath, bytes);
+
+        Assert.Null(RecordCache.TryLoad(new[] { file }));
+    }
+
+    [Fact]
+    public void AnUnknownContentKind_IsTreatedAsAMiss()
+    {
+        var file = WriteFile("a.json");
+        RecordCache.TrySave(new[] { file }, new[] { Music() });
+
+        // Track, artist and album strings, ms played, ticks, the reason flag plus
+        // "trackdone", then the skipped flag; the kind byte follows.
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
+        var bytes = File.ReadAllBytes(cachePath);
+        int kindOffset = FirstRecordOffset(bytes) + 2 + 2 + 3 + sizeof(int) + sizeof(long) + 1 + 10 + 1;
+        Assert.Equal((byte)ContentKind.Music, bytes[kindOffset]);
+        bytes[kindOffset] = 200;
+        File.WriteAllBytes(cachePath, bytes);
 
         Assert.Null(RecordCache.TryLoad(new[] { file }));
     }

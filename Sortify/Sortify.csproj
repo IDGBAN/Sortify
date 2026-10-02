@@ -8,14 +8,18 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>Sortify</AssemblyName>
     <RootNamespace>Sortify</RootNamespace>
-    <Version>3.2.0</Version>
+    <Version>3.3.0</Version>
     <Authors>Parsa Rasouli Baghi</Authors>
     <Product>Sortify</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- LiveCharts pulls SkiaSharp.Views.WPF and OpenTK, which only ship .NET Framework
+         assets. They work on net8.0-windows; NU1701 just buries every other warning. -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- Supports both; pick one with `-r win-x64` or `-r win-x86` when publishing (see README). -->
+    <RuntimeIdentifiers>win-x64;win-x86</RuntimeIdentifiers>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>

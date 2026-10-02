@@ -6,6 +6,9 @@ public enum DetailScope
     Artist,
     Track,
     Album,
+
+    /// <summary>One calendar year; <see cref="DetailResult.Title"/> holds the year number.</summary>
+    Year,
 }
 
 /// <summary>
@@ -36,6 +39,12 @@ public sealed class DetailResult
     /// <summary>Albums that make up this selection, most listened first.</summary>
     public IReadOnlyList<AlbumStat> Albums { get; init; } = Array.Empty<AlbumStat>();
 
+    /// <summary>
+    /// Artists that make up this selection, most listened first. Only populated for scopes
+    /// that can span more than one artist (currently <see cref="DetailScope.Year"/>).
+    /// </summary>
+    public IReadOnlyList<ArtistStat> Artists { get; init; } = Array.Empty<ArtistStat>();
+
     /// <summary>Listening time per calendar month, oldest first.</summary>
     public IReadOnlyList<DateTimePoint> ByMonth { get; init; } = Array.Empty<DateTimePoint>();
 
@@ -51,19 +60,25 @@ public sealed class DetailResult
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
 
     /// <summary>
-    /// Browser URL for this selection. Prefers the exact track when the export carried a
-    /// URI, and otherwise falls back to a Spotify search, which always resolves to something.
+    /// Browser URL for this selection. A track opens its own page when the export carried a
+    /// URI. Artists and albums go through Spotify search instead: the export only records
+    /// track URIs, and opening one of those would land on a single song. Empty for a year.
     /// </summary>
     public string WebUrl
     {
         get
         {
+            if (Scope == DetailScope.Year)
+                return string.Empty;
+
             // "spotify:track:abc" -> "https://open.spotify.com/track/abc"
-            if (Uri.StartsWith("spotify:", StringComparison.OrdinalIgnoreCase))
+            if (Scope == DetailScope.Track && Uri.StartsWith("spotify:", StringComparison.OrdinalIgnoreCase))
             {
                 var parts = Uri.Split(':');
+                // The URI comes straight out of a JSON file and ends up on a shell command
+                // line, so its parts are escaped rather than trusted to be plain ids.
                 if (parts.Length >= 3 && parts[1].Length > 0 && parts[2].Length > 0)
-                    return $"https://open.spotify.com/{parts[1]}/{parts[2]}";
+                    return $"https://open.spotify.com/{System.Uri.EscapeDataString(parts[1])}/{System.Uri.EscapeDataString(parts[2])}";
             }
 
             var query = Subtitle.Length > 0 ? $"{Title} {Subtitle}" : Title;

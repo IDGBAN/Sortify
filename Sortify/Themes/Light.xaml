@@ -1,0 +1,47 @@
+<!--
+    Light palette. Mirrors every key in Dark.xaml. The accents are darkened slightly
+    from the Spotify green/blue so text and thin strokes stay legible on white.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Surfaces -->
+    <Color x:Key="BgColor">#FFF3F5F7</Color>
+    <Color x:Key="PanelColor">#FFFFFFFF</Color>
+    <Color x:Key="PanelColor2">#FFEDF0F3</Color>
+    <Color x:Key="HoverColor">#FFE0E5EA</Color>
+    <Color x:Key="BorderColor">#FFD8DDE3</Color>
+    <Color x:Key="ScrollThumbColor">#FFB6BEC7</Color>
+
+    <!-- Accents -->
+    <!-- Dark enough for white button text and small green labels to clear 4.5:1 on white. -->
+    <Color x:Key="AccentColor">#FF15803D</Color>
+    <Color x:Key="AccentHoverColor">#FF166534</Color>
+    <Color x:Key="Accent2Color">#FF2F6FD0</Color>
+    <Color x:Key="DangerColor">#FFC2410C</Color>
+
+    <!-- Text -->
+    <Color x:Key="TextColor">#FF16191D</Color>
+    <Color x:Key="MutedColor">#FF64707D</Color>
+    <Color x:Key="OnAccentColor">#FFFFFFFF</Color>
+
+    <SolidColorBrush x:Key="BgBrush" Color="{StaticResource BgColor}" />
+    <SolidColorBrush x:Key="PanelBrush" Color="{StaticResource PanelColor}" />
+    <SolidColorBrush x:Key="PanelBrush2" Color="{StaticResource PanelColor2}" />
+    <SolidColorBrush x:Key="HoverBrush" Color="{StaticResource HoverColor}" />
+    <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="{StaticResource ScrollThumbColor}" />
+
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
+    <SolidColorBrush x:Key="Accent2Brush" Color="{StaticResource Accent2Color}" />
+    <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+
+    <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+    <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}" />
+    <SolidColorBrush x:Key="OnAccentBrush" Color="{StaticResource OnAccentColor}" />
+
+    <!-- Tinted accent used for selected grid rows. -->
+    <SolidColorBrush x:Key="SelectionBrush" Color="#FF15803D" Opacity="0.18" />
+
+</ResourceDictionary>

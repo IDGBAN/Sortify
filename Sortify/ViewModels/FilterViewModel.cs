@@ -17,8 +17,13 @@ public sealed partial class FilterViewModel : ObservableObject
 
     [ObservableProperty] private int _minSeconds = FilterOptions.DefaultMinMs / 1000;
     [ObservableProperty] private bool _includePodcasts;
-    [ObservableProperty] private DateTime? _startDate;
-    [ObservableProperty] private DateTime? _endDate;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasInvalidDateRange))]
+    private DateTime? _startDate;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasInvalidDateRange))]
+    private DateTime? _endDate;
     [ObservableProperty] private string _searchTerm = string.Empty;
     [ObservableProperty] private int _startHour;
     [ObservableProperty] private int _endHour = 23;
@@ -30,6 +35,12 @@ public sealed partial class FilterViewModel : ObservableObject
     public ObservableCollection<string> ExcludedTracks { get; } = new();
 
     public DayToggle[] Days { get; }
+
+    /// <summary>
+    /// True when the From date is after the To date. The filter still applies as asked (and
+    /// matches nothing); this only exists so the panel can say why everything vanished.
+    /// </summary>
+    public bool HasInvalidDateRange => StartDate is { } start && EndDate is { } end && start.Date > end.Date;
 
     public FilterViewModel()
     {
@@ -79,6 +90,42 @@ public sealed partial class FilterViewModel : ObservableObject
         foreach (var t in ExcludedTracks) opts.ExcludedTracks.Add(t);
         foreach (var d in Days) opts.IncludedDaysOfWeek[d.Index] = d.IsSelected;
         return opts;
+    }
+
+    /// <summary>
+    /// One short phrase per filter that is currently narrowing the results, for the chip
+    /// row above the tabs. Empty when nothing but the defaults are in effect.
+    /// </summary>
+    public IEnumerable<string> Describe()
+    {
+        if (MinSeconds != FilterOptions.DefaultMinMs / 1000)
+            yield return $"Min {MinSeconds}s";
+
+        if (IncludePodcasts)
+            yield return "Podcasts counted";
+
+        if (StartDate is { } start && EndDate is { } end)
+            yield return $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}";
+        else if (StartDate is { } from)
+            yield return $"From {from:yyyy-MM-dd}";
+        else if (EndDate is { } to)
+            yield return $"Until {to:yyyy-MM-dd}";
+
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+            yield return $"Search “{SearchTerm.Trim()}”";
+
+        if (StartHour != 0 || EndHour != 23)
+            yield return $"{StartHour:00}:00-{EndHour:00}:59";
+
+        var days = Days.Where(d => d.IsSelected).Select(d => d.Label).ToList();
+        if (days.Count < Days.Length)
+            yield return days.Count == 0 ? "No days selected" : string.Join(", ", days);
+
+        if (ExcludedArtists.Count > 0)
+            yield return $"{ExcludedArtists.Count} artist{(ExcludedArtists.Count == 1 ? "" : "s")} excluded";
+
+        if (ExcludedTracks.Count > 0)
+            yield return $"{ExcludedTracks.Count} track{(ExcludedTracks.Count == 1 ? "" : "s")} excluded";
     }
 
     /// <summary>Adds an artist exclusion programmatically (e.g. from a grid context menu).</summary>

@@ -4,8 +4,8 @@
         xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
         Title="Details" Height="760" Width="1080"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}"
-        Foreground="{StaticResource TextBrush}">
+        Background="{DynamicResource BgBrush}"
+        Foreground="{DynamicResource TextBrush}">
     <Grid Margin="14">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -15,12 +15,16 @@
 
         <!-- Header -->
         <DockPanel Grid.Row="0" Margin="0,0,0,10">
-            <Button DockPanel.Dock="Right" Content="Open in Spotify" Click="OnOpenInSpotify"
-                    Padding="12,6" VerticalAlignment="Top" />
+            <Button x:Name="OpenButton" DockPanel.Dock="Right" Content="Open in Spotify"
+                    Click="OnOpenInSpotify" Style="{StaticResource AccentButton}"
+                    Padding="12,6" Margin="0" VerticalAlignment="Top" />
+            <Button DockPanel.Dock="Right" Content="Copy summary" Click="OnCopySummary"
+                    Padding="12,6" VerticalAlignment="Top"
+                    ToolTip="Copy these figures as plain text" />
             <StackPanel>
                 <TextBlock x:Name="TitleText" FontSize="22" FontWeight="Bold"
                            TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="SubtitleText" Foreground="{StaticResource MutedBrush}"
+                <TextBlock x:Name="SubtitleText" Foreground="{DynamicResource MutedBrush}"
                            FontSize="13" Margin="0,2,0,0" />
             </StackPanel>
         </DockPanel>
@@ -30,31 +34,31 @@
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="TIME LISTENED" Style="{StaticResource Caption}" />
-                    <TextBlock x:Name="TotalTimeText" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock x:Name="TotalTimeText" Style="{StaticResource StatValueSmall}" FontSize="15" />
                 </StackPanel>
             </Border>
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="PLAYS" Style="{StaticResource Caption}" />
-                    <TextBlock x:Name="PlaysText" FontSize="15" FontWeight="Bold" />
+                    <TextBlock x:Name="PlaysText" Style="{StaticResource StatValueSmall}" FontSize="15" />
                 </StackPanel>
             </Border>
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="ACTIVE DAYS" Style="{StaticResource Caption}" />
-                    <TextBlock x:Name="ActiveDaysText" FontSize="15" FontWeight="Bold" />
+                    <TextBlock x:Name="ActiveDaysText" Style="{StaticResource StatValueSmall}" FontSize="15" />
                 </StackPanel>
             </Border>
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="FIRST PLAYED" Style="{StaticResource Caption}" />
-                    <TextBlock x:Name="FirstPlayedText" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock x:Name="FirstPlayedText" Style="{StaticResource StatValueSmall}" FontSize="15" />
                 </StackPanel>
             </Border>
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="LAST PLAYED" Style="{StaticResource Caption}" />
-                    <TextBlock x:Name="LastPlayedText" FontSize="15" FontWeight="Bold" TextWrapping="Wrap" />
+                    <TextBlock x:Name="LastPlayedText" Style="{StaticResource StatValueSmall}" FontSize="15" />
                 </StackPanel>
             </Border>
         </UniformGrid>
@@ -77,6 +81,24 @@
                     </DockPanel>
                 </Border>
 
+                <!-- Only populated for a year, which is the one scope spanning many artists. -->
+                <Border x:Name="ArtistsCard" Style="{StaticResource Card}" Height="300">
+                    <DockPanel>
+                        <TextBlock DockPanel.Dock="Top" Text="Artists" Style="{StaticResource SectionHeader}"
+                                   Margin="0,0,0,8" />
+                        <DataGrid x:Name="ArtistsGrid">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" />
+                                <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
+                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                <DataGridTextColumn Header="First Played"
+                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
                 <Border x:Name="TracksCard" Style="{StaticResource Card}" Height="300">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Top" Text="Tracks" Style="{StaticResource SectionHeader}"
@@ -84,6 +106,7 @@
                         <DataGrid x:Name="TracksGrid">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                     Width="Auto" SortMemberPath="TotalMsPlayed" />
                                 <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
@@ -103,6 +126,7 @@
                         <DataGrid x:Name="AlbumsGrid">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" />
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                     Width="Auto" SortMemberPath="TotalMsPlayed" />
                                 <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />

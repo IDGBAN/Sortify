@@ -33,10 +33,15 @@ public static class FilterEngine
             if (filter.EndDate is { } end && r.Timestamp > end)
                 continue;
 
-            if (hasExcludedArtists && filter.ExcludedArtists.Contains(r.ArtistName))
+            // Podcasts show up in the grids under their show and episode names, so that is
+            // what an exclusion picked from a grid row holds. Their ArtistName/TrackName are
+            // placeholders that would never match it.
+            bool isMusic = r.Kind == ContentKind.Music;
+
+            if (hasExcludedArtists && filter.ExcludedArtists.Contains(isMusic ? r.ArtistName : r.ShowName))
                 continue;
 
-            if (hasExcludedTracks && filter.ExcludedTracks.Contains(r.TrackName))
+            if (hasExcludedTracks && filter.ExcludedTracks.Contains(isMusic ? r.TrackName : r.EpisodeName))
                 continue;
 
             // Time-of-day / day-of-week only apply when a real timestamp exists.

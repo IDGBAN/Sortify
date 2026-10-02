@@ -58,6 +58,25 @@ public class AnalysisEngineTests
     }
 
     [Fact]
+    public void NamesContainingLineBreaks_StayIntact()
+    {
+        // Track keys used to be "track\nartist" strings split back apart on the first
+        // newline, so a name with one in it came out truncated or merged with another.
+        var records = new[]
+        {
+            Record(track: "Line\nBreak", artist: "X", skipped: true),
+            Record(track: "Line", artist: "Break\nX", skipped: true),
+        };
+
+        var r = AnalysisEngine.Analyze(records, NoFilter);
+
+        Assert.Equal(2, r.UniqueTracks);
+        Assert.Contains(r.SkippedTracks, s => s.Track == "Line\nBreak" && s.Artist == "X");
+        Assert.Contains(r.SkippedTracks, s => s.Track == "Line" && s.Artist == "Break\nX");
+        Assert.Contains(r.Years[0].TopTrack, new[] { "Line\nBreak", "Line" });
+    }
+
+    [Fact]
     public void ByPlayCountViews_AreSortedByPlays()
     {
         var records = new[]
@@ -384,6 +403,19 @@ public class AnalysisEngineTests
     [InlineData("iOS 16.1 (iPhone14,5)", "Mobile")]
     [InlineData("web_player linux undefined;chrome", "Web player")]
     [InlineData("Partner sonos_bose", "Speaker / cast")]
+    [InlineData("Partner google cast_audio Google;Chromecast_Audio", "Speaker / cast")]
+    [InlineData("Partner samsung_tv Samsung;UN55", "TV / console")]
+    [InlineData("Partner android_tv Sony;BRAVIA 4K", "TV / console")]
+    [InlineData("Partner ps4 Sony;PS4", "TV / console")]
+    [InlineData("Partner xbox_one Microsoft;Xbox One", "TV / console")]
+    [InlineData("Partner android_auto", "Car")]
+    [InlineData("Android OS 11 API 30 (samsung, SM-G991U)", "Mobile")]
+    [InlineData("WebPlayer (websocket RFC6455)", "Web player")]
+    [InlineData("web_player windows 10;chrome 118.0;desktop", "Web player")]
+    [InlineData("Windows 10 (10.0.19045; x64; AppX)", "Desktop")]
+    [InlineData("OS X 10.15.7 [x86_64]", "Desktop")]
+    [InlineData("linux", "Desktop")]
+    [InlineData("Scarlett", "Other")]
     [InlineData("something unknown", "Other")]
     public void PlatformFamily_BucketsSpotifyPlatformStrings(string raw, string expected)
     {

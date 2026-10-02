@@ -160,6 +160,19 @@ public class DetailEngineTests
         Assert.Equal("https://open.spotify.com/track/abc123", d.WebUrl);
     }
 
+    [Theory]
+    [InlineData(DetailScope.Artist, "X", "", "https://open.spotify.com/search/X")]
+    [InlineData(DetailScope.Album, "Al", "X", "https://open.spotify.com/search/Al%20X")]
+    public void WebUrl_SearchesForArtistsAndAlbums_EvenWithATrackUri(
+        DetailScope scope, string title, string subtitle, string expected)
+    {
+        var records = new[] { Record(track: "A", artist: "X", album: "Al", uri: "spotify:track:abc123") };
+
+        var d = DetailEngine.Build(records, NoFilter, scope, title, subtitle);
+
+        Assert.Equal(expected, d.WebUrl);
+    }
+
     [Fact]
     public void WebUrl_FallsBackToSearch_WhenThereIsNoUri()
     {
@@ -180,6 +193,18 @@ public class DetailEngineTests
         Assert.StartsWith("https://open.spotify.com/search/", d.WebUrl);
         Assert.DoesNotContain("/Part", d.WebUrl["https://open.spotify.com/search/".Length..]);
         Assert.DoesNotContain("#", d.WebUrl);
+    }
+
+    [Fact]
+    public void WebUrl_EscapesTheUriParts()
+    {
+        // The URI is read from a file and ends up handed to the shell, so a crafted one
+        // must not be able to smuggle extra path segments, a query or spaces through.
+        var records = new[] { Record(track: "A", artist: "X", uri: "spotify:track:abc/../x?y z") };
+
+        var d = DetailEngine.Build(records, NoFilter, DetailScope.Track, "A", "X");
+
+        Assert.Equal("https://open.spotify.com/track/abc%2F..%2Fx%3Fy%20z", d.WebUrl);
     }
 
     [Fact]

@@ -14,6 +14,12 @@ public sealed class ParseResult
     public List<string> Warnings { get; } = new();
 }
 
+/// <summary>How far a parse has got, for a determinate progress bar and a status line.</summary>
+public readonly record struct ParseProgress(int Completed, int Total, string Message)
+{
+    public double Percent => Total <= 0 ? 0 : Completed * 100.0 / Total;
+}
+
 /// <summary>
 /// Reads selected Spotify streaming history JSON files into normalized PlayRecords.
 /// Handles both the extended history and the older account-data format. Empty or
@@ -36,8 +42,20 @@ public sealed class HistoryParser
         if (!Directory.Exists(folder))
             return Array.Empty<string>();
 
+        // SearchOption.AllDirectories throws on the first subfolder the user can't read,
+        // which takes the whole scan down with it (a Downloads folder is enough to hit this).
+        // AttributesToSkip is cleared because EnumerationOptions skips hidden files by
+        // default, which the SearchOption overloads never did.
+        var recursive = new EnumerationOptions
+        {
+            RecurseSubdirectories = true,
+            IgnoreInaccessible = true,
+            AttributesToSkip = 0,
+        };
+        var topLevel = new EnumerationOptions { IgnoreInaccessible = true, AttributesToSkip = 0 };
+
         var named = Directory
-            .EnumerateFiles(folder, "*.json", SearchOption.AllDirectories)
+            .EnumerateFiles(folder, "*.json", recursive)
             .Where(f =>
             {
                 var name = Path.GetFileName(f);
@@ -52,14 +70,14 @@ public sealed class HistoryParser
             return named;
 
         return Directory
-            .EnumerateFiles(folder, "*.json", SearchOption.TopDirectoryOnly)
+            .EnumerateFiles(folder, "*.json", topLevel)
             .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
     public async Task<ParseResult> ParseAsync(
         IEnumerable<string> filePaths,
-        IProgress<string>? progress = null,
+        IProgress<ParseProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
         var result = new ParseResult();
@@ -77,7 +95,7 @@ public sealed class HistoryParser
             {
                 var outcome = await ParseFileAsync(path, pool, cancellationToken).ConfigureAwait(false);
                 int n = Interlocked.Increment(ref completed);
-                progress?.Report($"Read {n} of {paths.Count} file(s)...");
+                progress?.Report(new ParseProgress(n, paths.Count, $"Read {n} of {paths.Count} file(s)..."));
                 return outcome;
             }, cancellationToken))
             .ToList();

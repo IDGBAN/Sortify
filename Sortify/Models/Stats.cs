@@ -232,9 +232,41 @@ public sealed class AnalysisResult
     /// <summary>Run of consecutive listening days ending on the most recent listening day.</summary>
     public int CurrentStreakDays { get; init; }
 
+    /// <summary>
+    /// Longest run of consecutive days with no listening at all, bounded by an active day on
+    /// either side. Zero when the history never has a gap.
+    /// </summary>
+    public int LongestBreakDays { get; init; }
+
+    /// <summary>Last active day before <see cref="LongestBreakDays"/> began.</summary>
+    public DateTime? LongestBreakStart { get; init; }
+
+    /// <summary>First active day after the break ended.</summary>
+    public DateTime? LongestBreakEnd { get; init; }
+
     /// <summary>The single calendar day with the most listening time.</summary>
     public DateTime? BiggestDay { get; init; }
     public long BiggestDayMs { get; init; }
+
+    /// <summary>
+    /// Plays that ran to the end of the track ("trackdone"), out of
+    /// <see cref="SkipEligiblePlays"/>. Counted with the duration cutoff relaxed, to match
+    /// the skip statistics it is the mirror of.
+    /// </summary>
+    public int CompletedPlays { get; init; }
+
+    /// <summary>Average number of plays per distinct track: how repetitive the listening is.</summary>
+    public double PlaysPerTrack => UniqueTracks == 0 ? 0 : (double)TotalPlays / UniqueTracks;
+
+    /// <summary>Average number of artists heard for the first time in a month.</summary>
+    public double NewArtistsPerMonth => NewArtistsByMonth.Count == 0
+        ? 0
+        : NewArtistsByMonth.Sum(p => p.Value) / NewArtistsByMonth.Count;
+
+    /// <summary>Share of all listening time that went to the single most-played artist (0-100).</summary>
+    public double TopArtistSharePercent => TotalMsPlayed <= 0 || Artists.Count == 0
+        ? 0
+        : Artists[0].TotalMsPlayed * 100.0 / TotalMsPlayed;
 
     // ---- Sessions --------------------------------------------------------------------------
     // A session is a run of plays where each play starts within AnalysisEngine.SessionGap
