@@ -29,6 +29,23 @@ internal static class WpfTestHost
             throw new XunitException($"UI test failed on the WPF thread: {failure}");
     }
 
+    /// <summary>
+    /// Runs an async test body on the UI thread. Its awaits come back to that thread, as they
+    /// do in the app, and anything it threw is rethrown here.
+    /// </summary>
+    public static async Task RunAsync(Func<Task> action)
+    {
+        var dispatcher = EnsureStarted();
+        try
+        {
+            await dispatcher.InvokeAsync(action).Task.Unwrap();
+        }
+        catch (Exception ex)
+        {
+            throw new XunitException($"UI test failed on the WPF thread: {ex}");
+        }
+    }
+
     private static Dispatcher EnsureStarted()
     {
         lock (Gate)

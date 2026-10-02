@@ -43,9 +43,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The Compare tab.</summary>
     public CompareViewModel Compare { get; }
 
-    /// <summary>True while the history being loaded is a different export from the one before.</summary>
-    private bool _newHistory = true;
-
     // Grid item sources. Swapped wholesale after each analysis pass instead of using
     // ObservableCollections: repopulating tens of thousands of rows item-by-item raises
     // a CollectionChanged per row and freezes the UI.
@@ -250,6 +247,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Loading ---------------------------------------------------------------------------
 
+    private const string NothingInZip =
+        "No Spotify history was found in that ZIP. If it is the file Spotify sent, " +
+        "it may be damaged; try downloading it again.";
+
     [RelayCommand]
     private async Task RunAnalysisAsync()
     {
@@ -265,20 +266,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         // A ZIP is opened up into the history files inside it; anything else is taken as
         // picked, so a renamed export still loads.
-        var files = dialog.FileNames
+        var picked = dialog.FileNames;
+        IReadOnlyList<string> FindFiles() => picked
             .SelectMany(f => ArchivePath.IsArchive(f) ? HistoryParser.FindHistoryFiles(f) : new[] { f })
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
-        if (files.Count == 0)
-        {
-            SetStatus("No Spotify history was found in that ZIP. If it is the file Spotify sent, " +
-                      "it may be damaged; try downloading it again.", isError: true);
-            return;
-        }
 
         // A lone ZIP goes into Recent the way a folder does.
-        string? archive = dialog.FileNames is [var only] && ArchivePath.IsArchive(only) ? only : null;
-        await LoadFilesAsync(files, archive);
+        string? archive = picked is [var only] && ArchivePath.IsArchive(only) ? only : null;
+        await LoadAsync(FindFiles, archive, NothingInZip);
     }
 
     [RelayCommand]
@@ -315,17 +311,8 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         }
 
-        var files = HistoryParser.FindHistoryFiles(folder);
-        if (files.Count == 0)
-        {
-            SetStatus(isArchive
-                ? "No Spotify history was found in that ZIP. If it is the file Spotify sent, " +
-                  "it may be damaged; try downloading it again."
-                : "No Spotify history JSON files were found in that folder.", isError: true);
-            return;
-        }
-
-        await LoadFilesAsync(files, folder);
+        await LoadAsync(() => HistoryParser.FindHistoryFiles(folder), folder,
+            isArchive ? NothingInZip : "No Spotify history JSON files were found in that folder.");
     }
 
     /// <summary>
@@ -334,15 +321,37 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task RestoreLastFolderAsync()
     {
-        if (!_settings.ReopenLastFolder || string.IsNullOrWhiteSpace(_settings.LastFolder))
+        if (!_settings.ReopenLastFolder || _settings.LastFolder is not { } folder || string.IsNullOrWhiteSpace(folder))
             return;
 
-        var files = HistoryParser.FindHistoryFiles(_settings.LastFolder);
-        if (files.Count == 0)
-            return;
-
-        await LoadFilesAsync(files, _settings.LastFolder);
+        await LoadAsync(() => HistoryParser.FindHistoryFiles(folder), folder, nothingFound: null);
     }
+
+    /// <summary>
+    /// Loads what was dropped on the window. Folders and ZIPs are searched for history files,
+    /// JSON files are read as they are, and anything else is ignored.
+    /// </summary>
+    public Task LoadDroppedAsync(IReadOnlyList<string> items)
+    {
+        IReadOnlyList<string> FindFiles() => items
+            .SelectMany(item => IsExportContainer(item) ? HistoryParser.FindHistoryFiles(item)
+                : IsJson(item) ? new[] { item }
+                : Array.Empty<string>())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Only a single dropped folder or ZIP is worth remembering in Recent.
+        var containers = items.Where(IsExportContainer).ToList();
+        return LoadAsync(FindFiles, containers.Count == 1 ? containers[0] : null,
+            "Nothing that was dropped holds Spotify listening history. Drop the ZIP " +
+            "Spotify sent, the folder it unpacks to, or its JSON files.");
+    }
+
+    internal static bool IsJson(string path) =>
+        string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsExportContainer(string path) =>
+        Directory.Exists(path) || (ArchivePath.IsArchive(path) && File.Exists(path));
 
     /// <summary>Re-reads the files behind the current results, bypassing the cache.</summary>
     [RelayCommand(CanExecute = nameof(HasData))]
@@ -370,50 +379,56 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Parses the given history files and runs analysis. Also used by drag &amp; drop.
-    /// <paramref name="folder"/> is the folder or ZIP they came from, remembered in Recent.
+    /// Parses the given history files and runs analysis. <paramref name="folder"/> is the
+    /// folder or ZIP they came from, remembered in Recent.
     /// </summary>
-    public async Task LoadFilesAsync(IReadOnlyList<string> filePaths, string? folder = null)
+    public Task LoadFilesAsync(IReadOnlyList<string> filePaths, string? folder = null) =>
+        filePaths.Count == 0 ? Task.CompletedTask : LoadAsync(() => filePaths, folder, nothingFound: null);
+
+    /// <summary>
+    /// Runs <paramref name="findFiles"/>, then parses what it found and runs analysis. The
+    /// search happens off the UI thread and under the same progress bar and Cancel button as
+    /// the parse, since walking a big folder can take a while. <paramref name="nothingFound"/>
+    /// is the error shown when it finds no files; null says nothing.
+    /// </summary>
+    private async Task LoadAsync(Func<IReadOnlyList<string>> findFiles, string? folder, string? nothingFound)
     {
-        if (filePaths.Count == 0 || _isLoading)
+        if (_isLoading)
             return;
 
         _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
         var token = _loadCts.Token;
 
+        var (statusBefore, errorBefore) = (StatusText, StatusIsError);
         _isLoading = true;
         RefreshBusy();
         IsProgressIndeterminate = true;
         ProgressValue = 0;
 
-        // Reloading the same export keeps the artists and periods being compared; a different
-        // one starts again from its own.
-        _newHistory = !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
-        if (_newHistory)
-            _comparisonSeeded = false;
-
         try
         {
-            _loadedFolder = folder;
-            if (folder is not null)
+            SetStatus("Looking for your Spotify history...");
+            var filePaths = await Task.Run(findFiles, token);
+            token.ThrowIfCancellationRequested();
+            if (filePaths.Count == 0)
             {
-                _settings.RememberFolder(folder);
-                _settings.Save();
-                RefreshRecentFolders();
+                if (nothingFound is null)
+                    SetStatus(statusBefore, errorBefore);
+                else
+                    SetStatus(nothingFound, isError: true);
+                return;
             }
 
             // Re-reading an unchanged export is the common case (relaunching the app, or
             // reopening the same folder), and parsing it again costs seconds for nothing.
             SetStatus("Checking for cached results...");
             var cached = await Task.Run(() => RecordCache.TryLoad(filePaths), token);
+            token.ThrowIfCancellationRequested();
             if (cached is { Count: > 0 })
             {
-                _rawRecords = cached.ToList();
-                _loadedFiles = filePaths;
-                OfferChoicesForHistory();
+                AdoptHistory(cached.ToList(), filePaths, folder);
                 SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
-                HasData = true;
                 await RecomputeAsync();
                 return;
             }
@@ -427,24 +442,21 @@ public sealed partial class MainViewModel : ObservableObject
             });
 
             var parsed = await _parser.ParseAsync(filePaths, progress, token);
-            _rawRecords = parsed.Records;
-            _loadedFiles = filePaths;
-
-            if (_rawRecords.Count == 0)
+            if (parsed.Records.Count == 0)
             {
-                HasData = false;
-                SetStatus(parsed.Warnings.Count > 0
+                // A stray file dropped on the window shouldn't take away the history already open.
+                string problem = parsed.Warnings.Count > 0
                     ? $"No valid listening data found. {parsed.Warnings[0]}"
-                    : "No valid listening data found in the selected files.", isError: true);
+                    : "No valid listening data found in the selected files.";
+                SetStatus(HasData ? $"{problem} Your current history is still open." : problem, isError: true);
                 return;
             }
 
-            OfferChoicesForHistory();
+            AdoptHistory(parsed.Records, filePaths, folder);
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
             IsProgressIndeterminate = true;
             SetStatus($"Loaded {_rawRecords.Count:N0} plays from {filePaths.Count} file(s){warn}. Crunching numbers...");
-            HasData = true;
             await RecomputeAsync();
 
             // Said after the analysis rather than before it, which would overwrite it at once.
@@ -471,6 +483,33 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Makes freshly read plays the history on screen. Only a load that found plays gets here,
+    /// so a folder or ZIP is remembered in Recent (and reopened at the next launch) once it has
+    /// actually loaded.
+    /// </summary>
+    private void AdoptHistory(List<PlayRecord> records, IReadOnlyList<string> filePaths, string? folder)
+    {
+        // Reloading the same export keeps the artists and periods being compared; a different
+        // one starts again from its own.
+        bool newHistory = !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
+        if (newHistory)
+            _comparisonSeeded = false;
+
+        _rawRecords = records;
+        _loadedFiles = filePaths;
+        _loadedFolder = folder;
+        if (folder is not null)
+        {
+            _settings.RememberFolder(folder);
+            _settings.Save();
+            RefreshRecentFolders();
+        }
+
+        OfferChoicesForHistory(newHistory);
+        HasData = true;
+    }
+
     private void RefreshBusy() => IsBusy = _isLoading || _pendingAnalyses > 0;
 
     /// <summary>
@@ -485,9 +524,10 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>
     /// Offers the quick date ranges, devices and countries that fit the history just loaded.
     /// Read off the raw records rather than the filtered results, so filtering to one year
-    /// or one device doesn't take the other choices away.
+    /// or one device doesn't take the other choices away. A different export from the one
+    /// before also starts the Compare tab over on its own periods.
     /// </summary>
-    private void OfferChoicesForHistory()
+    private void OfferChoicesForHistory(bool newHistory)
     {
         DateTime? last = null;
         var years = new SortedSet<int>();
@@ -510,7 +550,7 @@ public sealed partial class MainViewModel : ObservableObject
         LastListenInHistory = last;
         YearsInHistory = years.ToList();
         Filters.SetAvailableDates(last, years);
-        Compare.SetHistory(last, YearsInHistory, resetPeriods: _newHistory);
+        Compare.SetHistory(last, YearsInHistory, resetPeriods: newHistory);
 
         var devices = platformMs
             .GroupBy(kv => AnalysisEngine.PlatformFamily(kv.Key))
