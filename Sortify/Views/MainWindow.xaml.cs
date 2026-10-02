@@ -151,6 +151,13 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (ctrl && e.Key == Key.K)
+        {
+            OpenJump();
+            e.Handled = true;
+            return;
+        }
+
         if (e.Key == Key.Escape && Keyboard.FocusedElement is TextBox { Text.Length: > 0 } box &&
             IsQuickFilter(box))
         {
@@ -188,6 +195,72 @@ public partial class MainWindow : Window
             // Tabs without a row filter fall back to the global search in the sidebar.
             ViewModel?.SetStatus("This tab has no row filter - use Search in the sidebar instead.");
         }
+    }
+
+    // ---- Jump to (Ctrl+K) ---------------------------------------------------------------------
+
+    private void OpenJump()
+    {
+        if (ViewModel is not { } vm || !vm.OpenJump())
+            return;
+
+        // The box only becomes focusable once the overlay has been laid out.
+        Dispatcher.BeginInvoke(() =>
+        {
+            JumpBox.Focus();
+            Keyboard.Focus(JumpBox);
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private void CloseJump()
+    {
+        ViewModel?.CloseJump();
+        Tabs.Focus();
+    }
+
+    private async void OnJumpBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (ViewModel is not { } vm)
+            return;
+
+        switch (e.Key)
+        {
+            case Key.Down:
+            case Key.Up:
+                vm.MoveJumpSelection(e.Key == Key.Down ? 1 : -1);
+                if (vm.SelectedJump is { } selected)
+                    JumpList.ScrollIntoView(selected);
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                e.Handled = true;
+                await OpenJumpResultAsync(vm.SelectedJump);
+                break;
+            case Key.Escape:
+                e.Handled = true;
+                CloseJump();
+                break;
+        }
+    }
+
+    private async void OnJumpItemClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListBoxItem { DataContext: JumpResult result })
+        {
+            e.Handled = true;
+            await OpenJumpResultAsync(result);
+        }
+    }
+
+    private void OnJumpBackdropClick(object sender, MouseButtonEventArgs e) => CloseJump();
+
+    private async Task OpenJumpResultAsync(JumpResult? result)
+    {
+        if (result is null)
+            return;
+
+        CloseJump();
+        await ShowDetailAsync(result.Item);
     }
 
     // ---- Tabs --------------------------------------------------------------------------------

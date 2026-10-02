@@ -1161,6 +1161,10 @@
                 <Button DockPanel.Dock="Right" Content="Cancel" Padding="10,3" Margin="8,0,0,0"
                         FontSize="11" Command="{Binding CancelLoadCommand}"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                <TextBlock DockPanel.Dock="Right" Text="Ctrl+K to jump to anything" FontSize="11"
+                           VerticalAlignment="Center" Margin="12,0,0,0"
+                           Foreground="{DynamicResource MutedBrush}"
+                           Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}" />
                 <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" ToolTip="{Binding StatusText}"
                            AutomationProperties.LiveSetting="Polite">
@@ -1177,5 +1181,79 @@
                 </TextBlock>
             </DockPanel>
         </Border>
+
+        <!-- ========================= Jump to (Ctrl+K) ========================== -->
+        <Grid Grid.Row="0" Grid.RowSpan="4"
+              Visibility="{Binding IsJumpOpen, Converter={StaticResource BoolToVis}}">
+            <Border Background="#99000000" MouseLeftButtonDown="OnJumpBackdropClick" />
+            <Border Width="600" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="16,70,16,16"
+                    Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.45" />
+                </Border.Effect>
+                <DockPanel>
+                    <TextBox x:Name="JumpBox" DockPanel.Dock="Top" FontSize="15"
+                             Text="{Binding JumpQuery, UpdateSourceTrigger=PropertyChanged, Delay=80}"
+                             AutomationProperties.Name="Jump to a track, artist, album or podcast"
+                             PreviewKeyDown="OnJumpBoxKeyDown" />
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding JumpHint}" Style="{StaticResource Hint}"
+                               FontSize="11" Margin="2,8,2,0" AutomationProperties.LiveSetting="Polite"
+                               Visibility="{Binding JumpHint, Converter={StaticResource TextToVis}}" />
+                    <ListBox x:Name="JumpList" ItemsSource="{Binding JumpResults}" SelectedItem="{Binding SelectedJump}"
+                             MaxHeight="440" Margin="0,8,0,0" Focusable="False"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             AutomationProperties.Name="Matches"
+                             Visibility="{Binding HasJumpResults, Converter={StaticResource BoolToVis}}">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <EventSetter Event="PreviewMouseLeftButtonUp" Handler="OnJumpItemClick" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="bd" CornerRadius="6" Padding="10,6" Background="Transparent">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource SelectionBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="84" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Kind}" FontSize="11"
+                                               VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                                    <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextBrush}" />
+                                        <TextBlock Text="{Binding Secondary}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource MutedBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding Time}" FontSize="12"
+                                               VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

@@ -43,6 +43,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 | `Ctrl+O` / `Ctrl+Shift+O` | Open the export ZIP or files / open a folder |
 | `F5` | Re-read the files from disk, ignoring the cache |
 | `Ctrl+1` … `Ctrl+8` | Jump to a tab |
+| `Ctrl+K` | Jump to any artist, track, album or podcast by name and open its detail view |
 | `Ctrl+F` | Focus the current table's filter box (`Esc` clears it) |
 | `Enter` | Open the detail view for the selected track, artist, album or year row |
 | `Ctrl+E` / `Ctrl+M` / `Ctrl+J` | Export text / Markdown / JSON |

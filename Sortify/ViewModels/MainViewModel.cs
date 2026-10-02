@@ -677,6 +677,8 @@ public sealed partial class MainViewModel : ObservableObject
             UpdateInsights();
             UpdateCharts();
             NotifyExportsChanged();
+            if (IsJumpOpen)
+                RefreshJump();
 
             SetStatus(_result.TotalPlays == 0
                 ? Filters.HasInvalidDateRange
@@ -759,6 +761,113 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
         return matches;
+    }
+
+    // ---- Jump to (Ctrl+K) ---------------------------------------------------------------------
+
+    /// <summary>How many matches of each kind (artists, tracks...) the jump box lists.</summary>
+    public const int JumpResultsPerKind = 6;
+
+    [ObservableProperty] private bool _isJumpOpen;
+    [ObservableProperty] private string _jumpQuery = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasJumpResults))]
+    private IReadOnlyList<JumpResult> _jumpResults = Array.Empty<JumpResult>();
+
+    public bool HasJumpResults => JumpResults.Count > 0;
+    [ObservableProperty] private JumpResult? _selectedJump;
+    [ObservableProperty] private string _jumpHint = string.Empty;
+
+    partial void OnJumpQueryChanged(string value) => RefreshJump();
+
+    /// <summary>Opens the jump box with an empty query. Returns false when there is nothing to search yet.</summary>
+    public bool OpenJump()
+    {
+        if (!HasData)
+        {
+            SetStatus("Load your history first, then press Ctrl+K to jump to anything in it.");
+            return false;
+        }
+
+        JumpQuery = string.Empty;
+        RefreshJump();
+        IsJumpOpen = true;
+        return true;
+    }
+
+    public void CloseJump() => IsJumpOpen = false;
+
+    /// <summary>Moves the highlighted match up or down, stopping at either end.</summary>
+    public void MoveJumpSelection(int delta)
+    {
+        if (JumpResults.Count == 0)
+            return;
+
+        int at = SelectedJump is null ? -1 : JumpResults.ToList().IndexOf(SelectedJump);
+        SelectedJump = JumpResults[Math.Clamp(at + delta, 0, JumpResults.Count - 1)];
+    }
+
+    private void RefreshJump()
+    {
+        string query = JumpQuery.Trim();
+        JumpResults = SearchForJump(_result, query);
+        SelectedJump = JumpResults.FirstOrDefault();
+        JumpHint = query.Length == 0
+            ? "Type part of a track, artist, album or podcast name. Up and Down pick a match, Enter opens it, Esc closes."
+            : JumpResults.Count == 0
+                ? $"Nothing called “{query}” in the current results. The filters in the sidebar still apply."
+                : string.Empty;
+    }
+
+    /// <summary>
+    /// The best matches of each kind in the current results. A name that is the query, then
+    /// one that starts with it, then one with a word starting with it, beat one that merely
+    /// contains it; ties go to whatever was listened to longest.
+    /// </summary>
+    internal static IReadOnlyList<JumpResult> SearchForJump(AnalysisResult r, string query, int perKind = JumpResultsPerKind)
+    {
+        query = query.Trim();
+        if (query.Length == 0)
+            return Array.Empty<JumpResult>();
+
+        var results = new List<JumpResult>();
+        results.AddRange(Best(r.Artists, a => a.Artist, a => a.TotalMsPlayed)
+            .Select(a => new JumpResult("Artist", a.Artist, $"{a.PlayCount:N0} plays", TimeFormat.Friendly(a.TotalTime), a)));
+        results.AddRange(Best(r.Tracks, t => t.Track, t => t.TotalMsPlayed)
+            .Select(t => new JumpResult("Track", t.Track, t.Artist, TimeFormat.Friendly(t.TotalTime), t)));
+        results.AddRange(Best(r.Albums, a => a.Album, a => a.TotalMsPlayed)
+            .Select(a => new JumpResult("Album", a.Album, a.Artist, TimeFormat.Friendly(a.TotalTime), a)));
+        results.AddRange(Best(r.Shows, s => s.Show, s => s.TotalMsPlayed)
+            .Select(s => new JumpResult(s.Kind == ContentKind.Audiobook ? "Audiobook" : "Podcast", s.Show,
+                $"{s.EpisodeCount:N0} episode{(s.EpisodeCount == 1 ? "" : "s")}", TimeFormat.Friendly(s.TotalTime), s)));
+        results.AddRange(Best(r.Episodes, e => e.Episode, e => e.TotalMsPlayed)
+            .Select(e => new JumpResult("Episode", e.Episode, e.Show, TimeFormat.Friendly(e.TotalTime), e)));
+        return results;
+
+        IEnumerable<T> Best<T>(IReadOnlyList<T> items, Func<T, string> name, Func<T, long> ms) => items
+            .Select(item => (Item: item, Rank: MatchRank(name(item), query)))
+            .Where(x => x.Rank >= 0)
+            .OrderBy(x => x.Rank)
+            .ThenByDescending(x => ms(x.Item))
+            .Take(perKind)
+            .Select(x => x.Item);
+    }
+
+    /// <summary>0 for the whole name, 1 for its start, 2 for the start of a later word, 3 for anywhere else, -1 for no match.</summary>
+    internal static int MatchRank(string name, string query)
+    {
+        int at = name.IndexOf(query, StringComparison.OrdinalIgnoreCase);
+        if (at < 0)
+            return -1;
+        if (at == 0)
+            return name.Length == query.Length ? 0 : 1;
+
+        for (; at > 0; at = name.IndexOf(query, at + 1, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!char.IsLetterOrDigit(name[at - 1]))
+                return 2;
+        }
+        return 3;
     }
 
     // ---- Summary text -------------------------------------------------------------------------
@@ -1097,3 +1206,12 @@ public sealed partial class MainViewModel : ObservableObject
 
 /// <summary>One row of an Overview top-five list.</summary>
 public sealed record RankedItem(int Rank, string Name, string Secondary, string Time, int Plays);
+
+/// <summary>
+/// One match in the jump box: what it is, how it reads, and the row it stands for, which is
+/// what the detail view opens.
+/// </summary>
+public sealed record JumpResult(string Kind, string Name, string Secondary, string Time, object Item)
+{
+    public override string ToString() => $"{Kind}: {Name}";
+}
