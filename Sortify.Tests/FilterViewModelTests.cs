@@ -126,6 +126,66 @@ public class FilterViewModelTests
         Assert.Contains(nameof(FilterViewModel.HasInvalidDateRange), changed);
     }
 
+    private static FilterViewModel EveryFilterSet()
+    {
+        var vm = new FilterViewModel
+        {
+            MinSeconds = 30,
+            IncludePodcasts = true,
+            StartDate = new DateTime(2023, 1, 1),
+            EndDate = new DateTime(2023, 12, 31),
+            SearchTerm = "night",
+            StartHour = 22,
+            EndHour = 2,
+        };
+        vm.Days[3].IsSelected = false;
+        vm.ExcludeArtist("Rain Sounds");
+        vm.ExcludeArtist("Ocean Waves");
+        vm.ExcludeTrack("Lullaby");
+        return vm;
+    }
+
+    [Theory]
+    [InlineData("Min 30s")]
+    [InlineData("Podcasts counted")]
+    [InlineData("2023-01-01 to 2023-12-31")]
+    [InlineData("Search “night”")]
+    [InlineData("22:00-02:59")]
+    [InlineData("Sun, Mon, Tue, Thu, Fri, Sat")]
+    [InlineData("2 artists excluded")]
+    [InlineData("1 track excluded")]
+    public void Chip_ClearsOnlyItsOwnFilter(string text)
+    {
+        var vm = EveryFilterSet();
+        var others = vm.Describe().Where(d => d != text).ToList();
+
+        vm.Chips().Single(c => c.Text == text).ClearCommand.Execute(null);
+
+        Assert.Equal(others, vm.Describe());
+    }
+
+    [Fact]
+    public void Chip_ClearsInASingleChange()
+    {
+        var vm = EveryFilterSet();
+        int changes = 0;
+        vm.FiltersChanged += (_, _) => changes++;
+
+        foreach (var chip in vm.Chips().ToList())
+            chip.ClearCommand.Execute(null);
+
+        Assert.Equal(8, changes);
+        Assert.Empty(vm.Describe());
+    }
+
+    [Fact]
+    public void ExclusionChip_NamesWhatItWouldStopExcluding()
+    {
+        var chip = EveryFilterSet().Chips().Single(c => c.Text == "2 artists excluded");
+
+        Assert.Equal("Stop excluding Rain Sounds, Ocean Waves", chip.ClearHint);
+    }
+
     [Fact]
     public void Reset_ClearsEveryChip()
     {

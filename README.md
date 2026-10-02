@@ -21,7 +21,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 - Sortable tables. Click any column header to reorder by that field; right-click a row to copy it or exclude that track/artist. Each table has its own filter box that narrows the rows instantly, without re-running the analysis.
 - **Double-click any track, artist, album or year row** to open a detail view: listening time, plays, active days, first and last listen, a monthly chart, an hour-of-day profile, its tracks and albums, and a button that opens it in Spotify.
 - **Right-click any chart** to copy it to the clipboard or save it as a PNG.
-- Filters that update every chart and table as you change them, with a chip row showing which ones are active:
+- Filters that update every chart and table as you change them, with a chip row showing which ones are active. The x on a chip clears just that filter:
   - Minimum play duration. The default is five seconds, which drops skips.
   - Whether podcasts and audiobooks count toward your track, artist and album statistics. Off by default, since a few long shows will otherwise outrank your music. The Podcasts tab shows them either way.
   - Date range.

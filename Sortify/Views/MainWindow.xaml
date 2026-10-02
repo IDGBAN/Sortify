@@ -182,8 +182,14 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Style="{StaticResource Chip}">
-                                <TextBlock Text="{Binding}" FontSize="11" />
+                            <Border Style="{StaticResource Chip}" Padding="10,1,3,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
+                                            Command="{Binding ClearCommand}"
+                                            ToolTip="{Binding ClearHint}"
+                                            AutomationProperties.Name="{Binding ClearHint}" />
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

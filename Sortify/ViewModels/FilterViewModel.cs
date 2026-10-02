@@ -269,36 +269,84 @@ public sealed partial class FilterViewModel : ObservableObject
     /// One short phrase per filter that is currently narrowing the results, for the chip
     /// row above the tabs. Empty when nothing but the defaults are in effect.
     /// </summary>
-    public IEnumerable<string> Describe()
+    public IEnumerable<string> Describe() => Chips().Select(c => c.Text);
+
+    /// <summary>
+    /// The filters currently narrowing the results, each able to clear itself without
+    /// touching the others.
+    /// </summary>
+    public IEnumerable<FilterChip> Chips()
     {
         if (MinSeconds != FilterOptions.DefaultMinMs / 1000)
-            yield return $"Min {MinSeconds}s";
+        {
+            yield return new FilterChip($"Min {MinSeconds}s", "Go back to the default minimum duration",
+                () => MinSeconds = FilterOptions.DefaultMinMs / 1000);
+        }
 
         if (IncludePodcasts)
-            yield return "Podcasts counted";
+            yield return new FilterChip("Podcasts counted", "Stop counting podcasts", () => IncludePodcasts = false);
 
-        if (StartDate is { } start && EndDate is { } end)
-            yield return $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}";
-        else if (StartDate is { } from)
-            yield return $"From {from:yyyy-MM-dd}";
-        else if (EndDate is { } to)
-            yield return $"Until {to:yyyy-MM-dd}";
+        string? range = (StartDate, EndDate) switch
+        {
+            ({ } start, { } end) => $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}",
+            ({ } from, null) => $"From {from:yyyy-MM-dd}",
+            (null, { } to) => $"Until {to:yyyy-MM-dd}",
+            _ => null,
+        };
+        if (range is not null)
+        {
+            yield return new FilterChip(range, "Clear the date range", () => Batch(() =>
+            {
+                StartDate = null;
+                EndDate = null;
+            }));
+        }
 
         if (!string.IsNullOrWhiteSpace(SearchTerm))
-            yield return $"Search “{SearchTerm.Trim()}”";
+            yield return new FilterChip($"Search “{SearchTerm.Trim()}”", "Clear the search", () => SearchTerm = string.Empty);
 
         if (StartHour != 0 || EndHour != 23)
-            yield return $"{StartHour:00}:00-{EndHour:00}:59";
+        {
+            yield return new FilterChip($"{StartHour:00}:00-{EndHour:00}:59", "Include every hour", () => Batch(() =>
+            {
+                StartHour = 0;
+                EndHour = 23;
+            }));
+        }
 
         var days = Days.Where(d => d.IsSelected).Select(d => d.Label).ToList();
         if (days.Count < Days.Length)
-            yield return days.Count == 0 ? "No days selected" : string.Join(", ", days);
+        {
+            yield return new FilterChip(days.Count == 0 ? "No days selected" : string.Join(", ", days),
+                "Include every day of the week", () => Batch(() =>
+                {
+                    foreach (var day in Days)
+                        day.IsSelected = true;
+                }));
+        }
 
         if (ExcludedArtists.Count > 0)
-            yield return $"{ExcludedArtists.Count} artist{(ExcludedArtists.Count == 1 ? "" : "s")} excluded";
+        {
+            yield return new FilterChip(
+                $"{ExcludedArtists.Count} artist{(ExcludedArtists.Count == 1 ? "" : "s")} excluded",
+                "Stop excluding " + string.Join(", ", ExcludedArtists), ExcludedArtists.Clear);
+        }
 
         if (ExcludedTracks.Count > 0)
-            yield return $"{ExcludedTracks.Count} track{(ExcludedTracks.Count == 1 ? "" : "s")} excluded";
+        {
+            yield return new FilterChip(
+                $"{ExcludedTracks.Count} track{(ExcludedTracks.Count == 1 ? "" : "s")} excluded",
+                "Stop excluding " + string.Join(", ", ExcludedTracks), ExcludedTracks.Clear);
+        }
+    }
+
+    /// <summary>Makes several filter changes and raises them as one.</summary>
+    private void Batch(Action change)
+    {
+        _suppress = true;
+        try { change(); }
+        finally { _suppress = false; }
+        Raise();
     }
 
     /// <summary>Adds an artist exclusion programmatically (e.g. from a grid context menu).</summary>
@@ -362,6 +410,26 @@ public sealed partial class FilterViewModel : ObservableObject
         _suppress = false;
         Raise();
     }
+}
+
+/// <summary>One active filter in the chip row, with a way to clear just that filter.</summary>
+public sealed class FilterChip
+{
+    public FilterChip(string text, string clearHint, Action clear)
+    {
+        Text = text;
+        ClearHint = clearHint;
+        ClearCommand = new RelayCommand(clear);
+    }
+
+    public string Text { get; }
+
+    /// <summary>What the chip's clear button does, for its tooltip and screen readers.</summary>
+    public string ClearHint { get; }
+
+    public IRelayCommand ClearCommand { get; }
+
+    public override string ToString() => Text;
 }
 
 /// <summary>A single day-of-week checkbox state.</summary>

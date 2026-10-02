@@ -70,8 +70,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Filter sidebar visibility, restored from and saved to settings.</summary>
     [ObservableProperty] private bool _sidebarVisible = true;
 
-    /// <summary>Human-readable list of the filters currently narrowing the results.</summary>
-    public ObservableCollection<string> ActiveFilters { get; } = new();
+    /// <summary>The filters currently narrowing the results, each removable on its own.</summary>
+    public ObservableCollection<FilterChip> ActiveFilters { get; } = new();
 
     [ObservableProperty] private bool _hasActiveFilters;
 
@@ -508,8 +508,8 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshActiveFilters()
     {
         ActiveFilters.Clear();
-        foreach (var description in Filters.Describe())
-            ActiveFilters.Add(description);
+        foreach (var chip in Filters.Chips())
+            ActiveFilters.Add(chip);
         HasActiveFilters = ActiveFilters.Count > 0;
     }
 

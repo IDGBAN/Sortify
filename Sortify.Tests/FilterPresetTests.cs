@@ -236,7 +236,7 @@ public class RememberedFilterTests
 
             Assert.Equal(new[] { "Rain Sounds" }, vm.Filters.ExcludedArtists);
             Assert.Equal(30, vm.Filters.MinSeconds);
-            Assert.Contains("1 artist excluded", vm.ActiveFilters);
+            Assert.Contains("1 artist excluded", vm.ActiveFilters.Select(c => c.Text));
         });
     }
 

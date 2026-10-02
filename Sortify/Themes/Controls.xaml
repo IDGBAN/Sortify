@@ -825,6 +825,14 @@
         <Setter Property="Margin" Value="0,0,6,4" />
     </Style>
 
+    <!-- The small x on a chip that clears just that filter. -->
+    <Style x:Key="ChipCloseButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+        <Setter Property="FontSize" Value="8" />
+        <Setter Property="Width" Value="18" />
+        <Setter Property="Height" Value="18" />
+        <Setter Property="Margin" Value="5,0,0,0" />
+    </Style>
+
     <!-- ========================== DataGrid ============================= -->
     <Style TargetType="DataGrid">
         <Setter Property="Background" Value="{DynamicResource PanelBrush}" />
