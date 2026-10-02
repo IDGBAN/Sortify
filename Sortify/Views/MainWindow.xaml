@@ -786,9 +786,13 @@
                                                          ToolTip="Narrow the shows and episodes below (Ctrl+F)" />
                                                 <TextBlock Text="Shows" Style="{StaticResource SectionHeader}"
                                                            Margin="0" VerticalAlignment="Center" />
+                                                <TextBlock Text="Double-click a show or an episode, or select it and press Enter, for its breakdown"
+                                                           VerticalAlignment="Center" FontSize="11" Margin="14,0,0,0"
+                                                           Foreground="{DynamicResource MutedBrush}" />
                                             </DockPanel>
                                             <Grid>
-                                            <DataGrid ItemsSource="{Binding Shows}" AutomationProperties.Name="Shows">
+                                            <DataGrid x:Name="ShowsGrid" ItemsSource="{Binding Shows}" AutomationProperties.Name="Shows"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="2*" />
                                                     <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="Auto" />
@@ -817,7 +821,8 @@
                                             <TextBlock DockPanel.Dock="Top" Text="Episodes" Style="{StaticResource SectionHeader}"
                                                        Margin="0,0,0,8" />
                                             <Grid>
-                                            <DataGrid ItemsSource="{Binding Episodes}" AutomationProperties.Name="Episodes">
+                                            <DataGrid x:Name="EpisodesGrid" ItemsSource="{Binding Episodes}" AutomationProperties.Name="Episodes"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Episode" Binding="{Binding Episode}" Width="2*" />
                                                     <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="*" />

@@ -28,8 +28,8 @@ public partial class DetailWindow : Window
     public DetailWindow(DetailResult detail) : this(detail, null) { }
 
     /// <param name="openDetail">
-    /// Builds the breakdown for a track, album or artist double-clicked in this window, under
-    /// the same filters. Without it the rows are display only.
+    /// Builds the breakdown for a track, album, artist or episode double-clicked in this
+    /// window, under the same filters. Without it the rows are display only.
     /// </param>
     public DetailWindow(DetailResult detail, Func<DetailScope, string, string, Task<DetailResult?>>? openDetail)
     {
@@ -38,17 +38,17 @@ public partial class DetailWindow : Window
         _openDetail = openDetail;
 
         TitleText.Text = detail.Title;
-        SubtitleText.Inlines.Add(new Run(detail.Scope.ToString()));
+        SubtitleText.Inlines.Add(new Run(ScopeLabel(detail)));
         if (detail.Subtitle.Length > 0)
         {
             SubtitleText.Inlines.Add(new Run(" - "));
-            if (openDetail is not null && detail.Scope is DetailScope.Track or DetailScope.Album)
+            if (openDetail is not null && detail.Scope is DetailScope.Track or DetailScope.Album or DetailScope.Episode)
             {
                 var link = new Hyperlink(new Run(detail.Subtitle))
                 {
                     ToolTip = $"Open the breakdown for {detail.Subtitle}",
                 };
-                link.Click += OnArtistLinkClick;
+                link.Click += OnSubtitleLinkClick;
                 SubtitleText.Inlines.Add(link);
             }
             else
@@ -63,6 +63,7 @@ public partial class DetailWindow : Window
             TracksHint.Visibility = Visibility.Collapsed;
             AlbumsHint.Visibility = Visibility.Collapsed;
         }
+
         Title = detail.Subtitle.Length > 0
             ? $"{detail.Title} - {detail.Subtitle}"
             : detail.Title;
@@ -88,18 +89,33 @@ public partial class DetailWindow : Window
         ArtistsGrid.ItemsSource = detail.Artists;
 
         // Opening a single track already shows that one track in the header; the one-row
-        // grid underneath would just repeat it.
-        if (detail.Scope == DetailScope.Track)
+        // grid underneath would just repeat it. A show's "albums" are only the show itself.
+        if (detail.Scope is DetailScope.Track or DetailScope.Episode)
             TracksCard.Visibility = Visibility.Collapsed;
-        if (detail.Scope == DetailScope.Album)
+        if (detail.Scope is DetailScope.Album or DetailScope.Show or DetailScope.Episode)
             AlbumsCard.Visibility = Visibility.Collapsed;
         if (detail.Artists.Count == 0)
             ArtistsCard.Visibility = Visibility.Collapsed;
+        if (detail.Scope == DetailScope.Show)
+        {
+            bool book = detail.Kind == ContentKind.Audiobook;
+            TracksHeader.Text = book ? "Chapters" : "Episodes";
+            TracksGrid.Columns[0].Header = book ? "Chapter" : "Episode";
+            TracksGrid.Columns[1].Header = book ? "Audiobook" : "Show";
+        }
 
         // Spotify has nothing to open for a whole year.
         if (detail.WebUrl.Length == 0)
             OpenButton.Visibility = Visibility.Collapsed;
     }
+
+    /// <summary>"Podcast", "Chapter" and so on: what the header says this breakdown is of.</summary>
+    internal static string ScopeLabel(DetailResult detail) => detail.Scope switch
+    {
+        DetailScope.Show => detail.Kind == ContentKind.Audiobook ? "Audiobook" : "Podcast",
+        DetailScope.Episode => detail.Kind == ContentKind.Audiobook ? "Chapter" : "Episode",
+        _ => detail.Scope.ToString(),
+    };
 
     /// <summary>What a row in one of the grids opens, or null for a row that opens nothing.</summary>
     internal static (DetailScope Scope, string Title, string Subtitle)? TargetFor(object item) => item switch
@@ -108,8 +124,19 @@ public partial class DetailWindow : Window
         ArtistStat a => (DetailScope.Artist, a.Artist, string.Empty),
         AlbumStat a => (DetailScope.Album, a.Album, a.Artist),
         YearStat y => (DetailScope.Year, y.Year.ToString(CultureInfo.InvariantCulture), string.Empty),
+        ShowStat s => (DetailScope.Show, s.Show, string.Empty),
+        EpisodeStat e => (DetailScope.Episode, e.Episode, e.Show),
         _ => null,
     };
+
+    /// <summary>
+    /// What a row opens from inside this breakdown. A show lists its episodes in the tracks
+    /// grid, and those open as episodes rather than as tracks.
+    /// </summary>
+    private (DetailScope Scope, string Title, string Subtitle)? TargetFrom(object item) =>
+        _detail.Scope == DetailScope.Show && item is TrackStat t
+            ? (DetailScope.Episode, t.Track, t.Artist)
+            : TargetFor(item);
 
     private async void OnRowDoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -130,15 +157,20 @@ public partial class DetailWindow : Window
         await OpenAsync(item);
     }
 
-    private async void OnArtistLinkClick(object sender, RoutedEventArgs e)
+    /// <summary>The name under the title: a track's or album's artist, or an episode's show.</summary>
+    private async void OnSubtitleLinkClick(object sender, RoutedEventArgs e)
     {
-        if (_detail.Subtitle.Length > 0)
-            await OpenAsync(new ArtistStat { Artist = _detail.Subtitle });
+        if (_detail.Subtitle.Length == 0)
+            return;
+
+        await OpenAsync(_detail.Scope == DetailScope.Episode
+            ? new ShowStat { Show = _detail.Subtitle }
+            : new ArtistStat { Artist = _detail.Subtitle });
     }
 
     private async Task OpenAsync(object item)
     {
-        if (_opening || _openDetail is null || TargetFor(item) is not { } target)
+        if (_opening || _openDetail is null || TargetFrom(item) is not { } target)
             return;
 
         DetailResult? detail;

@@ -114,7 +114,7 @@
                     <DockPanel>
                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
                             <TextBlock x:Name="TracksHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
-                            <TextBlock Text="Tracks" Style="{StaticResource SectionHeader}" Margin="0" />
+                            <TextBlock x:Name="TracksHeader" Text="Tracks" Style="{StaticResource SectionHeader}" Margin="0" />
                         </DockPanel>
                         <DataGrid x:Name="TracksGrid" AutomationProperties.Name="Tracks"
                                   MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">

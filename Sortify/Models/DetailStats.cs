@@ -9,6 +9,12 @@ public enum DetailScope
 
     /// <summary>One calendar year; <see cref="DetailResult.Title"/> holds the year number.</summary>
     Year,
+
+    /// <summary>A podcast show or an audiobook.</summary>
+    Show,
+
+    /// <summary>One podcast episode or audiobook chapter; the subtitle holds its show.</summary>
+    Episode,
 }
 
 /// <summary>
@@ -29,6 +35,12 @@ public sealed class DetailResult
     public int PlayCount { get; init; }
     public DateTime? FirstPlayed { get; init; }
     public DateTime? LastPlayed { get; init; }
+
+    /// <summary>
+    /// What kind of content a show or episode breakdown covers, so an audiobook is called one.
+    /// Music for every other scope.
+    /// </summary>
+    public ContentKind Kind { get; init; } = ContentKind.Music;
 
     /// <summary>Distinct calendar days this had at least one play.</summary>
     public int ActiveDays { get; init; }
@@ -60,9 +72,10 @@ public sealed class DetailResult
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
 
     /// <summary>
-    /// Browser URL for this selection. A track opens its own page when the export carried a
-    /// URI. Artists and albums go through Spotify search instead: the export only records
-    /// track URIs, and opening one of those would land on a single song. Empty for a year.
+    /// Browser URL for this selection. A track or episode opens its own page when the export
+    /// carried a URI. Artists, albums and shows go through Spotify search instead: the export
+    /// only records track and episode URIs, and opening one of those would land on a single
+    /// song or episode. Empty for a year.
     /// </summary>
     public string WebUrl
     {
@@ -71,7 +84,7 @@ public sealed class DetailResult
             if (Scope == DetailScope.Year)
                 return string.Empty;
 
-            if (Scope == DetailScope.Track && SpotifyLink.FromUri(Uri) is { Length: > 0 } link)
+            if (Scope is DetailScope.Track or DetailScope.Episode && SpotifyLink.FromUri(Uri) is { Length: > 0 } link)
                 return link;
 
             var query = Subtitle.Length > 0 ? $"{Title} {Subtitle}" : Title;
