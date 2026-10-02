@@ -41,6 +41,27 @@ public sealed partial class FilterViewModel : ObservableObject
     [ObservableProperty] private int _startHour;
     [ObservableProperty] private int _endHour = 23;
 
+    [ObservableProperty] private PlaybackMode _shuffleMode;
+    [ObservableProperty] private PlaybackMode _offlineMode;
+    [ObservableProperty] private PlaybackMode _privateMode;
+
+    public IReadOnlyList<PlaybackChoice> ShuffleChoices { get; } = PlaybackChoice.For("shuffled plays", "Shuffled plays");
+    public IReadOnlyList<PlaybackChoice> OfflineChoices { get; } = PlaybackChoice.For("offline plays", "Offline plays");
+    public IReadOnlyList<PlaybackChoice> PrivateChoices { get; } = PlaybackChoice.For("private sessions", "Private sessions");
+
+    /// <summary>One checkbox per device family in the loaded history.</summary>
+    public ObservableCollection<ChoiceToggle> Devices { get; } = new();
+
+    /// <summary>One checkbox per country in the loaded history, most listened first.</summary>
+    public ObservableCollection<ChoiceToggle> Countries { get; } = new();
+
+    // Kept apart from the checkboxes: a saved preset can leave out a device or country this
+    // history never played on, and that should still hold when a history that did is loaded.
+    private readonly HashSet<string> _excludedDevices = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _excludedCountries = new(StringComparer.OrdinalIgnoreCase);
+
+    [ObservableProperty] private bool _hasPlaybackChoices;
+
     [ObservableProperty] private string _newExcludedArtist = string.Empty;
     [ObservableProperty] private string _newExcludedTrack = string.Empty;
 
@@ -115,9 +136,61 @@ public sealed partial class FilterViewModel : ObservableObject
         RefreshQuickRanges();
         Raise();
     }
+
     partial void OnSearchTermChanged(string value) => Raise();
     partial void OnStartHourChanged(int value) => Raise();
     partial void OnEndHourChanged(int value) => Raise();
+    partial void OnShuffleModeChanged(PlaybackMode value) => Raise();
+    partial void OnOfflineModeChanged(PlaybackMode value) => Raise();
+    partial void OnPrivateModeChanged(PlaybackMode value) => Raise();
+
+    // ---- Devices and countries ---------------------------------------------------------------
+
+    /// <summary>
+    /// Fills the device and country checkboxes from the loaded history. Anything left out
+    /// before stays left out.
+    /// </summary>
+    public void SetAvailablePlayback(
+        IEnumerable<(string Key, string Label, string Description)> devices,
+        IEnumerable<(string Key, string Label, string Description)> countries)
+    {
+        Fill(Devices, devices, _excludedDevices);
+        Fill(Countries, countries, _excludedCountries);
+        HasPlaybackChoices = Devices.Count > 0 || Countries.Count > 0;
+
+        void Fill(ObservableCollection<ChoiceToggle> target,
+            IEnumerable<(string Key, string Label, string Description)> items, HashSet<string> excluded)
+        {
+            target.Clear();
+            foreach (var (key, label, description) in items)
+            {
+                target.Add(new ChoiceToggle(key, label, description, !excluded.Contains(key),
+                    t => OnChoiceToggled(t, excluded)));
+            }
+        }
+    }
+
+    private void OnChoiceToggled(ChoiceToggle toggle, HashSet<string> excluded)
+    {
+        bool changed = toggle.IsSelected ? excluded.Remove(toggle.Key) : excluded.Add(toggle.Key);
+        if (changed)
+            Raise();
+    }
+
+    /// <summary>Points every checkbox back at the excluded sets after they were replaced.</summary>
+    private void SyncChoiceToggles()
+    {
+        foreach (var device in Devices)
+            device.SetQuietly(!_excludedDevices.Contains(device.Key));
+        foreach (var country in Countries)
+            country.SetQuietly(!_excludedCountries.Contains(country.Key));
+    }
+
+    private void IncludeEvery(HashSet<string> excluded) => Batch(() =>
+    {
+        excluded.Clear();
+        SyncChoiceToggles();
+    });
 
     internal void Raise()
     {
@@ -143,11 +216,18 @@ public sealed partial class FilterViewModel : ObservableObject
         IncludedDays = Days.Select(d => d.IsSelected).ToArray(),
         ExcludedArtists = ExcludedArtists.ToList(),
         ExcludedTracks = ExcludedTracks.ToList(),
+        Shuffle = ShuffleMode,
+        Offline = OfflineMode,
+        Private = PrivateMode,
+        ExcludedDevices = _excludedDevices.ToList(),
+        ExcludedCountries = _excludedCountries.ToList(),
     };
 
     /// <summary>
     /// Just the filters that are remembered between launches: what the user never wants
-    /// counted. Everything else is left at its default.
+    /// counted. Everything else is left at its default. Shuffle and offline are ways of
+    /// looking at the history rather than plays to keep out, so they aren't remembered;
+    /// private sessions usually are plays to keep out, so that choice is.
     /// </summary>
     public FilterPreset RememberedSnapshot() => new()
     {
@@ -155,6 +235,9 @@ public sealed partial class FilterViewModel : ObservableObject
         IncludePodcasts = IncludePodcasts,
         ExcludedArtists = ExcludedArtists.ToList(),
         ExcludedTracks = ExcludedTracks.ToList(),
+        Private = PrivateMode,
+        ExcludedDevices = _excludedDevices.ToList(),
+        ExcludedCountries = _excludedCountries.ToList(),
     };
 
     /// <summary>Replaces every filter with the preset's, raising a single change.</summary>
@@ -180,6 +263,15 @@ public sealed partial class FilterViewModel : ObservableObject
 
             for (int i = 0; i < Days.Length; i++)
                 Days[i].IsSelected = preset.IncludedDays is { Length: 7 } days ? days[i] : true;
+
+            ShuffleMode = Enum.IsDefined(preset.Shuffle) ? preset.Shuffle : PlaybackMode.Any;
+            OfflineMode = Enum.IsDefined(preset.Offline) ? preset.Offline : PlaybackMode.Any;
+            PrivateMode = Enum.IsDefined(preset.Private) ? preset.Private : PlaybackMode.Any;
+            _excludedDevices.Clear();
+            _excludedDevices.UnionWith((preset.ExcludedDevices ?? new List<string>()).Where(d => !string.IsNullOrWhiteSpace(d)));
+            _excludedCountries.Clear();
+            _excludedCountries.UnionWith((preset.ExcludedCountries ?? new List<string>()).Where(c => !string.IsNullOrWhiteSpace(c)));
+            SyncChoiceToggles();
         }
         finally
         {
@@ -272,10 +364,15 @@ public sealed partial class FilterViewModel : ObservableObject
             SearchTerm = SearchTerm ?? string.Empty,
             StartHour = Math.Clamp(StartHour, 0, 23),
             EndHour = Math.Clamp(EndHour, 0, 23),
+            Shuffle = ShuffleMode,
+            Offline = OfflineMode,
+            Private = PrivateMode,
         };
         foreach (var a in ExcludedArtists) opts.ExcludedArtists.Add(a);
         foreach (var t in ExcludedTracks) opts.ExcludedTracks.Add(t);
         foreach (var d in Days) opts.IncludedDaysOfWeek[d.Index] = d.IsSelected;
+        opts.ExcludedDevices.UnionWith(_excludedDevices);
+        opts.ExcludedCountries.UnionWith(_excludedCountries);
         return opts;
     }
 
@@ -352,7 +449,40 @@ public sealed partial class FilterViewModel : ObservableObject
                 $"{ExcludedTracks.Count} track{(ExcludedTracks.Count == 1 ? "" : "s")} excluded",
                 "Stop excluding " + string.Join(", ", ExcludedTracks), ExcludedTracks.Clear);
         }
+
+        if (ModeChip(ShuffleMode, "Shuffled plays only", "No shuffled plays", "Count shuffled plays again",
+                () => ShuffleMode = PlaybackMode.Any) is { } shuffle)
+            yield return shuffle;
+        if (ModeChip(OfflineMode, "Offline plays only", "No offline plays", "Count offline plays again",
+                () => OfflineMode = PlaybackMode.Any) is { } offline)
+            yield return offline;
+        if (ModeChip(PrivateMode, "Private sessions only", "No private sessions", "Count private sessions again",
+                () => PrivateMode = PlaybackMode.Any) is { } incognito)
+            yield return incognito;
+
+        if (_excludedDevices.Count > 0)
+        {
+            yield return new FilterChip(
+                $"{_excludedDevices.Count} device{(_excludedDevices.Count == 1 ? "" : "s")} left out",
+                "Count plays on " + string.Join(", ", _excludedDevices.Order()) + " again",
+                () => IncludeEvery(_excludedDevices));
+        }
+
+        if (_excludedCountries.Count > 0)
+        {
+            yield return new FilterChip(
+                $"{_excludedCountries.Count} countr{(_excludedCountries.Count == 1 ? "y" : "ies")} left out",
+                "Count plays from " + string.Join(", ", _excludedCountries.Order()) + " again",
+                () => IncludeEvery(_excludedCountries));
+        }
     }
+
+    private static FilterChip? ModeChip(PlaybackMode mode, string only, string exclude, string clearHint, Action clear) => mode switch
+    {
+        PlaybackMode.Only => new FilterChip(only, clearHint, clear),
+        PlaybackMode.Exclude => new FilterChip(exclude, clearHint, clear),
+        _ => null,
+    };
 
     // ---- Date ranges -------------------------------------------------------------------------
 
@@ -456,9 +586,68 @@ public sealed partial class FilterViewModel : ObservableObject
         ExcludedArtists.Clear();
         ExcludedTracks.Clear();
         foreach (var d in Days) d.IsSelected = true;
+        ShuffleMode = PlaybackMode.Any;
+        OfflineMode = PlaybackMode.Any;
+        PrivateMode = PlaybackMode.Any;
+        _excludedDevices.Clear();
+        _excludedCountries.Clear();
+        SyncChoiceToggles();
         _suppress = false;
         Raise();
     }
+}
+
+/// <summary>One option in a shuffle, offline or private-session picker.</summary>
+public sealed record PlaybackChoice(PlaybackMode Mode, string Label)
+{
+    public static IReadOnlyList<PlaybackChoice> For(string plural, string capitalised) => new[]
+    {
+        new PlaybackChoice(PlaybackMode.Any, "Count every play"),
+        new PlaybackChoice(PlaybackMode.Only, $"Only {plural}"),
+        new PlaybackChoice(PlaybackMode.Exclude, $"{capitalised} left out"),
+    };
+
+    public override string ToString() => Label;
+}
+
+/// <summary>A checkbox for one device family or country: ticked means its plays count.</summary>
+public sealed partial class ChoiceToggle : ObservableObject
+{
+    private readonly Action<ChoiceToggle> _changed;
+    private bool _quiet;
+
+    public ChoiceToggle(string key, string label, string description, bool isSelected, Action<ChoiceToggle> changed)
+    {
+        Key = key;
+        Label = label;
+        Description = description;
+        _isSelected = isSelected;
+        _changed = changed;
+    }
+
+    public string Key { get; }
+    public string Label { get; }
+
+    /// <summary>The full name, for the tooltip and screen readers when the label is a code.</summary>
+    public string Description { get; }
+
+    [ObservableProperty] private bool _isSelected;
+
+    /// <summary>Updates the tick without reporting it as a change of filter.</summary>
+    internal void SetQuietly(bool value)
+    {
+        _quiet = true;
+        try { IsSelected = value; }
+        finally { _quiet = false; }
+    }
+
+    partial void OnIsSelectedChanged(bool value)
+    {
+        if (!_quiet)
+            _changed(this);
+    }
+
+    public override string ToString() => Label;
 }
 
 /// <summary>One active filter in the chip row, with a way to clear just that filter.</summary>

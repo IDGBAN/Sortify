@@ -1063,6 +1063,14 @@
                                     </Border>
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
+                                            <TextBlock Text="PRIVATE SESSIONS" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding PrivateSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Style="{StaticResource Hint}"
+                                                       Text="Plays from private sessions. The sidebar can leave them out." />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
                                             <TextBlock Text="TOP DEVICE" Style="{StaticResource Caption}" />
                                             <TextBlock Text="{Binding TopDeviceText}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"

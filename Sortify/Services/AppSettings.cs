@@ -39,8 +39,9 @@ public sealed class AppSettings
 
     /// <summary>
     /// The filters carried over to the next launch. Only the ones that describe what the
-    /// user never wants counted (exclusions, the minimum duration, podcasts) are kept here;
-    /// a date range or a search coming back days later would just be confusing.
+    /// user never wants counted (exclusions, the minimum duration, podcasts, private
+    /// sessions, devices and countries left out) are kept here; a date range or a search
+    /// coming back days later would just be confusing.
     /// </summary>
     public FilterPreset? Filters { get; set; }
 

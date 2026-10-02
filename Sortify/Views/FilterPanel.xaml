@@ -8,6 +8,18 @@
              mc:Ignorable="d"
              d:DesignWidth="280">
     <UserControl.Resources>
+        <!-- An item template rather than DisplayMemberPath: the closed box in the app's
+             ComboBox template only shows the selection through a template. -->
+        <DataTemplate x:Key="PlaybackChoiceItem">
+            <TextBlock Text="{Binding Label}" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="ChoiceToggleItem">
+            <CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected}" MinWidth="56"
+                      Margin="0,0,8,2" ToolTip="{Binding Description}"
+                      AutomationProperties.Name="{Binding Description}" />
+        </DataTemplate>
+
         <!-- Removable pill used by both exclusion lists. -->
         <Style x:Key="ExclusionPill" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource PanelBrush2}" />
@@ -88,7 +100,7 @@
                             Command="{Binding SavePresetCommand}" />
                 </Grid>
                 <TextBlock Style="{StaticResource Hint}"
-                           Text="Saves every filter below under a name, and picking it puts them all back. Saving under a name that's already taken replaces it. Exclusions, the minimum duration and the podcast setting are kept between launches anyway." />
+                           Text="Saves every filter below under a name, and picking it puts them all back. Saving under a name that's already taken replaces it. Exclusions (unticked devices and countries too), the minimum duration, and the podcast and private-session settings carry over between launches anyway." />
 
                 <!-- Minimum play duration -->
                 <TextBlock Text="MINIMUM PLAY DURATION (SECONDS)" Style="{StaticResource Caption}" />
@@ -185,6 +197,48 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <!-- Playback context -->
+                <TextBlock Text="PLAYBACK" Style="{StaticResource SectionHeader}" />
+                <TextBlock Text="Shuffle" Style="{StaticResource Caption}" />
+                <ComboBox ItemsSource="{Binding ShuffleChoices}" SelectedValuePath="Mode"
+                          SelectedValue="{Binding ShuffleMode}" ItemTemplate="{StaticResource PlaybackChoiceItem}"
+                          AutomationProperties.Name="Shuffled plays" />
+                <TextBlock Text="Offline" Style="{StaticResource Caption}" />
+                <ComboBox ItemsSource="{Binding OfflineChoices}" SelectedValuePath="Mode"
+                          SelectedValue="{Binding OfflineMode}" ItemTemplate="{StaticResource PlaybackChoiceItem}"
+                          AutomationProperties.Name="Offline plays" />
+                <TextBlock Text="Private sessions" Style="{StaticResource Caption}" />
+                <ComboBox ItemsSource="{Binding PrivateChoices}" SelectedValuePath="Mode"
+                          SelectedValue="{Binding PrivateMode}" ItemTemplate="{StaticResource PlaybackChoiceItem}"
+                          AutomationProperties.Name="Private sessions" />
+
+                <TextBlock Text="Devices" Style="{StaticResource Caption}" Margin="0,12,0,3" />
+                <ItemsControl ItemsSource="{Binding Devices}" Focusable="False"
+                              AutomationProperties.Name="Devices to count"
+                              ItemTemplate="{StaticResource ChoiceToggleItem}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
+                <TextBlock Text="Countries" Style="{StaticResource Caption}" Margin="0,8,0,3" />
+                <ItemsControl ItemsSource="{Binding Countries}" Focusable="False"
+                              AutomationProperties.Name="Countries to count"
+                              ItemTemplate="{StaticResource ChoiceToggleItem}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock Style="{StaticResource Hint}"
+                           Visibility="{Binding HasPlaybackChoices, Converter={StaticResource NotBoolToVis}}"
+                           Text="The devices and countries in your history show up here once it's loaded." />
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Untick a device or country to leave its plays out. Older exports don't record any of this, so their plays always count, except when a list above is set to Only." />
 
                 <!-- Excluded artists -->
                 <TextBlock Text="EXCLUDE ARTISTS" Style="{StaticResource SectionHeader}" />

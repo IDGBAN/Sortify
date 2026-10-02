@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -110,6 +112,7 @@ public sealed partial class MainViewModel : ObservableObject
     // Playback context ---------------------------------------------------------------------
     [ObservableProperty] private string _shuffleRateText = "-";
     [ObservableProperty] private string _offlineRateText = "-";
+    [ObservableProperty] private string _privateSessionText = "-";
     [ObservableProperty] private string _topDeviceText = "-";
 
     // Podcasts -----------------------------------------------------------------------------
@@ -377,7 +380,7 @@ public sealed partial class MainViewModel : ObservableObject
             {
                 _rawRecords = cached.ToList();
                 _loadedFiles = filePaths;
-                OfferQuickRanges();
+                OfferChoicesForHistory();
                 SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
                 HasData = true;
                 await RecomputeAsync();
@@ -405,7 +408,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             }
 
-            OfferQuickRanges();
+            OfferChoicesForHistory();
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
             IsProgressIndeterminate = true;
@@ -449,16 +452,23 @@ public sealed partial class MainViewModel : ObservableObject
     internal IReadOnlyList<int> YearsInHistory { get; private set; } = Array.Empty<int>();
 
     /// <summary>
-    /// Offers the quick date ranges that fit the history just loaded. Read off the raw
-    /// records rather than the filtered results, so filtering to one year doesn't take the
-    /// other years' buttons away.
+    /// Offers the quick date ranges, devices and countries that fit the history just loaded.
+    /// Read off the raw records rather than the filtered results, so filtering to one year
+    /// or one device doesn't take the other choices away.
     /// </summary>
-    private void OfferQuickRanges()
+    private void OfferChoicesForHistory()
     {
         DateTime? last = null;
         var years = new SortedSet<int>();
+        var platformMs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var countryMs = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         foreach (var r in _rawRecords)
         {
+            if (r.Platform.Length > 0)
+                CollectionsMarshal.GetValueRefOrAddDefault(platformMs, r.Platform, out _) += r.MsPlayed;
+            if (r.Country.Length > 0)
+                CollectionsMarshal.GetValueRefOrAddDefault(countryMs, r.Country, out _) += r.MsPlayed;
+
             if (r.Timestamp == DateTime.MinValue)
                 continue;
             years.Add(r.Timestamp.Year);
@@ -469,6 +479,28 @@ public sealed partial class MainViewModel : ObservableObject
         LastListenInHistory = last;
         YearsInHistory = years.ToList();
         Filters.SetAvailableDates(last, years);
+
+        var devices = platformMs
+            .GroupBy(kv => AnalysisEngine.PlatformFamily(kv.Key))
+            .OrderByDescending(g => g.Sum(kv => kv.Value))
+            .Select(g => (g.Key, g.Key, g.Key));
+        var countries = countryMs
+            .OrderByDescending(kv => kv.Value)
+            .Select(kv => (kv.Key, kv.Key.ToUpperInvariant(), CountryName(kv.Key)));
+        Filters.SetAvailablePlayback(devices, countries);
+    }
+
+    /// <summary>"Canada (CA)" for "CA", or the code alone when .NET doesn't know it.</summary>
+    internal static string CountryName(string code)
+    {
+        try
+        {
+            return $"{new RegionInfo(code).EnglishName} ({code.ToUpperInvariant()})";
+        }
+        catch (ArgumentException)
+        {
+            return code.ToUpperInvariant();
+        }
     }
 
     // ---- Chart options ---------------------------------------------------------------------
@@ -774,6 +806,10 @@ public sealed partial class MainViewModel : ObservableObject
 
         OfflineRateText = r.ShuffleEligiblePlays > 0
             ? $"{r.OfflinePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.OfflinePlays:N0} plays)"
+            : "-";
+
+        PrivateSessionText = r.ShuffleEligiblePlays > 0
+            ? $"{r.IncognitoPlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.IncognitoPlays:N0} plays)"
             : "-";
 
         TopDeviceText = r.Platforms.Count > 0

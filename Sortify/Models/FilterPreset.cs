@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace Sortify.Models;
 
 /// <summary>
@@ -23,6 +25,18 @@ public sealed class FilterPreset
     public List<string> ExcludedArtists { get; set; } = new();
     public List<string> ExcludedTracks { get; set; } = new();
 
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public PlaybackMode Shuffle { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public PlaybackMode Offline { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public PlaybackMode Private { get; set; }
+
+    public List<string> ExcludedDevices { get; set; } = new();
+    public List<string> ExcludedCountries { get; set; } = new();
+
     /// <summary>
     /// Repairs what a hand-edited or older settings file could hold: nulls, blanks, hours out
     /// of range or a day list of the wrong length.
@@ -38,6 +52,11 @@ public sealed class FilterPreset
             IncludedDays = new[] { true, true, true, true, true, true, true };
         ExcludedArtists = Clean(ExcludedArtists);
         ExcludedTracks = Clean(ExcludedTracks);
+        ExcludedDevices = Clean(ExcludedDevices);
+        ExcludedCountries = Clean(ExcludedCountries);
+        if (!Enum.IsDefined(Shuffle)) Shuffle = PlaybackMode.Any;
+        if (!Enum.IsDefined(Offline)) Offline = PlaybackMode.Any;
+        if (!Enum.IsDefined(Private)) Private = PlaybackMode.Any;
     }
 
     private static List<string> Clean(List<string>? names) => (names ?? new List<string>())
@@ -60,5 +79,10 @@ public sealed class FilterPreset
         EndHour == other.EndHour &&
         IncludedDays.SequenceEqual(other.IncludedDays) &&
         ExcludedArtists.SequenceEqual(other.ExcludedArtists) &&
-        ExcludedTracks.SequenceEqual(other.ExcludedTracks);
+        ExcludedTracks.SequenceEqual(other.ExcludedTracks) &&
+        Shuffle == other.Shuffle &&
+        Offline == other.Offline &&
+        Private == other.Private &&
+        ExcludedDevices.Order(StringComparer.OrdinalIgnoreCase).SequenceEqual(other.ExcludedDevices.Order(StringComparer.OrdinalIgnoreCase)) &&
+        ExcludedCountries.Order(StringComparer.OrdinalIgnoreCase).SequenceEqual(other.ExcludedCountries.Order(StringComparer.OrdinalIgnoreCase));
 }

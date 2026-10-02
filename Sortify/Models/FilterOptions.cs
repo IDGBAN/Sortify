@@ -1,5 +1,18 @@
 namespace Sortify.Models;
 
+/// <summary>How a play's shuffle, offline or private-session flag decides whether it counts.</summary>
+public enum PlaybackMode
+{
+    /// <summary>The flag doesn't matter.</summary>
+    Any,
+
+    /// <summary>Only plays known to have the flag set.</summary>
+    Only,
+
+    /// <summary>Plays with the flag set are left out. Plays that don't record it stay in.</summary>
+    Exclude,
+}
+
 /// <summary>
 /// User-customizable filters applied to raw play records before aggregation.
 /// </summary>
@@ -47,6 +60,19 @@ public sealed class FilterOptions
     /// All true by default.
     /// </summary>
     public bool[] IncludedDaysOfWeek { get; } = { true, true, true, true, true, true, true };
+
+    public PlaybackMode Shuffle { get; set; }
+    public PlaybackMode Offline { get; set; }
+    public PlaybackMode Private { get; set; }
+
+    /// <summary>
+    /// Device families to leave out, as <c>AnalysisEngine.PlatformFamily</c> names them
+    /// ("Mobile", "Car"...). Plays that don't record a device are never left out by this.
+    /// </summary>
+    public HashSet<string> ExcludedDevices { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Two-letter countries to leave out. Plays with no country are never left out by this.</summary>
+    public HashSet<string> ExcludedCountries { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     public bool HasAllDaysSelected => IncludedDaysOfWeek.All(d => d);
 
