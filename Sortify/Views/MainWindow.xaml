@@ -343,8 +343,11 @@
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
                                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                                        <TextBlock Text="Top Tracks" Style="{StaticResource SectionHeader}"
-                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                        <TextBlock Style="{StaticResource SectionHeader}"
+                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Run Text="Top Tracks" /><Run Text="   Click a bar for its breakdown" FontWeight="Normal"
+                                                                          FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
                                         <Border HorizontalAlignment="Right" VerticalAlignment="Center"
                                                 Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
                                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -363,7 +366,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnTracksScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=TracksTimeToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding TracksByTime.Series}"
+                                            <lvc:CartesianChart Series="{Binding TracksByTime.Series}" Tag="{Binding TracksByTime}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding TracksChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -372,7 +375,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnTracksScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=TracksCountToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding TracksByCount.Series}"
+                                            <lvc:CartesianChart Series="{Binding TracksByCount.Series}" Tag="{Binding TracksByCount}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding TracksChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -462,8 +465,11 @@
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
                                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                                        <TextBlock Text="Top Artists" Style="{StaticResource SectionHeader}"
-                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                        <TextBlock Style="{StaticResource SectionHeader}"
+                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Run Text="Top Artists" /><Run Text="   Click a bar for its breakdown" FontWeight="Normal"
+                                                                           FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
                                         <Border HorizontalAlignment="Right" VerticalAlignment="Center"
                                                 Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
                                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -482,7 +488,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnArtistsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=ArtistsTimeToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding ArtistsByTime.Series}"
+                                            <lvc:CartesianChart Series="{Binding ArtistsByTime.Series}" Tag="{Binding ArtistsByTime}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding ArtistsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -491,7 +497,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnArtistsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=ArtistsCountToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding ArtistsByCount.Series}"
+                                            <lvc:CartesianChart Series="{Binding ArtistsByCount.Series}" Tag="{Binding ArtistsByCount}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding ArtistsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -561,8 +567,11 @@
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
                                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                                        <TextBlock Text="Top Albums" Style="{StaticResource SectionHeader}"
-                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                        <TextBlock Style="{StaticResource SectionHeader}"
+                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Run Text="Top Albums" /><Run Text="   Click a bar for its breakdown" FontWeight="Normal"
+                                                                          FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
                                         <Border HorizontalAlignment="Right" VerticalAlignment="Center"
                                                 Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
                                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -581,7 +590,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnAlbumsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=AlbumsTimeToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding AlbumsByTime.Series}"
+                                            <lvc:CartesianChart Series="{Binding AlbumsByTime.Series}" Tag="{Binding AlbumsByTime}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding AlbumsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -590,7 +599,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnAlbumsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=AlbumsCountToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding AlbumsByCount.Series}"
+                                            <lvc:CartesianChart Series="{Binding AlbumsByCount.Series}" Tag="{Binding AlbumsByCount}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding AlbumsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -663,9 +672,11 @@
                             </Grid.RowDefinitions>
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Listening Time per Year"
-                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                    <lvc:CartesianChart Series="{Binding ByYear.Series}"
+                                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                        <Run Text="Listening Time per Year" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
+                                                                                   FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                    </TextBlock>
+                                    <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
                                                         Background="Transparent"
                                                         AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                         XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}" />
@@ -753,9 +764,11 @@
 
                                     <Border Style="{StaticResource ChartCard}">
                                         <DockPanel>
-                                            <TextBlock DockPanel.Dock="Top" Text="Top Shows and Audiobooks (top 20)"
-                                                       Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                            <lvc:CartesianChart Series="{Binding ShowsChart.Series}"
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                                <Run Text="Top Shows and Audiobooks (top 20)" /><Run Text="   Click a bar for its breakdown"
+                                                    FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <lvc:CartesianChart Series="{Binding ShowsChart.Series}" Tag="{Binding ShowsChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent"
                                                                 Height="{Binding ShowsChartHeight}"
                                                                 TooltipPosition="Hidden"
@@ -766,9 +779,11 @@
 
                                     <Border Style="{StaticResource ChartCard}">
                                         <DockPanel>
-                                            <TextBlock DockPanel.Dock="Top" Text="Top Episodes and Chapters (top 20)"
-                                                       Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                            <lvc:CartesianChart Series="{Binding EpisodesChart.Series}"
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                                <Run Text="Top Episodes and Chapters (top 20)" /><Run Text="   Click a bar for its breakdown"
+                                                    FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <lvc:CartesianChart Series="{Binding EpisodesChart.Series}" Tag="{Binding EpisodesChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent"
                                                                 Height="{Binding EpisodesChartHeight}"
                                                                 TooltipPosition="Hidden"
@@ -880,9 +895,11 @@
                                 </Border>
                                 <Border Style="{StaticResource ChartCard}" Height="340">
                                     <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="Listening Heatmap (day of week vs. hour of day)"
-                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                        <lvc:CartesianChart Series="{Binding Heat.Series}"
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,6">
+                                            <Run Text="Listening Heatmap (day of week vs. hour of day)" /><Run Text="   Click a square to see only that hour of that day"
+                                                FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
+                                        <lvc:CartesianChart Series="{Binding Heat.Series}" Cursor="Hand" DataPointerDown="OnHeatClick" FindingStrategy="CompareAllTakeClosest"
                                                             Background="Transparent"
                                                             AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                             XAxes="{Binding Heat.XAxes}" YAxes="{Binding Heat.YAxes}"
@@ -1137,9 +1154,11 @@
 
                                 <Border Style="{StaticResource ChartCard}" Height="560">
                                     <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="Most Skipped Tracks (top 15)"
-                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                        <lvc:CartesianChart Series="{Binding Skipped.Series}"
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                            <Run Text="Most Skipped Tracks (top 15)" /><Run Text="   Click a bar for the track's breakdown"
+                                                FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
+                                        <lvc:CartesianChart Series="{Binding Skipped.Series}" Tag="{Binding Skipped}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                             Background="Transparent"
                                                             TooltipPosition="Hidden"
                                                             AnimationsSpeed="{Binding ChartAnimationSpeed}"

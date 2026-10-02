@@ -96,7 +96,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(t => Math.Round(t.TotalHours, 2)).ToArray(),
             items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Hours", ChartPalette.Accent);
+            "Hours", ChartPalette.Accent, items);
     }
 
     public static ChartData TopTracksByCount(AnalysisResult r, int take)
@@ -105,7 +105,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(t => (double)t.PlayCount).ToArray(),
             items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Plays", ChartPalette.Accent2);
+            "Plays", ChartPalette.Accent2, items);
     }
 
     public static ChartData TopArtistsByTime(AnalysisResult r, int take)
@@ -114,7 +114,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
             items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Hours", ChartPalette.Accent);
+            "Hours", ChartPalette.Accent, items);
     }
 
     public static ChartData TopArtistsByCount(AnalysisResult r, int take)
@@ -123,7 +123,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => (double)a.PlayCount).ToArray(),
             items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Plays", ChartPalette.Accent2);
+            "Plays", ChartPalette.Accent2, items);
     }
 
     public static ChartData TopAlbumsByTime(AnalysisResult r, int take)
@@ -132,7 +132,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
             items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Hours", ChartPalette.Accent);
+            "Hours", ChartPalette.Accent, items);
     }
 
     public static ChartData TopAlbumsByCount(AnalysisResult r, int take)
@@ -141,7 +141,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => (double)a.PlayCount).ToArray(),
             items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Plays", ChartPalette.Accent2);
+            "Plays", ChartPalette.Accent2, items);
     }
 
     public static ChartData TopSkippedTracks(AnalysisResult r, int take = SkippedTrackBars)
@@ -150,10 +150,11 @@ public static class ChartBuilder
         return Rows(
             items.Select(s => (double)s.SkipCount).ToArray(),
             items.Select(s => ShortLabel(s.Track)).ToArray(),
-            "Skips", ChartPalette.Warm);
+            "Skips", ChartPalette.Warm, items);
     }
 
-    private static ChartData Rows(double[] values, string[] labels, string unit, SKColor color)
+    private static ChartData Rows<T>(double[] values, string[] labels, string unit, SKColor color, IReadOnlyList<T> items)
+        where T : class
     {
         var series = new ISeries[]
         {
@@ -203,7 +204,7 @@ public static class ChartBuilder
                 MaxLimit = maxLimit,
             },
         };
-        return new ChartData { Series = series, XAxes = x, YAxes = y };
+        return new ChartData { Series = series, XAxes = x, YAxes = y, Items = items };
     }
 
     // ---- Column charts ---------------------------------------------------------------------
@@ -227,10 +228,11 @@ public static class ChartBuilder
     {
         var values = r.Years.Select(y => Math.Round(y.TotalHours, 1)).ToArray();
         var labels = r.Years.Select(y => y.Year.ToString()).ToArray();
-        return Columns(values, labels, "Hours", "Year", ChartPalette.Accent);
+        return Columns(values, labels, "Hours", "Year", ChartPalette.Accent, r.Years);
     }
 
-    private static ChartData Columns(double[] values, string[] labels, string unit, string xName, SKColor color)
+    private static ChartData Columns(
+        double[] values, string[] labels, string unit, string xName, SKColor color, IReadOnlyList<object>? items = null)
     {
         var series = new ISeries[]
         {
@@ -257,6 +259,7 @@ public static class ChartBuilder
                 },
             },
             YAxes = new[] { ValueAxis(unit) },
+            Items = items ?? Array.Empty<object>(),
         };
     }
 
@@ -605,7 +608,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(s => Math.Round(s.TotalHours, 2)).ToArray(),
             items.Select(s => ShortLabel(s.Show)).ToArray(),
-            "Hours", ChartPalette.Violet);
+            "Hours", ChartPalette.Violet, items);
     }
 
     public static ChartData TopEpisodes(AnalysisResult r, int take = PodcastBars)
@@ -614,6 +617,6 @@ public static class ChartBuilder
         return Rows(
             items.Select(e => Math.Round(e.TotalHours, 2)).ToArray(),
             items.Select(e => ShortLabel(e.Episode)).ToArray(),
-            "Hours", ChartPalette.Cyan);
+            "Hours", ChartPalette.Cyan, items);
     }
 }

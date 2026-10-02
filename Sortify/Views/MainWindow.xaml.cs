@@ -9,6 +9,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
+using LiveChartsCore.Kernel;
+using LiveChartsCore.Kernel.Sketches;
 using Microsoft.Win32;
 using Sortify.Models;
 using Sortify.Services;
@@ -422,6 +424,42 @@ public partial class MainWindow : Window
 
     /// <summary>Charts draw on a transparent background, so the PNG needs the card colour behind it.</summary>
     private Brush CardBackground() => TryFindResource("PanelBrush") as Brush ?? Brushes.White;
+
+    // ---- Clickable charts ------------------------------------------------------------------------
+
+    /// <summary>
+    /// A click on a bar opens the row it stands for. The chart's Tag carries its
+    /// <see cref="ChartData"/>, whose items line up with the bars.
+    /// </summary>
+    private void OnChartBarClick(IChartView chart, IEnumerable<ChartPoint> points)
+    {
+        var point = points.FirstOrDefault(p => !p.IsEmpty);
+        if (point is null || chart is not FrameworkElement { Tag: ChartData data })
+            return;
+        if (point.Index < 0 || point.Index >= data.Items.Count)
+            return;
+
+        // Opened once the click has finished, so the chart isn't still holding the mouse
+        // while a modal window comes up over it.
+        var item = data.Items[point.Index];
+        Dispatcher.BeginInvoke(async () => await ShowDetailAsync(item));
+    }
+
+    /// <summary>
+    /// A square on the heatmap narrows every chart and table to that hour of that day. The
+    /// chips above the tabs show it and clear it.
+    /// </summary>
+    private void OnHeatClick(IChartView chart, IEnumerable<ChartPoint> points)
+    {
+        var point = points.FirstOrDefault(p => !p.IsEmpty);
+        if (point is null || ViewModel is not { } vm)
+            return;
+        if (point.Index < 0 || point.Index >= 7 * 24)
+            return;
+
+        // The heatmap's points run day by day, 24 hours each (see ChartBuilder.DowHourHeat).
+        vm.Filters.SetSlot(point.Index / 24, point.Index % 24);
+    }
 
     // ---- Infinite scroll -------------------------------------------------------------------------
 

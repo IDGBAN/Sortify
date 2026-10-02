@@ -126,6 +126,7 @@ public partial class DetailWindow : Window
         YearStat y => (DetailScope.Year, y.Year.ToString(CultureInfo.InvariantCulture), string.Empty),
         ShowStat s => (DetailScope.Show, s.Show, string.Empty),
         EpisodeStat e => (DetailScope.Episode, e.Episode, e.Show),
+        SkippedTrackStat s => (DetailScope.Track, s.Track, s.Artist),
         _ => null,
     };
 

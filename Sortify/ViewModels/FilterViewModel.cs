@@ -486,6 +486,18 @@ public sealed partial class FilterViewModel : ObservableObject
 
     // ---- Date ranges -------------------------------------------------------------------------
 
+    /// <summary>
+    /// Narrows to one hour of one day of the week (0=Sunday), as one change: what a click on
+    /// a heatmap square asks for.
+    /// </summary>
+    public void SetSlot(int dayOfWeek, int hour) => Batch(() =>
+    {
+        foreach (var day in Days)
+            day.IsSelected = day.Index == dayOfWeek;
+        StartHour = Math.Clamp(hour, 0, 23);
+        EndHour = Math.Clamp(hour, 0, 23);
+    });
+
     /// <summary>Sets both ends of the date range as one change.</summary>
     public void SetRange(DateTime? start, DateTime? end) => Batch(() =>
     {
