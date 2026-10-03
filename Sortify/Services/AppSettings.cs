@@ -107,7 +107,13 @@ public sealed class AppSettings
         {
             Normalize();
             Directory.CreateDirectory(AppPaths.DataDirectory);
-            File.WriteAllText(SettingsFile, JsonSerializer.Serialize(this, JsonOptions));
+
+            // Written aside and moved into place, like the record cache: a crash halfway
+            // through a direct write would leave a file that loads as defaults, saved filter
+            // sets and all.
+            string temp = SettingsFile + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(this, JsonOptions));
+            File.Move(temp, SettingsFile, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                      or JsonException or ArgumentException or NotSupportedException)

@@ -90,7 +90,7 @@ dotnet format --verify-no-changes
 
 ## Disclaimer
 - Sortify is not affiliated with Spotify.
-- Everything runs locally on your machine. The only files it writes outside your exports are a settings file, a cache of your parsed history and an error log, all in `%LOCALAPPDATA%\Sortify`; deleting that folder resets everything. **Settings → Open data folder** takes you there.
+- Everything runs locally on your machine. The only files it writes outside your exports are a settings file, a cache of your parsed history and an error log (plus the previous log once it passes 1 MB), all in `%LOCALAPPDATA%\Sortify`; deleting that folder resets everything. **Settings → Open data folder** takes you there.
 - Please **review the code** before you download and run it.
 
 ## License

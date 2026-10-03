@@ -123,6 +123,20 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void Save_RoundTripsWithoutLeavingTheTempFileBehind()
+    {
+        var settings = new AppSettings { SessionGapMinutes = 45 };
+        settings.FilterPresets.Add(new Sortify.Models.FilterPreset { Name = "Gym" });
+
+        settings.Save();
+        var loaded = AppSettings.Load();
+
+        Assert.Equal(45, loaded.SessionGapMinutes);
+        Assert.Equal("Gym", Assert.Single(loaded.FilterPresets).Name);
+        Assert.False(File.Exists(Path.Combine(AppPaths.DataDirectory, "settings.json.tmp")));
+    }
+
+    [Fact]
     public void SessionGap_DefaultsToThirtyMinutes()
     {
         Assert.Equal(TimeSpan.FromMinutes(30), new AppSettings().SessionGap);
