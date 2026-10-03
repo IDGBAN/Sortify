@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
@@ -403,7 +404,7 @@ public partial class MainWindow : Window
             bool copied = ImageExporter.CopyToClipboard(card, CardBackground());
             ViewModel?.SetStatus(copied ? "Chart copied to the clipboard." : "There was nothing to copy.", !copied);
         }
-        catch (Exception ex)
+        catch (ExternalException ex)
         {
             // The clipboard can be locked by another process.
             ViewModel?.SetStatus($"Could not copy that chart: {ex.Message}", isError: true);
@@ -733,35 +734,43 @@ public partial class MainWindow : Window
             Clipboard.SetDataObject(text);
             return true;
         }
-        catch (Exception)
+        catch (ExternalException)
         {
             // The clipboard can be locked by another process; copying is best-effort.
             return false;
         }
     }
 
-    /// <summary>One line per row, without repeating a line that two rows share.</summary>
-    private static void CopyLines(IEnumerable<string> lines)
+    /// <summary>
+    /// One line per row, without repeating a line that two rows share. <paramref name="noun"/>
+    /// names one line ("track") for the status bar.
+    /// </summary>
+    private void CopyLines(IEnumerable<string> lines, string noun)
     {
-        var text = string.Join(Environment.NewLine, lines.Distinct());
-        if (text.Length > 0)
-            TryCopy(text);
+        var distinct = lines.Distinct().ToList();
+        if (distinct.Count == 0)
+            return;
+
+        if (TryCopy(string.Join(Environment.NewLine, distinct)))
+            ViewModel?.SetStatus($"Copied {distinct.Count:N0} {noun}{(distinct.Count == 1 ? "" : "s")} to the clipboard.");
+        else
+            ViewModel?.SetStatus("Could not copy: another program is holding the clipboard. Try again.", isError: true);
     }
 
     private void OnCopyTrackFromTracks(object sender, RoutedEventArgs e) =>
-        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => $"{t.Track} - {t.Artist}"));
+        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => $"{t.Track} - {t.Artist}"), "track");
 
     private void OnCopyArtistFromTracks(object sender, RoutedEventArgs e) =>
-        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist));
+        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist), "artist");
 
     private void OnCopyArtistFromArtists(object sender, RoutedEventArgs e) =>
-        CopyLines(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist));
+        CopyLines(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist), "artist");
 
     private void OnCopyAlbumFromAlbums(object sender, RoutedEventArgs e) =>
-        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => $"{a.Album} - {a.Artist}"));
+        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => $"{a.Album} - {a.Artist}"), "album");
 
     private void OnCopyArtistFromAlbums(object sender, RoutedEventArgs e) =>
-        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
+        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist), "artist");
 
     private void OnCopyLinksFromTracks(object sender, RoutedEventArgs e) =>
         ViewModel?.CopySpotifyLinks(SelectedRows<TrackStat>(TracksGrid), TryCopy);

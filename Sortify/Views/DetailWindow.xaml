@@ -26,7 +26,7 @@
             <Button x:Name="OpenButton" DockPanel.Dock="Right" Content="Open in Spotify"
                     Click="OnOpenInSpotify" Style="{StaticResource AccentButton}"
                     Padding="12,6" Margin="0" VerticalAlignment="Top" />
-            <Button DockPanel.Dock="Right" Content="Copy summary" Click="OnCopySummary"
+            <Button x:Name="CopyButton" DockPanel.Dock="Right" Content="Copy summary" Click="OnCopySummary"
                     Padding="12,6" VerticalAlignment="Top"
                     ToolTip="Copy these figures as plain text" />
             <Button x:Name="YearReviewButton" DockPanel.Dock="Right" Content="Year in review image"

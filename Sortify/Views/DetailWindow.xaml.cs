@@ -1,11 +1,14 @@
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using Sortify.Models;
 using Sortify.Services;
 
@@ -251,7 +254,7 @@ public partial class DetailWindow : Window
             // when it has registered itself as the handler).
             Process.Start(new ProcessStartInfo(_detail.WebUrl) { UseShellExecute = true });
         }
-        catch (Exception)
+        catch (Win32Exception)
         {
             // No handler registered, or the shell refused; nothing useful to recover to.
             MessageBox.Show(this, "Could not open a browser for that link.", "Sortify",
@@ -274,13 +277,32 @@ public partial class DetailWindow : Window
         if (_detail.LastPlayed is { } last)
             sb.AppendLine($"Last played: {TimeFormat.Timestamp(last)}");
 
+        bool copied;
         try
         {
             Clipboard.SetDataObject(sb.ToString());
+            copied = true;
         }
-        catch (Exception)
+        catch (ExternalException)
         {
-            // The clipboard can be locked by another process; copying is best-effort.
+            // Another process is holding the clipboard.
+            copied = false;
         }
+
+        // Held at its current width so the header doesn't shift under the shorter label.
+        CopyButton.MinWidth = CopyButton.ActualWidth;
+        CopyButton.Content = copied ? "Copied" : "Copy failed";
+        _copyNotice ??= new DispatcherTimer(CopyNoticeTime, DispatcherPriority.Normal, (_, _) =>
+        {
+            _copyNotice!.Stop();
+            CopyButton.Content = "Copy summary";
+        }, Dispatcher);
+        _copyNotice.Stop();
+        _copyNotice.Start();
     }
+
+    /// <summary>How long the Copy summary button says whether it worked.</summary>
+    private static readonly TimeSpan CopyNoticeTime = TimeSpan.FromSeconds(1.5);
+
+    private DispatcherTimer? _copyNotice;
 }

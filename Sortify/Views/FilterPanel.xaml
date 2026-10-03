@@ -108,6 +108,7 @@
                          AutomationProperties.Name="Minimum play duration in seconds"
                          MaxLength="6"
                          PreviewTextInput="OnDigitsOnlyInput"
+                         PreviewKeyDown="OnDigitsOnlyKeyDown"
                          DataObject.Pasting="OnDigitsOnlyPaste" />
                 <TextBlock Style="{StaticResource Hint}"
                            Text="Listens shorter than this are ignored (default 5s)." />

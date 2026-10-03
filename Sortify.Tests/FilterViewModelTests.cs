@@ -197,4 +197,16 @@ public class FilterViewModelTests
         Assert.Empty(vm.Describe());
         Assert.Equal(FilterOptions.DefaultMinMs / 1000, vm.MinSeconds);
     }
+
+    [Fact]
+    public void Reset_IsOneChange()
+    {
+        var vm = EveryFilterSet();
+        int changes = 0;
+        vm.FiltersChanged += (_, _) => changes++;
+
+        vm.ResetCommand.Execute(null);
+
+        Assert.Equal(1, changes);
+    }
 }

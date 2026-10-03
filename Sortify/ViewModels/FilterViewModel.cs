@@ -597,9 +597,8 @@ public sealed partial class FilterViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private void Reset()
+    private void Reset() => Batch(() =>
     {
-        _suppress = true;
         MinSeconds = FilterOptions.DefaultMinMs / 1000;
         IncludePodcasts = false;
         StartDate = null;
@@ -618,9 +617,7 @@ public sealed partial class FilterViewModel : ObservableObject
         _excludedDevices.Clear();
         _excludedCountries.Clear();
         SyncChoiceToggles();
-        _suppress = false;
-        Raise();
-    }
+    });
 }
 
 /// <summary>One option in a shuffle, offline or private-session picker.</summary>

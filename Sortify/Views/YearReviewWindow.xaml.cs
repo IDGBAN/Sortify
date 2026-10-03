@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using Microsoft.Win32;
 using Sortify.Models;
@@ -69,7 +70,7 @@ public partial class YearReviewWindow : Window
                 ? "Copied to the clipboard."
                 : "There was nothing to copy.";
         }
-        catch (Exception ex)
+        catch (ExternalException ex)
         {
             // The clipboard can be locked by another process.
             ResultText.Text = $"Could not copy the image: {ex.Message}";

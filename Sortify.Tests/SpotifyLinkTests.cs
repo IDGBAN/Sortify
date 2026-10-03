@@ -16,6 +16,7 @@ public class SpotifyLinkTests
     [InlineData("SPOTIFY:track:abc", "https://open.spotify.com/track/abc")]
     [InlineData("spotify:track:a b&c", "https://open.spotify.com/track/a%20b%26c")]
     [InlineData("spotify:track:", "")]
+    [InlineData("spotify:local:Artist:Album:Title:215", "")]
     [InlineData("https://example.com", "")]
     [InlineData("", "")]
     public void FromUri_BuildsAnOpenSpotifyLink(string uri, string expected)
