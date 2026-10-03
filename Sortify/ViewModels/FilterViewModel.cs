@@ -399,9 +399,9 @@ public sealed partial class FilterViewModel : ObservableObject
 
         string? range = (StartDate, EndDate) switch
         {
-            ({ } start, { } end) => $"{start:yyyy-MM-dd} to {end:yyyy-MM-dd}",
-            ({ } from, null) => $"From {from:yyyy-MM-dd}",
-            (null, { } to) => $"Until {to:yyyy-MM-dd}",
+            ({ } start, { } end) => $"{TimeFormat.Day(start)} to {TimeFormat.Day(end)}",
+            ({ } from, null) => $"From {TimeFormat.Day(from)}",
+            (null, { } to) => $"Until {TimeFormat.Day(to)}",
             _ => null,
         };
         if (range is not null && includeDates)

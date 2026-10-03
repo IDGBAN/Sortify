@@ -71,6 +71,18 @@ public class YearReviewBuilderTests
     }
 
     [Fact]
+    public void NamesTheMonthInEnglishOnAnyCalendar()
+    {
+        // ar-SA counts months on the Hijri calendar, where March 2024 is mostly Ramadan.
+        using var _ = CultureScope.Named("ar-SA");
+
+        var review = Build();
+
+        Assert.StartsWith("March, ", review.BiggestMonthText);
+        Assert.StartsWith("March 10, ", review.BiggestDayText);
+    }
+
+    [Fact]
     public void TheSidebarsOtherFiltersApply_ButNotItsDates()
     {
         var filter = new FilterOptions { StartDate = new DateTime(2025, 1, 1) };

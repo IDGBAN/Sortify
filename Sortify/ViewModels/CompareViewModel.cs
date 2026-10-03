@@ -70,9 +70,9 @@ public sealed partial class CompareViewModel : ObservableObject
 
     private static string Describe(string name, DateTime? start, DateTime? end) => (start, end) switch
     {
-        ({ } s, { } e) => $"{name}: {s:yyyy-MM-dd} to {e:yyyy-MM-dd}",
-        ({ } s, null) => $"{name}: from {s:yyyy-MM-dd}",
-        (null, { } e) => $"{name}: until {e:yyyy-MM-dd}",
+        ({ } s, { } e) => $"{name}: {TimeFormat.Day(s)} to {TimeFormat.Day(e)}",
+        ({ } s, null) => $"{name}: from {TimeFormat.Day(s)}",
+        (null, { } e) => $"{name}: until {TimeFormat.Day(e)}",
         _ => $"{name}: all time",
     };
 

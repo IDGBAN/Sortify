@@ -1113,19 +1113,19 @@ public sealed partial class MainViewModel : ObservableObject
         var r = _result;
 
         LongestStreakText = r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se
-            ? $"{r.LongestStreakDays} day{(r.LongestStreakDays == 1 ? "" : "s")}  ({ss:yyyy-MM-dd} to {se:yyyy-MM-dd})"
+            ? $"{r.LongestStreakDays} day{(r.LongestStreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})"
             : "-";
 
         CurrentStreakText = r.CurrentStreakDays > 0 && r.LastListen is { } lastListen
-            ? $"{r.CurrentStreakDays} day{(r.CurrentStreakDays == 1 ? "" : "s")}  (up to {lastListen:yyyy-MM-dd})"
+            ? $"{r.CurrentStreakDays} day{(r.CurrentStreakDays == 1 ? "" : "s")}  (up to {TimeFormat.Day(lastListen)})"
             : "-";
 
         LongestBreakText = r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be
-            ? $"{r.LongestBreakDays} day{(r.LongestBreakDays == 1 ? "" : "s")}  ({bs:yyyy-MM-dd} to {be:yyyy-MM-dd})"
+            ? $"{r.LongestBreakDays} day{(r.LongestBreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})"
             : "-";
 
         BiggestDayText = r.BiggestDay is { } bd
-            ? $"{bd:yyyy-MM-dd}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
+            ? $"{TimeFormat.Day(bd)}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
             : "-";
 
         ActiveDaysText = r.ActiveDays > 0 ? r.ActiveDays.ToString("N0") : "-";
@@ -1163,7 +1163,7 @@ public sealed partial class MainViewModel : ObservableObject
             : "-";
 
         LongestSessionText = r.LongestSessionMs > 0 && r.LongestSessionDate is { } sd
-            ? $"{TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.LongestSessionMs))}  ({sd:yyyy-MM-dd})"
+            ? $"{TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.LongestSessionMs))}  ({TimeFormat.Day(sd)})"
             : "-";
 
         WeekSplitText = BuildWeekSplitText(r);
@@ -1230,7 +1230,7 @@ public sealed partial class MainViewModel : ObservableObject
         int count = leader.Count();
         string text = $"{leader.Key} was your #1 artist in {count} of {months.Count} month{(months.Count == 1 ? "" : "s")}";
         return best > 1
-            ? $"{text}, {best} of them in a row ({bestStart:yyyy-MM} to {bestEnd:yyyy-MM})."
+            ? $"{text}, {best} of them in a row ({TimeFormat.Month(bestStart)} to {TimeFormat.Month(bestEnd)})."
             : text + ".";
     }
 

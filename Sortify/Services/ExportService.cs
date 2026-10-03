@@ -50,11 +50,11 @@ public static class ExportService
         if (result.ActiveDays > 0)
             sb.AppendLine($"Active days: {result.ActiveDays:N0}");
         if (result.LongestStreakDays > 0 && result.LongestStreakStart is { } ss && result.LongestStreakEnd is { } se)
-            sb.AppendLine($"Longest streak: {result.LongestStreakDays} days ({ss:yyyy-MM-dd} to {se:yyyy-MM-dd})");
+            sb.AppendLine($"Longest streak: {result.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (result.LongestBreakDays > 0 && result.LongestBreakStart is { } bs && result.LongestBreakEnd is { } be)
-            sb.AppendLine($"Longest break: {result.LongestBreakDays} days ({bs:yyyy-MM-dd} to {be:yyyy-MM-dd})");
+            sb.AppendLine($"Longest break: {result.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (result.BiggestDay is { } bd)
-            sb.AppendLine($"Biggest day: {bd:yyyy-MM-dd} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.BiggestDayMs))})");
+            sb.AppendLine($"Biggest day: {TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.BiggestDayMs))})");
         if (result.SessionCount > 0)
             sb.AppendLine($"Listening sessions: {result.SessionCount:N0} (avg {TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.AvgSessionMs))})");
         if (result.SkipEligiblePlays > 0)
@@ -243,13 +243,13 @@ public static class ExportService
         sb.AppendLine("| Metric | Value |");
         sb.AppendLine("| --- | --- |");
         if (r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se)
-            Row("Longest streak", $"{r.LongestStreakDays} days ({ss:yyyy-MM-dd} to {se:yyyy-MM-dd})");
+            Row("Longest streak", $"{r.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (r.CurrentStreakDays > 0)
             Row("Current streak", $"{r.CurrentStreakDays} days");
         if (r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be)
-            Row("Longest break", $"{r.LongestBreakDays} days ({bs:yyyy-MM-dd} to {be:yyyy-MM-dd})");
+            Row("Longest break", $"{r.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (r.BiggestDay is { } bd)
-            Row("Biggest day", $"{bd:yyyy-MM-dd} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})");
+            Row("Biggest day", $"{TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})");
         if (r.SessionCount > 0)
         {
             Row("Listening sessions", r.SessionCount.ToString("N0"));

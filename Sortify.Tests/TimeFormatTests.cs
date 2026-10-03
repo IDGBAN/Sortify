@@ -42,4 +42,26 @@ public class TimeFormatTests
 
         Assert.Equal("2023-05-10 14:30", TimeFormat.Timestamp(new DateTime(2023, 5, 10, 14, 30, 0)));
     }
+
+    [Theory]
+    [InlineData("th-TH")]
+    [InlineData("ar-SA")]
+    public void DayAndMonth_AreGregorianWhateverTheCalendar(string culture)
+    {
+        using var _ = CultureScope.Named(culture);
+
+        Assert.Equal("2024-03-14", TimeFormat.Day(new DateTime(2024, 3, 14)));
+        Assert.Equal("2024-03", TimeFormat.Month(new DateTime(2024, 3, 14)));
+    }
+
+    [Fact]
+    public void FilterChips_WriteGregorianDates()
+    {
+        using var _ = CultureScope.Named("th-TH");
+        var filters = new Sortify.ViewModels.FilterViewModel();
+
+        filters.SetRange(new DateTime(2024, 1, 1), new DateTime(2024, 12, 31));
+
+        Assert.Contains("2024-01-01 to 2024-12-31", filters.Describe());
+    }
 }

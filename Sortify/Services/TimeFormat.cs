@@ -30,4 +30,13 @@ public static class TimeFormat
 
     /// <summary>Null-tolerant variant used by exports; empty string when no timestamp exists.</summary>
     public static string Timestamp(DateTime? dt) => dt is { } d ? Timestamp(d) : string.Empty;
+
+    /// <summary>
+    /// "2024-03-14". Invariant like <see cref="Timestamp(DateTime)"/>: under the current culture a
+    /// Thai or Saudi system would write the year as 2567 or 1445.
+    /// </summary>
+    public static string Day(DateTime dt) => dt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    /// <summary>"2024-03", for month buckets.</summary>
+    public static string Month(DateTime dt) => dt.ToString("yyyy-MM", CultureInfo.InvariantCulture);
 }

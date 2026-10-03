@@ -1,4 +1,5 @@
 using CommunityToolkit.Mvvm.ComponentModel;
+using Sortify.Services;
 
 namespace Sortify.ViewModels;
 
@@ -51,8 +52,8 @@ public sealed partial class DateRangeOption : ObservableObject
         var options = new List<DateRangeOption>
         {
             new("All time", null, null, "Every play in the export"),
-            new($"Last {RecentDays} days", recentStart, end, $"{recentStart:yyyy-MM-dd} to {end:yyyy-MM-dd}, the end of your history"),
-            new($"Last {RecentMonths} months", yearStart, end, $"{yearStart:yyyy-MM-dd} to {end:yyyy-MM-dd}, the end of your history"),
+            new($"Last {RecentDays} days", recentStart, end, $"{TimeFormat.Day(recentStart)} to {TimeFormat.Day(end)}, the end of your history"),
+            new($"Last {RecentMonths} months", yearStart, end, $"{TimeFormat.Day(yearStart)} to {TimeFormat.Day(end)}, the end of your history"),
         };
         foreach (int year in years.Distinct().OrderBy(y => y))
             options.Add(new(year.ToString(), new DateTime(year, 1, 1), new DateTime(year, 12, 31), $"All of {year}"));

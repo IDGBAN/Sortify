@@ -1,3 +1,4 @@
+using System.Globalization;
 using Sortify.Models;
 
 namespace Sortify.Services;
@@ -58,8 +59,12 @@ public static class YearReviewBuilder
             BiggestMonthMs = biggestMonth?.TotalMsPlayed ?? 0,
             BiggestDay = r.BiggestDay,
             BiggestDayMs = r.BiggestDayMs,
-            BiggestMonthText = biggestMonth is { } m ? $"{m.Month:MMMM}, {Hours(m.TotalMsPlayed).Replace(" h", " hours")}" : string.Empty,
-            BiggestDayText = r.BiggestDay is { } d ? $"{d:MMMM d}, {TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))}" : string.Empty,
+            BiggestMonthText = biggestMonth is { } m
+                ? $"{m.Month.ToString("MMMM", CultureInfo.InvariantCulture)}, {Hours(m.TotalMsPlayed).Replace(" h", " hours")}"
+                : string.Empty,
+            BiggestDayText = r.BiggestDay is { } d
+                ? $"{d.ToString("MMMM d", CultureInfo.InvariantCulture)}, {TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))}"
+                : string.Empty,
             FilterNote = filterNote,
         };
     }

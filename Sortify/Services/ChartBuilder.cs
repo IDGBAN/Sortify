@@ -400,7 +400,7 @@ public static class ChartBuilder
     {
         if (value < DateTime.MinValue.Ticks || value > DateTime.MaxValue.Ticks)
             return string.Empty;
-        return new DateTime((long)value).ToString("yyyy-MM");
+        return TimeFormat.Month(new DateTime((long)value));
     }
 
     // ---- Heatmap ---------------------------------------------------------------------------
