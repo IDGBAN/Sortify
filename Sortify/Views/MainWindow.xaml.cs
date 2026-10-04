@@ -294,11 +294,20 @@ public partial class MainWindow : ThemedWindow
     /// <summary>Below this width the Compare tab's paired tables go one above the other.</summary>
     private const double CompareSideBySideMinWidth = 960;
 
+    /// <summary>Width of the taste overlap card beside the headline figures.</summary>
+    private const double OverlapCardWidth = 300;
+
     private void OnCompareSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        int columns = e.NewSize.Width < CompareSideBySideMinWidth ? 1 : 2;
-        CompareRankings.Columns = columns;
-        CompareNewGone.Columns = columns;
+        bool narrow = e.NewSize.Width < CompareSideBySideMinWidth;
+        CompareRankings.Columns = narrow ? 1 : 2;
+        CompareNewGone.Columns = narrow ? 1 : 2;
+        PeopleRankings.Columns = narrow ? 1 : 2;
+        PeopleLists.Columns = narrow ? 1 : 3;
+
+        // The overlap sits beside the headline figures, or above them when there's no room.
+        DockPanel.SetDock(OverlapCard, narrow ? Dock.Top : Dock.Left);
+        OverlapCard.Width = narrow ? double.NaN : OverlapCardWidth;
     }
 
     // ---- Tabs --------------------------------------------------------------------------------

@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using Sortify.Models;
 using Sortify.Services;
 
@@ -8,18 +10,26 @@ namespace Sortify.ViewModels;
 
 /// <summary>
 /// The Compare tab: two date ranges of the loaded history side by side, under the sidebar's
-/// other filters. Only works anything out while the tab is on screen; changes made while it
-/// is hidden are picked up when it is shown again.
+/// other filters, or the loaded history next to someone else's. Only works anything out while
+/// the tab is on screen; changes made while it is hidden are picked up when it is shown again.
 /// </summary>
 public sealed partial class CompareViewModel : ObservableObject
 {
-    /// <summary>What a comparison runs over: the plays, the sidebar filters and the session gap.</summary>
-    public readonly record struct Source(IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap);
+    /// <summary>
+    /// What a comparison runs over: the plays, the sidebar filters, the session gap, and the
+    /// files the plays were read from, so the same export can't be opened as someone else's.
+    /// </summary>
+    public readonly record struct Source(
+        IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap, IReadOnlyList<string>? Files = null);
 
     private readonly Func<Source?> _source;
     private CancellationTokenSource? _cts;
     private bool _stale = true;
     private bool _settingPeriods;
+
+    /// <summary>Someone else's plays, held for the session and never cached or saved.</summary>
+    private List<PlayRecord>? _other;
+    private CancellationTokenSource? _otherCts;
 
     public CompareViewModel(Func<Source?> source) => _source = source;
 
@@ -42,8 +52,56 @@ public sealed partial class CompareViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<ComparisonRow> _newInB = Array.Empty<ComparisonRow>();
     [ObservableProperty] private IReadOnlyList<ComparisonRow> _goneSinceA = Array.Empty<ComparisonRow>();
 
+    /// <summary>True when the tab sets the loaded history next to someone else's instead of comparing two periods.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPeriodsMode))]
+    private bool _isPeopleMode;
+
+    public bool IsPeriodsMode
+    {
+        get => !IsPeopleMode;
+        set => IsPeopleMode = !value;
+    }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOpenOther))]
+    private bool _hasOther;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOpenOther))]
+    [NotifyCanExecuteChangedFor(nameof(CancelOtherCommand))]
+    private bool _isLoadingOther;
+
+    /// <summary>True while there is no other history, open or on its way, so the buttons to open one show.</summary>
+    public bool CanOpenOther => !HasOther && !IsLoadingOther;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsOtherProgressUnknown))]
+    private double _otherProgress;
+
+    /// <summary>True until a file has been read: one big file gives no progress until it is done.</summary>
+    public bool IsOtherProgressUnknown => OtherProgress <= 0;
+
+    [ObservableProperty] private string _otherStatus = string.Empty;
+
+    /// <summary>"Their history: 12,345 plays from 2019-03-02 to 2024-06-01, read from my_spotify_data.zip."</summary>
+    [ObservableProperty] private string _otherSummary = string.Empty;
+
+    [ObservableProperty] private string _overlapText = "-";
+    [ObservableProperty] private string _inCommonText = string.Empty;
+    [ObservableProperty] private IReadOnlyList<ComparisonRow> _sharedArtists = Array.Empty<ComparisonRow>();
+
     /// <summary>Set by the window as the Compare tab comes and goes.</summary>
     [ObservableProperty] private bool _isVisible;
+
+    partial void OnIsPeopleModeChanged(bool value)
+    {
+        // A comparison still running for the other mode would land in this one's tables.
+        _cts?.Cancel();
+        Message = string.Empty;
+        ClearResults();
+        Invalidate();
+    }
 
     partial void OnIsVisibleChanged(bool value)
     {
@@ -178,7 +236,15 @@ public sealed partial class CompareViewModel : ObservableObject
         if (_source() is not { } source)
             return;
 
-        if (StartA > EndA || StartB > EndB)
+        var other = _other;
+        if (IsPeopleMode && other is null)
+        {
+            ClearResults();
+            _stale = false;
+            return;
+        }
+
+        if (!IsPeopleMode && (StartA > EndA || StartB > EndB))
         {
             Message = "A period starts after it ends. Swap its dates, or clear one of them.";
             ClearResults();
@@ -194,8 +260,11 @@ public sealed partial class CompareViewModel : ObservableObject
         IsWorking = true;
         try
         {
-            var result = await PeriodComparison.CompareAsync(source.Records, source.Filter,
-                StartA, EndA, StartB, EndB, source.SessionGap, token);
+            bool people = other is not null && IsPeopleMode;
+            var result = people
+                ? await PeriodComparison.ComparePeopleAsync(source.Records, other!, source.Filter, source.SessionGap, token)
+                : await PeriodComparison.CompareAsync(source.Records, source.Filter,
+                    StartA, EndA, StartB, EndB, source.SessionGap, token);
             if (token.IsCancellationRequested)
                 return;
 
@@ -204,11 +273,22 @@ public sealed partial class CompareViewModel : ObservableObject
             Tracks = result.Tracks;
             NewInB = result.NewInB;
             GoneSinceA = result.GoneSinceA;
-            Message = (result.A.TotalPlays, result.B.TotalPlays) switch
+            SharedArtists = result.SharedArtists;
+            OverlapText = Percent(result.OverlapPercent);
+            InCommonText = result.ArtistsInCommon switch
             {
-                (0, 0) => "Neither period has any plays under the current filters.",
-                (0, _) => "Period A has no plays under the current filters, so everything in B shows as new.",
-                (_, 0) => "Period B has no plays under the current filters, so everything in A shows as gone.",
+                0 => "No artists in common",
+                1 => "1 artist in common",
+                var n => $"{n:N0} artists in common",
+            };
+            Message = (people, result.A.TotalPlays, result.B.TotalPlays) switch
+            {
+                (true, 0, 0) => "Neither history has any plays under the current filters.",
+                (true, 0, _) => "Their history has no plays under the current filters. Dates set in the sidebar may not cover any of their listening.",
+                (true, _, 0) => "Your history has no plays under the current filters.",
+                (false, 0, 0) => "Neither period has any plays under the current filters.",
+                (false, 0, _) => "Period A has no plays under the current filters, so everything in B shows as new.",
+                (false, _, 0) => "Period B has no plays under the current filters, so everything in A shows as gone.",
                 _ => string.Empty,
             };
             _stale = false;
@@ -232,5 +312,148 @@ public sealed partial class CompareViewModel : ObservableObject
         Tracks = Array.Empty<ComparisonRow>();
         NewInB = Array.Empty<ComparisonRow>();
         GoneSinceA = Array.Empty<ComparisonRow>();
+        SharedArtists = Array.Empty<ComparisonRow>();
+        OverlapText = "-";
+        InCommonText = string.Empty;
+    }
+
+    private static string Percent(double value) => value switch
+    {
+        0 => "0%",
+        < 1 => "<1%",
+        _ => $"{value:0}%",
+    };
+
+    // ---- Someone else's history --------------------------------------------------------------
+
+    [RelayCommand]
+    private async Task OpenOtherFilesAsync()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "Select their Spotify history: the export ZIP or its JSON files",
+            Filter = "Spotify history (*.json, *.zip)|*.json;*.zip|JSON files (*.json)|*.json|" +
+                     "ZIP files (*.zip)|*.zip|All files (*.*)|*.*",
+            Multiselect = true,
+        };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        var picked = dialog.FileNames;
+        IReadOnlyList<string> FindFiles() => picked
+            .SelectMany(f => ArchivePath.IsArchive(f) ? HistoryParser.FindHistoryFiles(f) : new[] { f })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        await LoadOtherAsync(FindFiles, picked.Length == 1 ? Path.GetFileName(picked[0]) : $"{picked.Length} files");
+    }
+
+    [RelayCommand]
+    private async Task OpenOtherFolderAsync()
+    {
+        var dialog = new OpenFolderDialog { Title = "Select the folder that holds their Spotify streaming history" };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        string folder = dialog.FolderName;
+        string name = Path.GetFileName(folder.TrimEnd('\\', '/'));
+        await LoadOtherAsync(() => HistoryParser.FindHistoryFiles(folder), name.Length > 0 ? name : folder);
+    }
+
+    /// <summary>
+    /// Reads someone else's export for the comparison, from the files <paramref name="findFiles"/>
+    /// turns up. <paramref name="name"/> says where it came from. It stays in memory only: the
+    /// record cache holds a single history, and theirs would push out the one loaded.
+    /// </summary>
+    public async Task LoadOtherAsync(Func<IReadOnlyList<string>> findFiles, string name)
+    {
+        if (IsLoadingOther)
+            return;
+
+        _otherCts?.Dispose();
+        _otherCts = new CancellationTokenSource();
+        var token = _otherCts.Token;
+
+        IsLoadingOther = true;
+        Message = string.Empty;
+        OtherProgress = 0;
+        OtherStatus = "Looking for their Spotify history...";
+        try
+        {
+            var files = await Task.Run(findFiles, token);
+            if (files.Count == 0)
+            {
+                Message = "No Spotify history was found there. Pick the ZIP Spotify sent them, the folder it unpacks to, or its JSON files.";
+                return;
+            }
+            if (_source()?.Files is { Count: > 0 } yours && yours.SequenceEqual(files, StringComparer.OrdinalIgnoreCase))
+            {
+                Message = "That's the export already open as yours. Pick the other person's.";
+                return;
+            }
+
+            var progress = new Progress<ParseProgress>(p =>
+            {
+                OtherProgress = p.Percent;
+                OtherStatus = p.Message;
+            });
+            var parsed = await new HistoryParser().ParseAsync(files, progress, token);
+            token.ThrowIfCancellationRequested();
+            if (parsed.Records.Count == 0)
+            {
+                Message = parsed.Warnings.Count > 0
+                    ? $"No listening data was found in their files. {parsed.Warnings[0]}"
+                    : "No listening data was found in their files.";
+                return;
+            }
+
+            _other = parsed.Records;
+            OtherSummary = Summarise(parsed.Records, name);
+            HasOther = true;
+            Invalidate();
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled from the button; whatever was open before stays open.
+        }
+        finally
+        {
+            IsLoadingOther = false;
+            OtherProgress = 0;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsLoadingOther))]
+    private void CancelOther() => _otherCts?.Cancel();
+
+    /// <summary>Forgets the other history, which frees its memory.</summary>
+    [RelayCommand]
+    private void CloseOther()
+    {
+        _otherCts?.Cancel();
+        _cts?.Cancel();
+        _other = null;
+        HasOther = false;
+        OtherSummary = string.Empty;
+        Message = string.Empty;
+        ClearResults();
+    }
+
+    private static string Summarise(List<PlayRecord> records, string name)
+    {
+        DateTime? first = null, last = null;
+        foreach (var record in records)
+        {
+            if (record.Timestamp == DateTime.MinValue)
+                continue;
+            if (first is null || record.Timestamp < first)
+                first = record.Timestamp;
+            if (last is null || record.Timestamp > last)
+                last = record.Timestamp;
+        }
+
+        string plays = $"{records.Count:N0} play{(records.Count == 1 ? "" : "s")}";
+        return first is { } f && last is { } l
+            ? $"Their history: {plays} from {TimeFormat.Day(f)} to {TimeFormat.Day(l)}, read from {name}."
+            : $"Their history: {plays}, read from {name}.";
     }
 }

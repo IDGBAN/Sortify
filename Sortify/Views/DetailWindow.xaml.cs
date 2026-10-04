@@ -273,7 +273,7 @@ public partial class DetailWindow : ThemedWindow
         PlayRow p => p.Record.Kind == ContentKind.Music
             ? (DetailScope.Track, p.Track, p.Artist)
             : (DetailScope.Episode, p.Record.EpisodeName, p.Record.ShowName),
-        ComparisonRow c => TargetFor(c.Item),
+        ComparisonRow { Item: { } row } => TargetFor(row),
         _ => null,
     };
 

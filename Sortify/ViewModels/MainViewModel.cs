@@ -247,7 +247,7 @@ public sealed partial class MainViewModel : ObservableObject
             ? new HistoryViewModel.Source(_rawRecords, _resultOptions ?? Filters.ToOptions())
             : null);
         Compare = new CompareViewModel(() => HasData
-            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap)
+            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap, _loadedFiles)
             : null);
         SidebarVisible = _settings.SidebarVisible;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
