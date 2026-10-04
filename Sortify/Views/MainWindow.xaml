@@ -1,4 +1,4 @@
-﻿<Window x:Class="Sortify.Views.MainWindow"
+﻿<views:ThemedWindow x:Class="Sortify.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,6 +9,7 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         mc:Ignorable="d"
         Title="Sortify" Height="900" Width="1500" MinHeight="620" MinWidth="900"
+        TitleBarBackground="{DynamicResource PanelBrush}"
         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterScreen" Opacity="0"
         AllowDrop="True" Drop="OnFileDrop" DragOver="OnFileDragOver">
@@ -1711,4 +1712,4 @@
             </Border>
         </Grid>
     </Grid>
-</Window>
+</views:ThemedWindow>

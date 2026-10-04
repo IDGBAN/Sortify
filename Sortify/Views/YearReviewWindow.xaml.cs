@@ -8,7 +8,7 @@ using Sortify.Services;
 namespace Sortify.Views;
 
 /// <summary>Previews a year-in-review card and saves or copies it as an image.</summary>
-public partial class YearReviewWindow : Window
+public partial class YearReviewWindow : ThemedWindow
 {
     private readonly YearReview _review;
     private readonly YearReviewCard? _card;

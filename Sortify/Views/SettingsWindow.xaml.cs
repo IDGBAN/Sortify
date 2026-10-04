@@ -12,7 +12,7 @@ namespace Sortify.Views;
 /// every setting here is reversible and seeing the theme change as you pick it is the
 /// point.
 /// </summary>
-public partial class SettingsWindow : Window
+public partial class SettingsWindow : ThemedWindow
 {
     private readonly AppSettings _settings;
 

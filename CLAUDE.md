@@ -83,7 +83,10 @@ Albums, Years, Podcasts, Trends, Insights) bound to `MainViewModel`. `Views/Filt
 + `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises `FiltersChanged` on any
 change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before re-running analysis.
 `Views/DetailWindow.xaml(.cs)` is the per-row drill-down. `Views/SettingsWindow.xaml(.cs)` covers
-theme/animation/session-gap/cache-clearing preferences. Grid item sources (`Tracks`, `Artists`,
+theme/animation/session-gap/cache-clearing preferences. Every window derives from
+`Views/ThemedWindow.cs`, which swaps the native title bar for a palette-coloured one via `WindowChrome`
+(template and caption-button styles at the end of `Themes/Controls.xaml`); a new window should derive
+from it too, or it gets the white Windows title bar. Grid item sources (`Tracks`, `Artists`,
 etc.) are swapped wholesale after each analysis pass rather than mutated via
 `ObservableCollection`, since incremental updates to tens of thousands of rows would raise a
 `CollectionChanged` per row and freeze the UI. Large horizontal bar charts (tracks/artists/albums)

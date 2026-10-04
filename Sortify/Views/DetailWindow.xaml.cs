@@ -18,7 +18,7 @@ namespace Sortify.Views;
 /// Drill-down view for a single artist, track, album or year. Populated directly rather
 /// than through a view model: it is read-only and lives only as long as the dialog.
 /// </summary>
-public partial class DetailWindow : Window
+public partial class DetailWindow : ThemedWindow
 {
     private readonly DetailResult _detail;
 

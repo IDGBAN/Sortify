@@ -19,7 +19,7 @@ using Sortify.ViewModels;
 
 namespace Sortify.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow : ThemedWindow
 {
     // Preload the next page well before the user reaches the very bottom: trigger once
     // they're within this many viewport-heights of the end (with a small px floor for
