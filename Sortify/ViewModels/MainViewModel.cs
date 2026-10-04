@@ -186,9 +186,16 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private ChartData _heat = ChartData.Empty;
     [ObservableProperty] private ChartData _overTime = ChartData.Empty;
     [ObservableProperty] private ChartData _byYear = ChartData.Empty;
+    [ObservableProperty] private ChartData _rankChart = ChartData.Empty;
+    [ObservableProperty] private bool _hasRankHistory;
     [ObservableProperty] private ChartData _discovery = ChartData.Empty;
     [ObservableProperty] private ChartData _showsChart = ChartData.Empty;
     [ObservableProperty] private ChartData _episodesChart = ChartData.Empty;
+
+    /// <summary>What the rank history follows, worded for its card.</summary>
+    public string RankHint { get; } =
+        $"Where your top {AnalysisEngine.RankHistoryArtists} artists ranked each year by listening time. " +
+        $"A gap means they were outside the top {AnalysisEngine.RankHistoryFloor} that year.";
 
     [ObservableProperty] private ISeries[] _artistShareSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _reasonEndSeries = Array.Empty<ISeries>();
@@ -1438,6 +1445,8 @@ public sealed partial class MainViewModel : ObservableObject
         Heat = ChartBuilder.DowHourHeat(_result, _settings.FirstDayOfWeek);
         OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity, _settings.FirstDayOfWeek);
         ByYear = ChartBuilder.HoursPerYear(_result);
+        RankChart = ChartBuilder.RankHistory(_result);
+        HasRankHistory = _result.RankHistory.Count > 0;
         Discovery = ChartBuilder.NewArtistsByMonth(_result);
         Skipped = ChartBuilder.TopSkippedTracks(_result);
         ArtistShareSeries = ChartBuilder.ArtistShare(_result);

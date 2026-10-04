@@ -98,6 +98,12 @@ public sealed record Milestone(string Label, DateTime Date, TrackStat Track);
 /// <summary>A track's busiest stretch: how many times it played within the window, between its first and last play there.</summary>
 public sealed record RepeatStat(TrackStat Track, int Plays, DateTime From, DateTime To);
 
+/// <summary>
+/// An artist's rank by listening time in each year of <see cref="AnalysisResult.Years"/>, in
+/// the same order. Null for a year they were outside the ranks charted.
+/// </summary>
+public sealed record ArtistRanks(ArtistStat Artist, IReadOnlyList<int?> Ranks);
+
 /// <summary>One calendar month: how much was played, and the artist and track that led it.</summary>
 public sealed class MonthStat
 {
@@ -201,6 +207,12 @@ public sealed class AnalysisResult
 
     /// <summary>Per-calendar-year rollups, oldest year first.</summary>
     public IReadOnlyList<YearStat> Years { get; init; } = Array.Empty<YearStat>();
+
+    /// <summary>
+    /// How the top artists overall ranked in each year, top artist first. Empty with fewer than
+    /// two years. See the RankHistory* constants on AnalysisEngine.
+    /// </summary>
+    public IReadOnlyList<ArtistRanks> RankHistory { get; init; } = Array.Empty<ArtistRanks>();
 
     /// <summary>Per-calendar-month rollups with each month's top artist and track, oldest first.</summary>
     public IReadOnlyList<MonthStat> Months { get; init; } = Array.Empty<MonthStat>();

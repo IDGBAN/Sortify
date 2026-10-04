@@ -520,6 +520,21 @@ public partial class MainWindow : ThemedWindow
         });
     }
 
+    /// <summary>A point on the rank history opens the artist whose line it is on.</summary>
+    private void OnRankPointClick(IChartView chart, IEnumerable<ChartPoint> points)
+    {
+        var point = points.FirstOrDefault(p => !p.IsEmpty);
+        if (point is null || chart is not FrameworkElement { Tag: ChartData data })
+            return;
+
+        int index = Array.IndexOf(data.Series, point.Context.Series);
+        if (index < 0 || index >= data.Items.Count)
+            return;
+
+        var item = data.Items[index];
+        Dispatcher.BeginInvoke(async () => await ShowDetailAsync(item));
+    }
+
     // ---- Infinite scroll -------------------------------------------------------------------------
 
     private void OnTracksScrollChanged(object sender, ScrollChangedEventArgs e)

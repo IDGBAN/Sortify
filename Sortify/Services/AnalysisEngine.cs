@@ -40,6 +40,12 @@ public static class AnalysisEngine
     /// <summary>How many tracks the On Repeat list shows.</summary>
     public const int RepeatRows = 25;
 
+    /// <summary>How many of the top artists overall the rank history follows. Past ten the lines tangle.</summary>
+    public const int RankHistoryArtists = 8;
+
+    /// <summary>The lowest rank the rank history charts; an artist below it leaves a gap for that year.</summary>
+    public const int RankHistoryFloor = 20;
+
     /// <summary>Play counts worth marking: the play that reached each one becomes a milestone.</summary>
     public static readonly int[] MilestonePlayCounts = { 1_000, 10_000, 50_000, 100_000, 250_000, 500_000 };
 
@@ -360,6 +366,7 @@ public static class AnalysisEngine
             .OrderBy(kv => kv.Key)
             .Select(kv => BuildMonthStat(kv.Key, kv.Value))
             .ToList();
+        var rankHistory = ComputeRankHistory(years, yearList, artistList);
 
         // Measured from the last play in the results rather than from today: an export is a
         // snapshot, and a filtered one can end years ago.
@@ -386,6 +393,7 @@ public static class AnalysisEngine
             TracksByPlayCount = tracksByCount,
             AlbumsByPlayCount = albumsByCount,
             Years = yearList,
+            RankHistory = rankHistory,
             Months = monthList,
             Milestones = milestones,
             OnRepeat = onRepeat,
@@ -587,6 +595,35 @@ public static class AnalysisEngine
             }
             return top;
         }
+    }
+
+    /// <summary>
+    /// Where each of the top artists overall ranked by listening time in every year, down to
+    /// <see cref="RankHistoryFloor"/>. Needs two years to say anything.
+    /// </summary>
+    private static List<ArtistRanks> ComputeRankHistory(
+        Dictionary<int, PeriodAccumulator> years, IReadOnlyList<YearStat> yearList, IReadOnlyList<ArtistStat> artists)
+    {
+        if (yearList.Count < 2)
+            return new List<ArtistRanks>();
+
+        var followed = artists.Take(RankHistoryArtists).ToList();
+        var ranks = new Dictionary<ArtistStat, int?[]>(ReferenceEqualityComparer.Instance);
+        foreach (var artist in followed)
+            ranks[artist] = new int?[yearList.Count];
+
+        for (int y = 0; y < yearList.Count; y++)
+        {
+            int rank = 0;
+            foreach (var (artist, _) in years[yearList[y].Year].ArtistMs.OrderByDescending(kv => kv.Value).Take(RankHistoryFloor))
+            {
+                rank++;
+                if (ranks.TryGetValue(artist, out var row))
+                    row[y] = rank;
+            }
+        }
+
+        return followed.Select(a => new ArtistRanks(a, ranks[a])).ToList();
     }
 
     private static YearStat BuildYearStat(int year, PeriodAccumulator acc) => new()

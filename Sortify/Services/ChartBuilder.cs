@@ -284,6 +284,63 @@ public static class ChartBuilder
         };
     }
 
+    /// <summary>
+    /// The top artists' rank in each year, one line each, #1 at the top. A year an artist sat
+    /// below the floor is a gap in their line. The chart's items are the artists in series
+    /// order, so a click on a point can open its artist.
+    /// </summary>
+    public static ChartData RankHistory(AnalysisResult r)
+    {
+        var series = r.RankHistory
+            .Select((a, i) => (ISeries)new LineSeries<double?>
+            {
+                Values = a.Ranks.Select(rank => (double?)rank).ToArray(),
+                Name = ShortLabel(a.Artist.Artist),
+                Fill = null,
+                Stroke = new SolidColorPaint(Category(i)) { StrokeThickness = 3 },
+                GeometrySize = 10,
+                GeometryFill = new SolidColorPaint(Category(i)),
+                GeometryStroke = new SolidColorPaint(Category(i)) { StrokeThickness = 2 },
+                LineSmoothness = 0,
+                YToolTipLabelFormatter = p => $"#{p.Coordinate.PrimaryValue:0}",
+            })
+            .ToArray();
+
+        int lowest = r.RankHistory.SelectMany(a => a.Ranks).Max() ?? 1;
+        return new ChartData
+        {
+            Series = series,
+            XAxes = new[]
+            {
+                new Axis
+                {
+                    Labels = r.Years.Select(y => y.Year.ToString()).ToArray(),
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                    MinStep = 1,
+                },
+            },
+            YAxes = new[]
+            {
+                new Axis
+                {
+                    Name = "Rank",
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                    IsInverted = true,
+                    MinLimit = 0.5,
+                    MaxLimit = lowest + 0.5,
+                    MinStep = 1,
+                    ForceStepToMin = true,
+                    Labeler = value => value >= 1 ? $"#{value:0}" : string.Empty,
+                },
+            },
+            Items = r.RankHistory.Select(a => a.Artist).ToList(),
+        };
+    }
+
     private static ChartData Columns(
         double[] values, string[] labels, string unit, string xName, SKColor color, IReadOnlyList<object>? items = null)
     {

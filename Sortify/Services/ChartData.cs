@@ -16,7 +16,8 @@ public sealed class ChartData
 
     /// <summary>
     /// The row behind each bar, in the same order as the series values, so a clicked bar can
-    /// be traced back to what it stands for. Empty for charts whose points aren't rows.
+    /// be traced back to what it stands for. A chart with one line per row, like the rank
+    /// history, lists them in series order instead. Empty for charts whose points aren't rows.
     /// </summary>
     public IReadOnlyList<object> Items { get; init; } = Array.Empty<object>();
 

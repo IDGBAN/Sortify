@@ -831,90 +831,111 @@
 
                     <!-- =============================== YEARS ============================= -->
                     <TabItem Header="Years">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="350" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <Border Grid.Row="0" Style="{StaticResource ChartCard}">
-                                <DockPanel>
-                                    <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
-                                        <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"
-                                                   HorizontalAlignment="Left">
-                                            <Run Text="Listening Time per Year" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
-                                                                                       FontSize="11" Foreground="{DynamicResource MutedBrush}" />
-                                        </TextBlock>
-                                        <Border HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
-                                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
-                                            <StackPanel Orientation="Horizontal">
-                                                <RadioButton Content="Total" GroupName="YearsView" IsChecked="True"
-                                                             Style="{StaticResource SegmentToggle}" />
-                                                <RadioButton Content="By year found" GroupName="YearsView"
-                                                             IsChecked="{Binding ShowCohorts}"
-                                                             ToolTip="Split each year by when you first heard its music"
-                                                             Style="{StaticResource SegmentToggle}" />
-                                            </StackPanel>
-                                        </Border>
-                                    </Grid>
-                                    <TextBlock DockPanel.Dock="Top" Text="{Binding CohortText}" FontSize="12" Margin="0,0,0,6"
-                                               TextWrapping="Wrap" Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
-                                    <Grid>
-                                        <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
-                                                            Background="Transparent"
-                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                            XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}"
-                                                            Visibility="{Binding ShowCohorts, Converter={StaticResource NotBoolToVis}}" />
-                                        <lvc:CartesianChart Series="{Binding CohortChart.Series}" Tag="{Binding CohortChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
-                                                            Background="Transparent"
-                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                            XAxes="{Binding CohortChart.XAxes}" YAxes="{Binding CohortChart.YAxes}"
-                                                            LegendPosition="Right" LegendTextSize="12" TooltipPosition="Top"
-                                                            Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
-                                    </Grid>
-                                </DockPanel>
-                            </Border>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <Border Style="{StaticResource ChartCard}" Height="350">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                                            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left">
+                                                <Run Text="Listening Time per Year" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
+                                                                                           FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Content="Total" GroupName="YearsView" IsChecked="True"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                    <RadioButton Content="By year found" GroupName="YearsView"
+                                                                 IsChecked="{Binding ShowCohorts}"
+                                                                 ToolTip="Split each year by when you first heard its music"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding CohortText}" FontSize="12" Margin="0,0,0,6"
+                                                   TextWrapping="Wrap" Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
+                                        <Grid>
+                                            <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
+                                                                Background="Transparent"
+                                                                AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                                XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}"
+                                                                Visibility="{Binding ShowCohorts, Converter={StaticResource NotBoolToVis}}" />
+                                            <lvc:CartesianChart Series="{Binding CohortChart.Series}" Tag="{Binding CohortChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
+                                                                Background="Transparent"
+                                                                AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                                XAxes="{Binding CohortChart.XAxes}" YAxes="{Binding CohortChart.YAxes}"
+                                                                LegendPosition="Right" LegendTextSize="12" TooltipPosition="Top"
+                                                                Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
 
-                            <Border Grid.Row="1" Style="{StaticResource Card}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
-                                               Foreground="{DynamicResource MutedBrush}"
-                                               Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
-                                    <Grid>
-                                    <DataGrid x:Name="YearsGrid" ItemsSource="{Binding Years}"
-                                              AutomationProperties.Name="Years"
-                                              PreviewMouseRightButtonDown="OnGridRightClick"
-                                              MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
-                                        <DataGrid.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Open this year's breakdown" Click="OnOpenYearDetail"
-                                                          InputGestureText="Enter" />
-                                                <MenuItem Header="Filter everything to this year" Click="OnFilterToYear" />
-                                                <Separator />
-                                                <MenuItem Header="Make a year-in-review image..." Click="OnYearReview" />
-                                            </ContextMenu>
-                                        </DataGrid.ContextMenu>
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="Auto" />
-                                            <DataGridTextColumn Header="Time"
-                                                                Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N1}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
-                                            <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists}" Width="Auto" />
-                                            <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks}" Width="Auto" />
-                                            <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
-                                            <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                    <TextBlock Style="{StaticResource EmptyRows}"
-                                               Visibility="{Binding Years, Converter={StaticResource EmptyToVis}}"
-                                               Text="No dated plays match the current filters." />
-                                    </Grid>
-                                </DockPanel>
-                            </Border>
-                        </Grid>
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
+                                                   Foreground="{DynamicResource MutedBrush}"
+                                                   Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
+                                        <Grid>
+                                        <DataGrid x:Name="YearsGrid" ItemsSource="{Binding Years}"
+                                                  AutomationProperties.Name="Years" MinHeight="80"
+                                                  PreviewMouseWheel="OnPassWheelToPage"
+                                                  PreviewMouseRightButtonDown="OnGridRightClick"
+                                                  MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                            <DataGrid.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Open this year's breakdown" Click="OnOpenYearDetail"
+                                                              InputGestureText="Enter" />
+                                                    <MenuItem Header="Filter everything to this year" Click="OnFilterToYear" />
+                                                    <Separator />
+                                                    <MenuItem Header="Make a year-in-review image..." Click="OnYearReview" />
+                                                </ContextMenu>
+                                            </DataGrid.ContextMenu>
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="Auto" />
+                                                <DataGridTextColumn Header="Time"
+                                                                    Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
+                                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N1}"
+                                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists}" Width="Auto" />
+                                                <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks}" Width="Auto" />
+                                                <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
+                                                <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock Style="{StaticResource EmptyRows}"
+                                                   Visibility="{Binding Years, Converter={StaticResource EmptyToVis}}"
+                                                   Text="No dated plays match the current filters." />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource ChartCard}" Height="430">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,2">
+                                            <Run Text="Rank History" /><Run Text="   Click a point for the artist's breakdown" FontWeight="Normal"
+                                                                           FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8" Text="{Binding RankHint}" />
+                                        <Grid>
+                                            <lvc:CartesianChart Series="{Binding RankChart.Series}" Tag="{Binding RankChart}" Cursor="Hand"
+                                                                DataPointerDown="OnRankPointClick" FindingStrategy="CompareAllTakeClosest"
+                                                                Background="Transparent"
+                                                                AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                                XAxes="{Binding RankChart.XAxes}" YAxes="{Binding RankChart.YAxes}"
+                                                                LegendPosition="Right" LegendTextSize="12" TooltipPosition="Top"
+                                                                Visibility="{Binding HasRankHistory, Converter={StaticResource BoolToVis}}" />
+                                            <TextBlock Style="{StaticResource EmptyRows}" Margin="0,40,0,0"
+                                                       Text="Rank history needs at least two years of listening under the current filters."
+                                                       Visibility="{Binding HasRankHistory, Converter={StaticResource NotBoolToVis}}" />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </TabItem>
 
                     <!-- ============================= PODCASTS ============================ -->
