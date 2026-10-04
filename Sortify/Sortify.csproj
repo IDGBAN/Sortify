@@ -8,7 +8,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>Sortify</AssemblyName>
     <RootNamespace>Sortify</RootNamespace>
-    <Version>3.3.0</Version>
+    <Version>4.0.0</Version>
     <Authors>Parsa Rasouli Baghi</Authors>
     <Product>Sortify</Product>
     <ApplicationManifest>app.manifest</ApplicationManifest>
