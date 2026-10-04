@@ -96,7 +96,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The filters currently narrowing the results, each removable on its own.</summary>
     public ObservableCollection<FilterChip> ActiveFilters { get; } = new();
 
-    [ObservableProperty] private bool _hasActiveFilters;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowFilterBar))]
+    private bool _hasActiveFilters;
+
+    /// <summary>
+    /// The row above the tabs shows the active filters, and stays up after they are all cleared
+    /// while there is a change to undo, so a stray "Clear all" can be taken back.
+    /// </summary>
+    public bool ShowFilterBar => HasActiveFilters || Filters.CanUndo || Filters.CanRedo;
 
     /// <summary>Folders opened previously, newest first; bound to the Open Recent menu.</summary>
     public ObservableCollection<string> RecentFolders { get; } = new();
@@ -236,6 +244,11 @@ public sealed partial class MainViewModel : ObservableObject
             _settings.Save();
         };
         Filters.Notice += (_, message) => SetStatus(message);
+        Filters.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(FilterViewModel.CanUndo) or nameof(FilterViewModel.CanRedo))
+                OnPropertyChanged(nameof(ShowFilterBar));
+        };
 
         // Charts bake their colours into Skia paints, so they have to be rebuilt rather
         // than repainted when the palette changes.
@@ -740,6 +753,8 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task RecomputeAsync()
     {
         if (!HasData) return;
+
+        Filters.CommitHistory();
 
         // Cancel the previous pass but keep its source alive: the running task may still be
         // reading the token, and disposing it out from under that is a race.

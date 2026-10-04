@@ -351,6 +351,78 @@ public sealed partial class FilterViewModel : ObservableObject
 
     private bool CanDeletePreset() => SelectedPreset is not null;
 
+    // ---- Undo and redo -----------------------------------------------------------------------
+
+    /// <summary>How many earlier filter states Back can step through.</summary>
+    public const int MaxHistory = 50;
+
+    private readonly List<FilterPreset> _undo = new();
+    private readonly List<FilterPreset> _redo = new();
+
+    /// <summary>The filters as of the last recorded step; null until the first one.</summary>
+    private FilterPreset? _committed;
+
+    public bool CanUndo => _undo.Count > 0;
+    public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>
+    /// Records the filters as they stand as one step of history, when they differ from the last
+    /// step. The owner calls this each time the results are worked out, so a burst of edits
+    /// (typing a search, dragging a slider) lands as a single step.
+    /// </summary>
+    public void CommitHistory()
+    {
+        var now = Snapshot();
+        if (_committed is not null && now.SameFiltersAs(_committed))
+            return;
+
+        if (_committed is not null)
+        {
+            _undo.Add(_committed);
+            if (_undo.Count > MaxHistory)
+                _undo.RemoveAt(0);
+            _redo.Clear();
+        }
+        _committed = now;
+        RefreshHistory();
+    }
+
+    /// <summary>Puts back the filters from before the last change.</summary>
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        // A change still waiting out the debounce is a step of its own, so Back undoes that.
+        CommitHistory();
+        Step(_undo, _redo);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo() => Step(_redo, _undo);
+
+    private void Step(List<FilterPreset> from, List<FilterPreset> to)
+    {
+        if (from.Count == 0 || _committed is null)
+            return;
+
+        var target = from[^1];
+        from.RemoveAt(from.Count - 1);
+        to.Add(_committed);
+        _committed = target;
+        RefreshHistory();
+
+        Apply(target);
+        // Show the saved set these filters came from, if they match one.
+        SelectQuietly(Presets.FirstOrDefault(p => p.SameFiltersAs(target)));
+    }
+
+    private void RefreshHistory()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
     /// <summary>Builds a fresh <see cref="FilterOptions"/> snapshot from current values.</summary>
     public FilterOptions ToOptions()
     {

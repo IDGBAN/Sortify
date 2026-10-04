@@ -172,6 +172,22 @@ public partial class MainWindow : ThemedWindow
         base.OnPreviewKeyDown(e);
     }
 
+    /// <summary>A mouse's back and forward buttons step through filter changes, as in a browser.</summary>
+    protected override void OnMouseUp(MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton is MouseButton.XButton1 or MouseButton.XButton2 && ViewModel is { } vm)
+        {
+            var command = e.ChangedButton == MouseButton.XButton1 ? vm.Filters.UndoCommand : vm.Filters.RedoCommand;
+            if (command.CanExecute(null))
+                command.Execute(null);
+
+            // Handled, so Windows doesn't also turn the click into a browser-back command.
+            e.Handled = true;
+            return;
+        }
+        base.OnMouseUp(e);
+    }
+
     /// <summary>The row filter belonging to the tab currently on screen, if it has one.</summary>
     private TextBox? CurrentQuickFilter() => Tabs.SelectedIndex switch
     {

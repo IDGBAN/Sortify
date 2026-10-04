@@ -28,6 +28,14 @@
             <Setter Property="ContextMenu" Value="{StaticResource ChartMenu}" />
         </Style>
 
+        <!-- Back and forward through filter changes, sized to sit in the chip row. -->
+        <Style x:Key="FilterHistoryButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+        </Style>
+
         <!-- A movement or change on the Compare tab, coloured by which way it went. -->
         <Style x:Key="TrendText" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -85,6 +93,14 @@
         <KeyBinding Modifiers="Control" Key="B" Command="{Binding ToggleSidebarCommand}" />
         <KeyBinding Modifiers="Control" Key="T" Command="{Binding ToggleThemeCommand}" />
         <KeyBinding Modifiers="Control" Key="R" Command="{Binding Filters.ResetCommand}" />
+        <!-- A text box that can undo its own typing takes Ctrl+Z first. -->
+        <KeyBinding Modifiers="Control" Key="Z" Command="{Binding Filters.UndoCommand}" />
+        <KeyBinding Modifiers="Control" Key="Y" Command="{Binding Filters.RedoCommand}" />
+        <KeyBinding Modifiers="Control+Shift" Key="Z" Command="{Binding Filters.RedoCommand}" />
+        <KeyBinding Modifiers="Alt" Key="Left" Command="{Binding Filters.UndoCommand}" />
+        <KeyBinding Modifiers="Alt" Key="Right" Command="{Binding Filters.RedoCommand}" />
+        <KeyBinding Key="BrowserBack" Command="{Binding Filters.UndoCommand}" />
+        <KeyBinding Key="BrowserForward" Command="{Binding Filters.RedoCommand}" />
     </Window.InputBindings>
 
     <Window.Triggers>
@@ -208,15 +224,30 @@
 
             <!-- ========================= Active filter chips ======================= -->
             <Border Background="{DynamicResource BgBrush}" Padding="14,8,14,2"
-                    Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}">
+                    Visibility="{Binding ShowFilterBar, Converter={StaticResource BoolToVis}}">
                 <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,4">
+                        <Button Style="{StaticResource FilterHistoryButton}" Content="&#xE72B;"
+                                Command="{Binding Filters.UndoCommand}"
+                                AutomationProperties.Name="Undo the last filter change"
+                                ToolTip="Undo the last filter change (Ctrl+Z or Alt+Left)" />
+                        <Button Style="{StaticResource FilterHistoryButton}" Content="&#xE72A;"
+                                Command="{Binding Filters.RedoCommand}"
+                                AutomationProperties.Name="Redo the filter change"
+                                ToolTip="Redo the filter change you undid (Ctrl+Y or Alt+Right)" />
+                    </StackPanel>
                     <TextBlock DockPanel.Dock="Left" Text="Filtered by" VerticalAlignment="Center"
                                Foreground="{DynamicResource MutedBrush}" FontSize="11"
-                               FontWeight="SemiBold" Margin="0,0,10,4" />
+                               FontWeight="SemiBold" Margin="0,0,10,4"
+                               Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock DockPanel.Dock="Left" Text="No filters, every play counts" VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,0,10,4"
+                               Visibility="{Binding HasActiveFilters, Converter={StaticResource NotBoolToVis}}" />
                     <Button DockPanel.Dock="Right" Content="Clear all" Padding="10,3" Margin="6,0,0,4"
                             FontSize="11" VerticalAlignment="Center"
                             Command="{Binding Filters.ResetCommand}"
-                            ToolTip="Reset every filter (Ctrl+R)" />
+                            ToolTip="Reset every filter (Ctrl+R)"
+                            Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}" />
                     <ItemsControl ItemsSource="{Binding ActiveFilters}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>

@@ -39,6 +39,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
   - An exclude list for specific artists or tracks.
   - Time of day and day of week. Time ranges may cross midnight, for example 22:00 to 02:00.
   - Playback: count only shuffled, offline or private-session plays, or leave them out, and untick any device or country you want left out. Older exports don't record any of this, so their plays always count unless one of the lists is set to "Only".
+- **Undo and redo for filters**: the arrows at the start of the filter row, Ctrl+Z and Ctrl+Y, or a mouse's back and forward buttons step through your last 50 filter changes, so a heatmap click, a quick range or **Clear all** can be taken back.
 - **Saved filters**: name the current filters at the top of the sidebar and pick them from the list later to put them all back. Exclusions (unticked devices and countries included), the minimum play duration, and the podcast and private-session settings are kept between launches on their own; date ranges, searches, time windows and the shuffle and offline settings reset each time you open Sortify.
 - Load data your way: open the ZIP Spotify sends without unzipping it, pick individual JSON files (both with Ctrl+O), point at the extracted export folder (**Open Folder**, Ctrl+Shift+O), reopen one of the last eight exports from **Recent**, or just drag & drop the ZIP, the files or the whole folder onto the window.
 - **Sample history**: no export yet? The start screen opens two years of made-up listening (invented artists, tracks, podcasts and an audiobook) so you can try every tab while Spotify prepares yours. It isn't saved or added to Recent, and opening your own export replaces it.
@@ -60,6 +61,8 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 | `Ctrl+B` | Show or hide the filter sidebar |
 | `Ctrl+T` | Switch between the light and dark themes |
 | `Ctrl+R` | Reset every filter |
+| `Ctrl+Z` / `Alt+Left` | Undo the last filter change (outside a text box that has its own typing to undo) |
+| `Ctrl+Y` / `Alt+Right` | Redo the filter change you undid |
 
 ## Get Started
 1. Request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/) from Spotify. When it arrives, download the ZIP. There's no need to extract it.
