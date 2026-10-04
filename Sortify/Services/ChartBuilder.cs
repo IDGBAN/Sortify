@@ -214,6 +214,76 @@ public static class ChartBuilder
         return Columns(values, labels, "Hours", "Year", ChartPalette.Accent, r.Years);
     }
 
+    /// <summary>
+    /// Each year's listening stacked by how long before it the music was first heard: that
+    /// year at the bottom, then a band for each of the <see cref="DiscoveryCohorts.YearsBack"/>
+    /// years before, and everything older on top. Relative years rather than calendar ones, so
+    /// a twentieth year reads as clearly as a second. Empty bands are left out. The columns' items are the matching rows
+    /// of <paramref name="years"/>, so a click opens that year.
+    /// </summary>
+    public static ChartData Cohorts(CohortBreakdown c, IReadOnlyList<YearStat> years)
+    {
+        int bands = DiscoveryCohorts.YearsBack + 1;
+        var hours = new double[bands + 1, c.Years.Count];
+        for (int y = 0; y < c.Years.Count; y++)
+        {
+            for (int j = 0; j < c.Cohorts.Count; j++)
+            {
+                // Music can't be first heard after it was played, so those cells are empty.
+                int age = c.Years[y] - c.Cohorts[j];
+                if (age >= 0)
+                    hours[Math.Min(age, bands), y] += c.Hours[y, j];
+            }
+        }
+
+        double[] Band(int age) => Enumerable.Range(0, c.Years.Count).Select(y => Math.Round(hours[age, y], 1)).ToArray();
+
+        // New music at the bottom, so its share is measured from the same baseline every year.
+        var series = new List<ISeries>();
+        for (int age = 0; age <= bands; age++)
+        {
+            var values = Band(age);
+            if (values.All(v => v == 0))
+                continue;
+
+            string name = age switch
+            {
+                0 => "Found that year",
+                1 => "Found the year before",
+                _ when age == bands => "Found earlier",
+                _ => $"Found {age} years before",
+            };
+            series.Add(Stack(values, name, age == bands ? ChartPalette.Muted : Category(age)));
+        }
+
+        var byYear = years.ToDictionary(y => y.Year);
+        return new ChartData
+        {
+            Series = series.ToArray(),
+            XAxes = new[]
+            {
+                new Axis
+                {
+                    Name = "Year",
+                    Labels = c.Years.Select(y => y.ToString()).ToArray(),
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                },
+            },
+            YAxes = new[] { ValueAxis("Hours") },
+            Items = c.Years.Select(y => byYear.GetValueOrDefault(y) ?? new YearStat { Year = y }).ToList(),
+        };
+
+        static ISeries Stack(double[] values, string name, SKColor color) => new StackedColumnSeries<double>
+        {
+            Values = values,
+            Name = name,
+            Fill = new SolidColorPaint(color),
+        };
+    }
+
     private static ChartData Columns(
         double[] values, string[] labels, string unit, string xName, SKColor color, IReadOnlyList<object>? items = null)
     {

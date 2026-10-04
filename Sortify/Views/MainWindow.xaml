@@ -833,19 +833,45 @@
                     <TabItem Header="Years">
                         <Grid>
                             <Grid.RowDefinitions>
-                                <RowDefinition Height="320" />
+                                <RowDefinition Height="350" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
-                                        <Run Text="Listening Time per Year" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
-                                                                                   FontSize="11" Foreground="{DynamicResource MutedBrush}" />
-                                    </TextBlock>
-                                    <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
-                                                        Background="Transparent"
-                                                        AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                        XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}" />
+                                    <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                                        <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"
+                                                   HorizontalAlignment="Left">
+                                            <Run Text="Listening Time per Year" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
+                                                                                       FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
+                                        <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                                BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                            <StackPanel Orientation="Horizontal">
+                                                <RadioButton Content="Total" GroupName="YearsView" IsChecked="True"
+                                                             Style="{StaticResource SegmentToggle}" />
+                                                <RadioButton Content="By year found" GroupName="YearsView"
+                                                             IsChecked="{Binding ShowCohorts}"
+                                                             ToolTip="Split each year by when you first heard its music"
+                                                             Style="{StaticResource SegmentToggle}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock DockPanel.Dock="Top" Text="{Binding CohortText}" FontSize="12" Margin="0,0,0,6"
+                                               TextWrapping="Wrap" Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
+                                    <Grid>
+                                        <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
+                                                            Background="Transparent"
+                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                            XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}"
+                                                            Visibility="{Binding ShowCohorts, Converter={StaticResource NotBoolToVis}}" />
+                                        <lvc:CartesianChart Series="{Binding CohortChart.Series}" Tag="{Binding CohortChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
+                                                            Background="Transparent"
+                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                            XAxes="{Binding CohortChart.XAxes}" YAxes="{Binding CohortChart.YAxes}"
+                                                            LegendPosition="Right" LegendTextSize="12" TooltipPosition="Top"
+                                                            Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
+                                    </Grid>
                                 </DockPanel>
                             </Border>
 

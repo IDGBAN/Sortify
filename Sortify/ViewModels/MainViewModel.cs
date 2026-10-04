@@ -571,6 +571,7 @@ public sealed partial class MainViewModel : ObservableObject
         _loadedFiles = filePaths;
         _loadedFolder = folder;
         IsSample = isSample;
+        _cohorts = CohortBreakdown.Empty;
         if (folder is not null)
         {
             _settings.RememberFolder(folder);
@@ -822,6 +823,8 @@ public sealed partial class MainViewModel : ObservableObject
             _result = result;
             _resultFilters = described;
             _resultOptions = options;
+            if (!ShowCohorts)
+                _cohorts = CohortBreakdown.Empty;
 
             UpdateCollections();
             UpdateSummary();
@@ -843,6 +846,8 @@ public sealed partial class MainViewModel : ObservableObject
             RefreshCompareSuggestions();
             Compare.Invalidate();
             History.Invalidate();
+            if (ShowCohorts)
+                _ = RefreshCohortsAsync();
             await RefreshArtistTimelineAsync();
         }
         finally
@@ -925,6 +930,72 @@ public sealed partial class MainViewModel : ObservableObject
             }
         }
         return matches;
+    }
+
+    // ---- New or familiar ---------------------------------------------------------------------------
+
+    /// <summary>
+    /// True while the Years chart splits each year by when its music was first heard. That
+    /// takes two more passes over the plays, so it is only worked out while shown.
+    /// </summary>
+    [ObservableProperty] private bool _showCohorts;
+
+    [ObservableProperty] private ChartData _cohortChart = ChartData.Empty;
+    [ObservableProperty] private string _cohortText = string.Empty;
+
+    private CohortBreakdown _cohorts = CohortBreakdown.Empty;
+    private CancellationTokenSource? _cohortCts;
+
+    partial void OnShowCohortsChanged(bool value)
+    {
+        if (value)
+            _ = RefreshCohortsAsync();
+    }
+
+    private async Task RefreshCohortsAsync()
+    {
+        if (!HasData)
+            return;
+
+        var previous = _cohortCts;
+        _cohortCts = new CancellationTokenSource();
+        previous?.Cancel();
+        var token = _cohortCts.Token;
+
+        try
+        {
+            var cohorts = await DiscoveryCohorts.BuildAsync(_rawRecords, _resultOptions ?? Filters.ToOptions(), token);
+            if (token.IsCancellationRequested)
+                return;
+
+            _cohorts = cohorts;
+            CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years);
+            CohortText = DescribeCohorts(_cohorts);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer refresh took over.
+        }
+        finally
+        {
+            previous?.Dispose();
+        }
+    }
+
+    /// <summary>The latest year's share of new music, and of music from the year before it.</summary>
+    internal static string DescribeCohorts(CohortBreakdown c)
+    {
+        if (c.Years.Count == 0)
+            return string.Empty;
+        if (c.Years.Count == 1)
+            return $"With only {c.Years[0]} in the history, all of it counts as music first heard that year.";
+
+        int year = c.Years[^1];
+        string text = $"{c.NewSharePercent(year):0}% of {year}'s listening was music you first heard that year";
+        double before = c.SharePercent(year, year - 1);
+        return before > 0
+            ? $"{text}, and {before:0}% was music found in {year - 1}. The first year of a history is all new by definition."
+            : $"{text}. The first year of a history is all new by definition.";
     }
 
     // ---- Comparing artists over time ------------------------------------------------------------
@@ -1381,6 +1452,7 @@ public sealed partial class MainViewModel : ObservableObject
         ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
         EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
         ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity);
+        CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years);
 
         // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
         _tracksShown = Math.Min(BarPageSize, MaxTracks);
