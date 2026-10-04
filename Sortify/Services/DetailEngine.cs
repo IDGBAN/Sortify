@@ -55,6 +55,10 @@ public static class DetailEngine
         int scopeYear = 0;
         if (scope == DetailScope.Year && !int.TryParse(title, out scopeYear))
             return Empty(scope, title, subtitle);
+        DateTime scopeDay = default;
+        if (scope == DetailScope.Day &&
+            !DateTime.TryParseExact(title, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out scopeDay))
+            return Empty(scope, title, subtitle);
 
         // A show or episode is opened from the Podcasts tab, which lists them whether or not
         // they count toward the music statistics, so it can't depend on that setting.
@@ -77,7 +81,7 @@ public static class DetailEngine
 
             string trackName = r.DisplayTrack, artistName = r.DisplayArtist, albumName = r.DisplayAlbum;
 
-            if (!IsMatch(r, trackName, artistName, albumName, scope, title, subtitle, scopeYear))
+            if (!IsMatch(r, trackName, artistName, albumName, scope, title, subtitle, scopeYear, scopeDay))
                 continue;
 
             skipEligible++;
@@ -125,10 +129,10 @@ public static class DetailEngine
             album.TotalMsPlayed += r.MsPlayed;
             album.PlayCount++;
 
-            // Only a year spans multiple artists; for the other scopes this would be one
-            // row repeating what the header already says.
+            // Only a year or a day spans multiple artists; for the other scopes this would be
+            // one row repeating what the header already says.
             ArtistStat? artist = null;
-            if (scope == DetailScope.Year)
+            if (scope is DetailScope.Year or DetailScope.Day)
             {
                 if (!artists.TryGetValue(artistName, out artist))
                 {
@@ -231,6 +235,8 @@ public static class DetailEngine
                 y => y.Year.ToString(CultureInfo.InvariantCulture) == title),
             DetailScope.Show => IndexOf(overall.Shows, s => s.Show == title),
             DetailScope.Episode => IndexOf(overall.Episodes, e => e.Episode == title && e.Show == subtitle),
+            DetailScope.Day => IndexOf(overall.PlaytimeByDay.OrderByDescending(p => p.Value).ToList(),
+                p => TimeFormat.Day(p.Date) == title),
             _ => -1,
         };
         int outOf = scope switch
@@ -241,6 +247,7 @@ public static class DetailEngine
             DetailScope.Year => overall.Years.Count,
             DetailScope.Show => overall.Shows.Count,
             DetailScope.Episode => overall.Episodes.Count,
+            DetailScope.Day => overall.PlaytimeByDay.Count,
             _ => 0,
         };
         long whole = scope is DetailScope.Show or DetailScope.Episode ? overall.PodcastMsPlayed : overall.TotalMsPlayed;
@@ -260,7 +267,7 @@ public static class DetailEngine
 
     private static bool IsMatch(
         PlayRecord r, string track, string artist, string album,
-        DetailScope scope, string title, string subtitle, int scopeYear)
+        DetailScope scope, string title, string subtitle, int scopeYear, DateTime scopeDay)
     {
         return scope switch
         {
@@ -271,6 +278,7 @@ public static class DetailEngine
                                  && string.Equals(artist, subtitle, StringComparison.Ordinal),
             // Undated rows belong to no year.
             DetailScope.Year => r.Timestamp != DateTime.MinValue && r.Timestamp.Year == scopeYear,
+            DetailScope.Day => r.Timestamp != DateTime.MinValue && r.Timestamp.Date == scopeDay,
             DetailScope.Show => r.Kind != ContentKind.Music && string.Equals(r.ShowName, title, StringComparison.Ordinal),
             DetailScope.Episode => r.Kind != ContentKind.Music
                                    && string.Equals(r.EpisodeName, title, StringComparison.Ordinal)

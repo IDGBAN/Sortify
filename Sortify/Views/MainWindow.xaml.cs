@@ -837,6 +837,20 @@ public partial class MainWindow : ThemedWindow
         ViewModel?.CopySpotifyLinks(TracksGrid.Items.OfType<TrackStat>().Take(count), TryCopy);
     }
 
+    // ---- Listening calendar -----------------------------------------------------------------------
+
+    private async void OnCalendarDayClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: CalendarDay { HasListening: true } day })
+            await ShowDetailAsync(day);
+    }
+
+    private async void OnOpenBiggestDay(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.BiggestDay is { } day)
+            await ShowDetailAsync(new CalendarDay(day, 0, 0));
+    }
+
     // ---- History ---------------------------------------------------------------------------------
 
     /// <summary>

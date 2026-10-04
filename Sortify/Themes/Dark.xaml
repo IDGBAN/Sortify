@@ -50,4 +50,11 @@
     <!-- Tinted accent used for selected grid rows. -->
     <SolidColorBrush x:Key="SelectionBrush" Color="#FF1DB954" Opacity="0.20" />
 
+    <!-- The listening calendar: a day with nothing played, then four shades of more listening. -->
+    <SolidColorBrush x:Key="CalendarLevel0Brush" Color="#FF262626" />
+    <SolidColorBrush x:Key="CalendarLevel1Brush" Color="#FF0E4429" />
+    <SolidColorBrush x:Key="CalendarLevel2Brush" Color="#FF0F6B35" />
+    <SolidColorBrush x:Key="CalendarLevel3Brush" Color="#FF169C47" />
+    <SolidColorBrush x:Key="CalendarLevel4Brush" Color="#FF1ED760" />
+
 </ResourceDictionary>

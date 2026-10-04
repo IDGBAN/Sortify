@@ -15,6 +15,9 @@ public enum DetailScope
 
     /// <summary>One podcast episode or audiobook chapter; the subtitle holds its show.</summary>
     Episode,
+
+    /// <summary>One calendar day; <see cref="DetailResult.Title"/> holds it as yyyy-MM-dd.</summary>
+    Day,
 }
 
 /// <summary>
@@ -53,7 +56,7 @@ public sealed class DetailResult
 
     /// <summary>
     /// Artists that make up this selection, most listened first. Only populated for scopes
-    /// that can span more than one artist (currently <see cref="DetailScope.Year"/>).
+    /// that can span more than one artist: a year or a day.
     /// </summary>
     public IReadOnlyList<ArtistStat> Artists { get; init; } = Array.Empty<ArtistStat>();
 
@@ -114,13 +117,13 @@ public sealed class DetailResult
     /// Browser URL for this selection. A track or episode opens its own page when the export
     /// carried a URI. Artists, albums and shows go through Spotify search instead: the export
     /// only records track and episode URIs, and opening one of those would land on a single
-    /// song or episode. Empty for a year.
+    /// song or episode. Empty for a year or a day.
     /// </summary>
     public string WebUrl
     {
         get
         {
-            if (Scope == DetailScope.Year)
+            if (Scope is DetailScope.Year or DetailScope.Day)
                 return string.Empty;
 
             if (Scope is DetailScope.Track or DetailScope.Episode && SpotifyLink.FromUri(Uri) is { Length: > 0 } link)

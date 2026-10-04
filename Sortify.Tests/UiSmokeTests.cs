@@ -45,6 +45,7 @@ public class UiSmokeTests
             "AccentBrush", "AccentHoverBrush", "Accent2Brush", "DangerBrush",
             "AccentTextBrush", "Accent2TextBrush",
             "TextBrush", "MutedBrush", "OnAccentBrush", "SelectionBrush",
+            "CalendarLevel0Brush", "CalendarLevel1Brush", "CalendarLevel2Brush", "CalendarLevel3Brush", "CalendarLevel4Brush",
         };
 
         WpfTestHost.Run(() =>

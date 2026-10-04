@@ -28,6 +28,63 @@
             <Setter Property="ContextMenu" Value="{StaticResource ChartMenu}" />
         </Style>
 
+        <!-- One day of the listening calendar, shaded by its level of listening. -->
+        <Style x:Key="CalendarDayButton" TargetType="Button">
+            <Setter Property="Width" Value="13" />
+            <Setter Property="Height" Value="13" />
+            <Setter Property="Margin" Value="0,0,3,3" />
+            <Setter Property="Focusable" Value="{Binding IsInYear}" />
+            <Setter Property="ToolTip" Value="{Binding Description}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Description}" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style>
+                        <Setter Property="Control.Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Border Margin="-2" CornerRadius="3" BorderThickness="2"
+                                            BorderBrush="{DynamicResource AccentBrush}" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="cell" CornerRadius="2" Background="{DynamicResource CalendarLevel0Brush}"
+                                BorderBrush="{DynamicResource TextBrush}" BorderThickness="0" />
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Level}" Value="1">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel1Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="2">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel2Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="3">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel3Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="4">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel4Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsInYear}" Value="False">
+                                <Setter TargetName="cell" Property="Visibility" Value="Hidden" />
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="cell" Property="BorderThickness" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasListening}" Value="True">
+                    <Setter Property="Cursor" Value="Hand" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Back and forward through filter changes, sized to sit in the chip row. -->
         <Style x:Key="FilterHistoryButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
             <Setter Property="Width" Value="26" />
@@ -1004,6 +1061,115 @@
                                                             TooltipPosition="Top" />
                                     </DockPanel>
                                 </Border>
+                                <Border Style="{StaticResource Card}" DataContext="{Binding Calendar}">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+                                            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left">
+                                                <Run Text="Listening Calendar" /><Run Text="   Click a day for its breakdown" FontWeight="Normal"
+                                                    FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <ItemsControl HorizontalAlignment="Right" ItemsSource="{Binding Years}" Focusable="False"
+                                                          AutomationProperties.Name="Years in the calendar">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Content="{Binding Year}" Style="{StaticResource QuickRangeButton}" Margin="5,0,0,4"
+                                                                Command="{Binding DataContext.ShowYearCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                AutomationProperties.Name="{Binding Year, StringFormat='Show {0} in the calendar'}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" FontSize="12" Margin="0,0,0,10"
+                                                   TextWrapping="Wrap" />
+                                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    Margin="0,10,0,0" Visibility="{Binding HasDays, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="Less" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource MutedBrush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel0Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel1Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel2Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel3Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel4Brush}" />
+                                            <TextBlock Text="More" FontSize="11" Margin="3,0,0,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource MutedBrush}" />
+                                        </StackPanel>
+                                        <!-- Scales down, never up, so a narrow window still shows the whole year. -->
+                                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left"
+                                                 Visibility="{Binding HasDays, Converter={StaticResource BoolToVis}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <ItemsControl Grid.Row="0" Grid.Column="1" ItemsSource="{Binding MonthLabels}" Height="16"
+                                                              Focusable="False">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left" Value="{Binding Left}" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Text}" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <ItemsControl Grid.Row="1" Grid.Column="0" ItemsSource="{Binding DayLabels}" Margin="0,0,6,0"
+                                                              Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" FontSize="10" Height="16" LineHeight="13"
+                                                                       Foreground="{DynamicResource MutedBrush}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Weeks}"
+                                                              KeyboardNavigation.TabNavigation="Once"
+                                                              KeyboardNavigation.DirectionalNavigation="Contained"
+                                                              AutomationProperties.Name="{Binding Year, StringFormat='Listening calendar for {0}'}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <ItemsControl ItemsSource="{Binding Days}" Focusable="False">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Button Style="{StaticResource CalendarDayButton}" Click="OnCalendarDayClick" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Grid>
+                                        </Viewbox>
+                                    </DockPanel>
+                                </Border>
                                 <Border Style="{StaticResource ChartCard}" Height="460">
                                     <DockPanel>
                                         <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
@@ -1207,9 +1373,11 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="BIGGEST DAY" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding BiggestDayText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Style="{StaticResource StatValueSmall}">
+                                                <Hyperlink Click="OnOpenBiggestDay" ToolTip="Open this day's breakdown"><Run Text="{Binding BiggestDayText, Mode=OneWay}" /></Hyperlink>
+                                            </TextBlock>
                                             <TextBlock Style="{StaticResource Hint}"
-                                                       Text="The single day with the most listening time." />
+                                                       Text="The single day with the most listening time. Click it for what you played." />
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource Card}">

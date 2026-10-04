@@ -196,6 +196,15 @@ public partial class DetailWindow : ThemedWindow
 
         DeviceText.Text = d.TopDevice.Length > 0 ? d.TopDevice : "-";
         DeviceHint.Text = d.TopDevice.Length > 0 ? $"{d.TopDevicePercent:0}% of the time" : string.Empty;
+
+        // A single day has no months to compare and no run of days, so those go.
+        if (d.Scope == DetailScope.Day)
+        {
+            BusiestCard.Visibility = Visibility.Collapsed;
+            StreakCard.Visibility = Visibility.Collapsed;
+            StandingCards.Columns = 4;
+            MonthCard.Visibility = Visibility.Collapsed;
+        }
     }
 
     /// <summary>What a breakdown of this kind is ranked against: "160 artists", "1 year".</summary>
@@ -209,6 +218,7 @@ public partial class DetailWindow : ThemedWindow
             DetailScope.Year => ("year", "years"),
             DetailScope.Show => ("show", "shows and audiobooks"),
             DetailScope.Episode => ("episode", "episodes and chapters"),
+            DetailScope.Day => ("day", "days with listening"),
             _ => (string.Empty, string.Empty),
         };
         return $"{d.RankOutOf:N0} {(d.RankOutOf == 1 ? one : many)}";
@@ -225,7 +235,7 @@ public partial class DetailWindow : ThemedWindow
 
         bool oneTrack = d.Scope is DetailScope.Track or DetailScope.Episode;
         PlaysGrid.Columns[1].Visibility = oneTrack ? Visibility.Collapsed : Visibility.Visible;
-        PlaysGrid.Columns[2].Visibility = d.Scope == DetailScope.Year ? Visibility.Visible : Visibility.Collapsed;
+        PlaysGrid.Columns[2].Visibility = d.Scope is DetailScope.Year or DetailScope.Day ? Visibility.Visible : Visibility.Collapsed;
         if (d.Scope is DetailScope.Show or DetailScope.Episode)
             PlaysGrid.Columns[1].Header = d.Kind == ContentKind.Audiobook ? "Chapter" : "Episode";
 
@@ -241,6 +251,8 @@ public partial class DetailWindow : ThemedWindow
     {
         DetailScope.Show => detail.Kind == ContentKind.Audiobook ? "Audiobook" : "Podcast",
         DetailScope.Episode => detail.Kind == ContentKind.Audiobook ? "Chapter" : "Episode",
+        DetailScope.Day when DateTime.TryParseExact(detail.Title, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
+            => day.DayOfWeek.ToString(),
         _ => detail.Scope.ToString(),
     };
 
@@ -256,6 +268,7 @@ public partial class DetailWindow : ThemedWindow
         SkippedTrackStat s => (DetailScope.Track, s.Track, s.Artist),
         MonthStat m => (DetailScope.Artist, m.TopArtist, string.Empty),
         Milestone m => (DetailScope.Track, m.Track.Track, m.Track.Artist),
+        CalendarDay c => (DetailScope.Day, c.DateText, string.Empty),
         PlayRow p => p.Record.Kind == ContentKind.Music
             ? (DetailScope.Track, p.Track, p.Artist)
             : (DetailScope.Episode, p.Record.EpisodeName, p.Record.ShowName),

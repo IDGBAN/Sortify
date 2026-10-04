@@ -50,6 +50,12 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The History tab.</summary>
     public HistoryViewModel History { get; }
 
+    /// <summary>The listening calendar on the Trends tab.</summary>
+    public CalendarViewModel Calendar { get; } = new();
+
+    /// <summary>The day with the most listening in the current results, for the Insights card's link.</summary>
+    public DateTime? BiggestDay => _result.BiggestDay;
+
     // Grid item sources. Swapped wholesale after each analysis pass instead of using
     // ObservableCollections: repopulating tens of thousands of rows item-by-item raises
     // a CollectionChanged per row and freezes the UI.
@@ -812,6 +818,7 @@ public sealed partial class MainViewModel : ObservableObject
             UpdateSummary();
             UpdateInsights();
             UpdateCharts();
+            Calendar.Update(_result.PlaytimeByDay, _settings.FirstDayOfWeek);
             NotifyExportsChanged();
             if (IsJumpOpen)
                 RefreshJump();
@@ -1181,6 +1188,7 @@ public sealed partial class MainViewModel : ObservableObject
         BiggestDayText = r.BiggestDay is { } bd
             ? $"{TimeFormat.Day(bd)}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
             : "-";
+        OnPropertyChanged(nameof(BiggestDay));
 
         ActiveDaysText = r.ActiveDays > 0 ? r.ActiveDays.ToString("N0") : "-";
 
