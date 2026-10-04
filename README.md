@@ -1,3 +1,5 @@
+<img src="Sortify/Assets/sortify-logo.svg" alt="Sortify logo" width="96">
+
 # Sortify
 
 [![CI](https://img.shields.io/github/actions/workflow/status/IDGBAN/Sortify/ci.yml?branch=main&label=CI&logo=github)](https://github.com/IDGBAN/Sortify/actions/workflows/ci.yml)

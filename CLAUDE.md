@@ -92,6 +92,11 @@ etc.) are swapped wholesale after each analysis pass rather than mutated via
 `CollectionChanged` per row and freeze the UI. Large horizontal bar charts (tracks/artists/albums)
 page in via `LoadMore*` methods as the user scrolls rather than rendering every bar up front.
 
+The logo's source is `Sortify/Assets/sortify-logo.svg`. `Themes/Logo.xaml` is the same drawing as a
+WPF `DrawingImage` (key `SortifyLogo`) that the title bar, toolbar, Settings and the year-in-review
+card draw, and `Assets/Sortify.ico` is rendered from it at 16-256 px for the exe, taskbar and Alt+Tab.
+A change to the logo means updating all three.
+
 Tests (`Sortify.Tests/`) that touch WPF types (windows, converters, dependency properties) run
 through `WpfTestHost.cs`, which spins up a single STA thread with one live `Application` and merges
 the theme/converter resources by hand (bypassing `App.xaml`'s `StartupUri` so no real window

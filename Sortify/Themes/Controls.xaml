@@ -1469,6 +1469,8 @@
         <Setter Property="Background" Value="{DynamicResource BgBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="TitleBarBackground" Value="{DynamicResource BgBrush}" />
+        <!-- What the taskbar and Alt+Tab show; the title bar draws the vector logo instead. -->
+        <Setter Property="Icon" Value="pack://application:,,,/Sortify;component/Assets/Sortify.ico" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="views:ThemedWindow">
@@ -1491,7 +1493,11 @@
                                         Content="&#xE8BB;" Command="{x:Static SystemCommands.CloseWindowCommand}"
                                         AutomationProperties.Name="Close" ToolTip="Close" />
                             </StackPanel>
-                            <TextBlock x:Name="TitleText" Text="{TemplateBinding Title}" Margin="12,0"
+                            <!-- DynamicResource: Logo.xaml is merged after this dictionary. -->
+                            <Image x:Name="TitleIcon" DockPanel.Dock="Left" Width="16" Height="16"
+                                   Margin="10,0,0,0" VerticalAlignment="Center"
+                                   Source="{DynamicResource SortifyLogo}" />
+                            <TextBlock x:Name="TitleText" Text="{TemplateBinding Title}" Margin="8,0,12,0"
                                        FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
                                        Foreground="{DynamicResource MutedBrush}" />
                         </DockPanel>
@@ -1524,6 +1530,10 @@
                         </Trigger>
                         <Trigger Property="IsActive" Value="False">
                             <Setter TargetName="TitleText" Property="Opacity" Value="0.6" />
+                        </Trigger>
+                        <Trigger Property="ShowTitle" Value="False">
+                            <Setter TargetName="TitleIcon" Property="Visibility" Value="Collapsed" />
+                            <Setter TargetName="TitleText" Property="Visibility" Value="Collapsed" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

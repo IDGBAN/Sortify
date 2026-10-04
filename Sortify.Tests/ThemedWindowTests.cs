@@ -33,9 +33,29 @@ public class ThemedWindowTests
                 window.ApplyTemplate();
 
                 Assert.NotNull(WindowChrome.GetWindowChrome(window));
+                Assert.NotNull(window.Icon);
                 Assert.Equal(Visibility.Visible, Part<Button>(window, "CloseButton").Visibility);
                 Assert.Equal(window.Title, Part<TextBlock>(window, "TitleText").Text);
             }
+        });
+    }
+
+    [Fact]
+    public void OnlyTheMainWindowLeavesItsBrandToTheToolbar()
+    {
+        WpfTestHost.Run(() =>
+        {
+            var main = new MainWindow();
+            var detail = new DetailWindow(SampleDetail());
+            main.ApplyTemplate();
+            detail.ApplyTemplate();
+
+            Assert.Equal(Visibility.Collapsed, Part<Image>(main, "TitleIcon").Visibility);
+            Assert.Equal(Visibility.Collapsed, Part<TextBlock>(main, "TitleText").Visibility);
+
+            var icon = Part<Image>(detail, "TitleIcon");
+            Assert.Equal(Visibility.Visible, icon.Visibility);
+            Assert.Same(Application.Current.Resources["SortifyLogo"], icon.Source);
         });
     }
 

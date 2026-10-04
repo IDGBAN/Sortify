@@ -118,8 +118,12 @@
                 </StackPanel>
 
                 <DockPanel Grid.Row="7">
-                    <TextBlock DockPanel.Dock="Right" Text="Sortify" FontSize="26" FontWeight="Bold"
-                               Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Bottom" />
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+                        <Image Source="{StaticResource SortifyLogo}" Width="40" Height="40" Margin="0,0,10,0"
+                               VerticalAlignment="Center" />
+                        <TextBlock Text="Sortify" FontSize="26" FontWeight="Bold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                    </StackPanel>
                     <TextBlock Text="{Binding FilterNote}" Style="{StaticResource Label}" FontSize="20"
                                TextWrapping="Wrap" Margin="0,0,24,0" VerticalAlignment="Bottom" />
                 </DockPanel>

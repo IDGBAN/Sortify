@@ -82,7 +82,7 @@ internal static class WpfTestHost
     /// </summary>
     private static void LoadApplicationResources(Application app)
     {
-        foreach (var source in new[] { "Themes/Dark.xaml", "Themes/Controls.xaml" })
+        foreach (var source in new[] { "Themes/Dark.xaml", "Themes/Controls.xaml", "Themes/Logo.xaml" })
         {
             app.Resources.MergedDictionaries.Add(new ResourceDictionary
             {

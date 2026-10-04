@@ -20,6 +20,9 @@ public class ThemedWindow : Window
     public static readonly DependencyProperty TitleBarBackgroundProperty = DependencyProperty.Register(
         nameof(TitleBarBackground), typeof(Brush), typeof(ThemedWindow));
 
+    public static readonly DependencyProperty ShowTitleProperty = DependencyProperty.Register(
+        nameof(ShowTitle), typeof(bool), typeof(ThemedWindow), new PropertyMetadata(true));
+
     // Windows draws an invisible resize band outside a normal window; with the frame removed
     // the band has to come out of the window itself.
     private const double ResizeBorder = 6;
@@ -58,6 +61,16 @@ public class ThemedWindow : Window
     {
         get => (Brush?)GetValue(TitleBarBackgroundProperty);
         set => SetValue(TitleBarBackgroundProperty, value);
+    }
+
+    /// <summary>
+    /// Whether the title bar shows the logo and title. MainWindow turns it off because its
+    /// toolbar, directly below, already carries both; the taskbar and Alt+Tab still show the title.
+    /// </summary>
+    public bool ShowTitle
+    {
+        get => (bool)GetValue(ShowTitleProperty);
+        set => SetValue(ShowTitleProperty, value);
     }
 
     public override void OnApplyTemplate()
