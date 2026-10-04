@@ -70,6 +70,15 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<MonthStat> _months = Array.Empty<MonthStat>();
     [ObservableProperty] private string _monthlyLeaderText = string.Empty;
     [ObservableProperty] private IReadOnlyList<Milestone> _milestones = Array.Empty<Milestone>();
+    [ObservableProperty] private IReadOnlyList<RepeatStat> _onRepeat = Array.Empty<RepeatStat>();
+
+    /// <summary>What puts a track on the On Repeat list, worded for the Insights card.</summary>
+    public string OnRepeatHint { get; } =
+        $"The tracks you played at least {AnalysisEngine.RepeatMinPlays} times within {AnalysisEngine.RepeatWindowDays} days, " +
+        "each at its busiest stretch. Double-click one for its breakdown.";
+
+    public string OnRepeatEmpty { get; } =
+        $"No track was played {AnalysisEngine.RepeatMinPlays} times within {AnalysisEngine.RepeatWindowDays} days under the current filters.";
     [ObservableProperty] private IReadOnlyList<TrackStat> _forgottenTracks = Array.Empty<TrackStat>();
     [ObservableProperty] private IReadOnlyList<ArtistStat> _forgottenArtists = Array.Empty<ArtistStat>();
 
@@ -857,6 +866,7 @@ public sealed partial class MainViewModel : ObservableObject
         Months = _result.Months.Reverse().ToList();
         MonthlyLeaderText = DescribeMonthlyLeader(_result.Months);
         Milestones = _result.Milestones;
+        OnRepeat = _result.OnRepeat;
         HasPodcastData = _result.Shows.Count > 0;
 
         TopTracks = _result.Tracks.Take(5)

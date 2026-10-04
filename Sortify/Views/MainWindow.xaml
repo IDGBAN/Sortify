@@ -1547,6 +1547,50 @@
                                     </DockPanel>
                                 </Border>
 
+                                <Border Style="{StaticResource Card}" Height="360">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">
+                                            <Button DockPanel.Dock="Right" Content="Copy tracks as links" Click="OnCopyRepeatLinks"
+                                                    Padding="10,5" FontSize="11" Margin="0" VerticalAlignment="Center"
+                                                    AutomationProperties.Name="Copy the tracks on repeat as Spotify links"
+                                                    ToolTip="Copy every track below as a Spotify link, to paste into a playlist" />
+                                            <TextBlock Text="On Repeat" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="{Binding OnRepeatHint}" />
+                                        <Grid>
+                                            <DataGrid x:Name="RepeatGrid" ItemsSource="{Binding OnRepeat}"
+                                                      AutomationProperties.Name="Tracks on repeat"
+                                                      PreviewMouseRightButtonDown="OnGridRightClick"
+                                                      ContextMenuOpening="OnGridMenuOpening"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromRepeats" />
+                                                    </ContextMenu>
+                                                </DataGrid.ContextMenu>
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="2*" MinWidth="140" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" MinWidth="100" />
+                                                    <DataGridTextColumn Header="Plays" Binding="{Binding Plays}" Width="75" MinWidth="75" />
+                                                    <DataGridTextColumn Header="From" Binding="{Binding From, StringFormat=yyyy-MM-dd}"
+                                                                        SortMemberPath="From" Width="110" MinWidth="110" />
+                                                    <DataGridTextColumn Header="To" Binding="{Binding To, StringFormat=yyyy-MM-dd}"
+                                                                        SortMemberPath="To" Width="110" MinWidth="110" />
+                                                    <DataGridTextColumn Binding="{Binding Track.PlayCount}" Width="95" MinWidth="95">
+                                                        <DataGridTextColumn.Header>
+                                                            <TextBlock Text="All Plays" ToolTip="Every play of the track under the current filters" />
+                                                        </DataGridTextColumn.Header>
+                                                    </DataGridTextColumn>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <TextBlock Style="{StaticResource EmptyRows}" Text="{Binding OnRepeatEmpty}"
+                                                       Visibility="{Binding OnRepeat, Converter={StaticResource EmptyToVis}}" />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+
                                 <Border Style="{StaticResource Card}" Height="400">
                                     <DockPanel>
                                         <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">

@@ -268,6 +268,7 @@ public partial class DetailWindow : ThemedWindow
         SkippedTrackStat s => (DetailScope.Track, s.Track, s.Artist),
         MonthStat m => (DetailScope.Artist, m.TopArtist, string.Empty),
         Milestone m => (DetailScope.Track, m.Track.Track, m.Track.Artist),
+        RepeatStat r => (DetailScope.Track, r.Track.Track, r.Track.Artist),
         CalendarDay c => (DetailScope.Day, c.DateText, string.Empty),
         PlayRow p => p.Record.Kind == ContentKind.Music
             ? (DetailScope.Track, p.Track, p.Artist)

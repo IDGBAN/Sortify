@@ -826,6 +826,12 @@ public partial class MainWindow : ThemedWindow
     private void OnCopyForgottenLinks(object sender, RoutedEventArgs e) =>
         ViewModel?.CopySpotifyLinks(ForgottenTracksGrid.Items.OfType<TrackStat>(), TryCopy);
 
+    private void OnCopyRepeatLinks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(RepeatGrid.Items.OfType<RepeatStat>().Select(r => r.Track), TryCopy);
+
+    private void OnCopyLinksFromRepeats(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(SelectedRows<RepeatStat>(RepeatGrid).Select(r => r.Track), TryCopy);
+
     /// <summary>
     /// Copies the first rows in the order the grid shows them, so a sort by plays or a row
     /// filter decides which tracks make the cut.

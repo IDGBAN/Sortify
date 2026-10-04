@@ -95,6 +95,9 @@ public sealed class YearStat
 /// <summary>A play that marks the history: the first one, the 10,000th, the one that passed 1,000 hours...</summary>
 public sealed record Milestone(string Label, DateTime Date, TrackStat Track);
 
+/// <summary>A track's busiest stretch: how many times it played within the window, between its first and last play there.</summary>
+public sealed record RepeatStat(TrackStat Track, int Plays, DateTime From, DateTime To);
+
 /// <summary>One calendar month: how much was played, and the artist and track that led it.</summary>
 public sealed class MonthStat
 {
@@ -204,6 +207,12 @@ public sealed class AnalysisResult
 
     /// <summary>The plays that mark the history, oldest first. See AnalysisEngine.Milestone*.</summary>
     public IReadOnlyList<Milestone> Milestones { get; init; } = Array.Empty<Milestone>();
+
+    /// <summary>
+    /// Each track's busiest stretch of <c>AnalysisEngine.RepeatWindowDays</c>, for the tracks
+    /// that were put on repeat; most plays first. See the Repeat* constants on AnalysisEngine.
+    /// </summary>
+    public IReadOnlyList<RepeatStat> OnRepeat { get; init; } = Array.Empty<RepeatStat>();
 
     /// <summary>
     /// Tracks played a lot that then went quiet: nothing in the last stretch of the results.

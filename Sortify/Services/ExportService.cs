@@ -334,6 +334,12 @@ public static class ExportService
                     $"{y.Year} | {TimeFormat.HhMmSs(y.TotalTime)} | {y.PlayCount:N0} | {y.UniqueArtists:N0} | " +
                     $"{y.UniqueTracks:N0} | {Md(y.TopArtist)} | {Md(y.TopTrack)}"));
 
+        if (r.OnRepeat.Count > 0)
+            Table("On repeat", $"Track | Artist | Plays within {AnalysisEngine.RepeatWindowDays} days | From | To",
+                "--- | --- | --- | --- | ---",
+                r.OnRepeat.Select(x =>
+                    $"{Md(x.Track.Track)} | {Md(x.Track.Artist)} | {x.Plays:N0} | {TimeFormat.Day(x.From)} | {TimeFormat.Day(x.To)}"));
+
         if (r.Shows.Count > 0)
             Table("Top shows and audiobooks", "Rank | Show | Time | Plays | Episodes",
                 "--- | --- | --- | --- | ---",
@@ -479,6 +485,15 @@ public static class ExportService
                 show = e.Show,
                 hours = Math.Round(e.TotalHours, 4),
                 plays = e.PlayCount,
+            }),
+            onRepeat = r.OnRepeat.Select(x => new
+            {
+                track = x.Track.Track,
+                artist = x.Track.Artist,
+                plays = x.Plays,
+                windowDays = AnalysisEngine.RepeatWindowDays,
+                from = x.From,
+                to = x.To,
             }),
             hoursByHourOfDay = r.PlaytimeByHour.Select(ms => Math.Round(ms / 3_600_000d, 4)),
             hoursByDayOfWeek = r.PlaytimeByDayOfWeek.Select(ms => Math.Round(ms / 3_600_000d, 4)),

@@ -28,6 +28,18 @@ public static class AnalysisEngine
     /// <summary>How many forgotten tracks and artists are listed.</summary>
     public const int ForgottenMaxRows = 50;
 
+    /// <summary>
+    /// The stretch a burst of repeats is measured over, in days. 7 finds the week a song was
+    /// on repeat; 1 finds single obsessive days; much past 30 just finds favourites.
+    /// </summary>
+    public const int RepeatWindowDays = 7;
+
+    /// <summary>Plays inside the window a track needs to count as having been on repeat.</summary>
+    public const int RepeatMinPlays = 10;
+
+    /// <summary>How many tracks the On Repeat list shows.</summary>
+    public const int RepeatRows = 25;
+
     /// <summary>Play counts worth marking: the play that reached each one becomes a milestone.</summary>
     public static readonly int[] MilestonePlayCounts = { 1_000, 10_000, 50_000, 100_000, 250_000, 500_000 };
 
@@ -331,6 +343,7 @@ public static class AnalysisEngine
         var (sessionCount, avgSessionMs, longestSessionMs, longestSessionDate) =
             ComputeSessions(timedPlays, sessionGap ?? SessionGap);
         var milestones = ComputeMilestones(timedPlays, artistList, tracks);
+        var onRepeat = ComputeRepeats(timedPlays);
 
         var newArtistsByMonth = artistList
             .Where(a => a.FirstPlayed is not null)
@@ -375,6 +388,7 @@ public static class AnalysisEngine
             Years = yearList,
             Months = monthList,
             Milestones = milestones,
+            OnRepeat = onRepeat,
             ForgottenTracks = forgottenTracks,
             ForgottenArtists = forgottenArtists,
             ReasonEnds = reasonList,
@@ -770,6 +784,55 @@ public static class AnalysisEngine
 
         milestones.Sort(static (a, b) => a.Date.CompareTo(b.Date));
         return milestones;
+    }
+
+    /// <summary>
+    /// Each track's busiest <see cref="RepeatWindowDays"/>: the most of its plays that ended
+    /// within that span of each other, and the first and last of them. Expects
+    /// <paramref name="plays"/> sorted by end time. Only tracks with enough plays overall to
+    /// qualify are looked at, which keeps this to a small share of a large history.
+    /// </summary>
+    private static List<RepeatStat> ComputeRepeats(List<TimedPlay> plays)
+    {
+        var times = new Dictionary<TrackStat, List<DateTime>>(ReferenceEqualityComparer.Instance);
+        foreach (var play in plays)
+        {
+            if (play.Track.PlayCount < RepeatMinPlays)
+                continue;
+            if (!times.TryGetValue(play.Track, out var list))
+            {
+                list = new List<DateTime>();
+                times[play.Track] = list;
+            }
+            list.Add(play.End);
+        }
+
+        var window = TimeSpan.FromDays(RepeatWindowDays);
+        var repeats = new List<RepeatStat>();
+        foreach (var (track, ends) in times)
+        {
+            int best = 0, bestFirst = 0, bestLast = 0;
+            for (int first = 0, last = 0; last < ends.Count; last++)
+            {
+                while (ends[last] - ends[first] >= window)
+                    first++;
+                if (last - first + 1 > best)
+                {
+                    best = last - first + 1;
+                    bestFirst = first;
+                    bestLast = last;
+                }
+            }
+
+            if (best >= RepeatMinPlays)
+                repeats.Add(new RepeatStat(track, best, ends[bestFirst], ends[bestLast]));
+        }
+
+        return repeats
+            .OrderByDescending(r => r.Plays)
+            .ThenBy(r => r.From)
+            .Take(RepeatRows)
+            .ToList();
     }
 
     private static DateTime StartOf(TimedPlay play)
