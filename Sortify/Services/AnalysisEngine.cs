@@ -16,6 +16,24 @@ public static class AnalysisEngine
     /// </summary>
     public static readonly TimeSpan SessionGap = TimeSpan.FromMinutes(30);
 
+    /// <summary>Plays a track needs before it can count as a forgotten favorite.</summary>
+    public const int ForgottenMinTrackPlays = 20;
+
+    /// <summary>Plays an artist needs before it can count as a forgotten favorite.</summary>
+    public const int ForgottenMinArtistPlays = 50;
+
+    /// <summary>How long a favorite has to go unplayed, before the end of the history, to count as forgotten.</summary>
+    public const int ForgottenAfterDays = 180;
+
+    /// <summary>How many forgotten tracks and artists are listed.</summary>
+    public const int ForgottenMaxRows = 50;
+
+    /// <summary>Play counts worth marking: the play that reached each one becomes a milestone.</summary>
+    public static readonly int[] MilestonePlayCounts = { 1_000, 10_000, 50_000, 100_000, 250_000, 500_000 };
+
+    /// <summary>Listening hours worth marking: the play that pushed the total past each one.</summary>
+    public static readonly int[] MilestoneHours = { 100, 500, 1_000, 2_500, 5_000, 10_000 };
+
     /// <summary>Runs aggregation on a background thread so the UI stays responsive.</summary>
     public static Task<AnalysisResult> AnalyzeAsync(
         IReadOnlyList<PlayRecord> records,
@@ -44,12 +62,13 @@ public static class AnalysisEngine
         var albums = new Dictionary<(string Album, string Artist), AlbumStat>();
         var skips = new Dictionary<(string Track, string Artist), (int Plays, int Skips)>();
         var reasons = new Dictionary<string, ReasonEndStat>(StringComparer.OrdinalIgnoreCase);
-        var years = new Dictionary<int, YearAccumulator>();
+        var years = new Dictionary<int, PeriodAccumulator>();
+        var months = new Dictionary<DateTime, PeriodAccumulator>();
         var byDay = new Dictionary<DateTime, long>();
         var byHour = new long[24];
         var byDow = new long[7];
         var byDowHour = new long[7, 24];
-        var timedPlays = new List<(DateTime End, int Ms)>();
+        var timedPlays = new List<TimedPlay>();
 
         var shows = new Dictionary<string, ShowStat>(StringComparer.Ordinal);
         var showEpisodeKeys = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
@@ -125,11 +144,9 @@ public static class AnalysisEngine
             if (!isMusic && !filter.IncludePodcasts)
                 continue;
 
-            // When podcasts are folded in, the episode stands in for the track and the show
-            // for both the artist and the album, so every ranking stays populated.
-            string trackName = isMusic ? r.TrackName : r.EpisodeName;
-            string artistName = isMusic ? r.ArtistName : r.ShowName;
-            string albumName = isMusic ? r.AlbumName : r.ShowName;
+            string trackName = r.DisplayTrack;
+            string artistName = r.DisplayArtist;
+            string albumName = r.DisplayAlbum;
 
             var trackKey = (trackName, artistName);
 
@@ -177,6 +194,8 @@ public static class AnalysisEngine
             }
             track.TotalMsPlayed += r.MsPlayed;
             track.PlayCount++;
+            if (track.Uri.Length == 0)
+                track.Uri = r.Uri;
 
             var albumKey = (albumName, artistName);
             if (!albums.TryGetValue(albumKey, out var album))
@@ -213,18 +232,23 @@ public static class AnalysisEngine
                 byDow[dow] += r.MsPlayed;
                 byDowHour[dow, hour] += r.MsPlayed;
 
-                timedPlays.Add((ts, r.MsPlayed));
+                timedPlays.Add(new TimedPlay(ts, r.MsPlayed, track));
 
                 int year = ts.Year;
                 if (!years.TryGetValue(year, out var acc))
                 {
-                    acc = new YearAccumulator();
+                    acc = new PeriodAccumulator();
                     years[year] = acc;
                 }
-                acc.Ms += r.MsPlayed;
-                acc.Plays++;
-                CollectionsMarshal.GetValueRefOrAddDefault(acc.ArtistMs, artistName, out _) += r.MsPlayed;
-                CollectionsMarshal.GetValueRefOrAddDefault(acc.TrackMs, trackKey, out _) += r.MsPlayed;
+                acc.Add(artist, track, r.MsPlayed);
+
+                var month = new DateTime(ts.Year, ts.Month, 1);
+                if (!months.TryGetValue(month, out var monthAcc))
+                {
+                    monthAcc = new PeriodAccumulator();
+                    months[month] = monthAcc;
+                }
+                monthAcc.Add(artist, track, r.MsPlayed);
             }
         }
 
@@ -280,8 +304,10 @@ public static class AnalysisEngine
             }
         }
 
+        timedPlays.Sort(static (a, b) => a.End.CompareTo(b.End));
         var (sessionCount, avgSessionMs, longestSessionMs, longestSessionDate) =
             ComputeSessions(timedPlays, sessionGap ?? SessionGap);
+        var milestones = ComputeMilestones(timedPlays, artistList, tracks);
 
         var newArtistsByMonth = artistList
             .Where(a => a.FirstPlayed is not null)
@@ -294,6 +320,26 @@ public static class AnalysisEngine
             .OrderBy(kv => kv.Key)
             .Select(kv => BuildYearStat(kv.Key, kv.Value))
             .ToList();
+        var monthList = months
+            .OrderBy(kv => kv.Key)
+            .Select(kv => BuildMonthStat(kv.Key, kv.Value))
+            .ToList();
+
+        // Measured from the last play in the results rather than from today: an export is a
+        // snapshot, and a filtered one can end years ago.
+        var forgottenBefore = lastListen?.AddDays(-ForgottenAfterDays);
+        var forgottenTracks = forgottenBefore is { } trackCutoff
+            ? tracksByCount
+                .Where(t => t.PlayCount >= ForgottenMinTrackPlays && t.LastPlayed < trackCutoff)
+                .Take(ForgottenMaxRows)
+                .ToList()
+            : new List<TrackStat>();
+        var forgottenArtists = forgottenBefore is { } artistCutoff
+            ? artistsByCount
+                .Where(a => a.PlayCount >= ForgottenMinArtistPlays && a.LastPlayed < artistCutoff)
+                .Take(ForgottenMaxRows)
+                .ToList()
+            : new List<ArtistStat>();
 
         return new AnalysisResult
         {
@@ -304,6 +350,10 @@ public static class AnalysisEngine
             TracksByPlayCount = tracksByCount,
             AlbumsByPlayCount = albumsByCount,
             Years = yearList,
+            Months = monthList,
+            Milestones = milestones,
+            ForgottenTracks = forgottenTracks,
+            ForgottenArtists = forgottenArtists,
             ReasonEnds = reasonList,
             SkippedTracks = skippedList,
             Shows = showList,
@@ -451,47 +501,82 @@ public static class AnalysisEngine
         "windows", "osx", "macos", "mac", "linux",
     };
 
-    private sealed class YearAccumulator
+    /// <summary>
+    /// Running totals for one year or one month, and who led it. Keyed by the artist and
+    /// track objects of the whole pass, which are already one per name, so each play costs a
+    /// reference hash rather than hashing the names again for every month and year.
+    /// </summary>
+    private sealed class PeriodAccumulator
     {
         public long Ms;
         public int Plays;
-        public readonly Dictionary<string, long> ArtistMs = new(StringComparer.Ordinal);
-        public readonly Dictionary<(string Track, string Artist), long> TrackMs = new();
+        public readonly Dictionary<ArtistStat, long> ArtistMs = new(ReferenceEqualityComparer.Instance);
+        public readonly Dictionary<TrackStat, long> TrackMs = new(ReferenceEqualityComparer.Instance);
+
+        public void Add(ArtistStat artist, TrackStat track, int ms)
+        {
+            Ms += ms;
+            Plays++;
+            CollectionsMarshal.GetValueRefOrAddDefault(ArtistMs, artist, out _) += ms;
+            CollectionsMarshal.GetValueRefOrAddDefault(TrackMs, track, out _) += ms;
+        }
+
+        public (string Artist, long Ms) TopArtist()
+        {
+            (string, long) top = ("-", 0);
+            long best = -1;
+            foreach (var (artist, ms) in ArtistMs)
+            {
+                if (ms > best)
+                {
+                    best = ms;
+                    top = (artist.Artist, ms);
+                }
+            }
+            return top;
+        }
+
+        public ((string Track, string Artist) Key, long Ms) TopTrack()
+        {
+            ((string, string), long) top = (("-", "-"), 0);
+            long best = -1;
+            foreach (var (track, ms) in TrackMs)
+            {
+                if (ms > best)
+                {
+                    best = ms;
+                    top = ((track.Track, track.Artist), ms);
+                }
+            }
+            return top;
+        }
     }
 
-    private static YearStat BuildYearStat(int year, YearAccumulator acc)
+    private static YearStat BuildYearStat(int year, PeriodAccumulator acc) => new()
     {
-        string topArtist = "-";
-        long best = -1;
-        foreach (var (name, ms) in acc.ArtistMs)
-        {
-            if (ms > best)
-            {
-                best = ms;
-                topArtist = name;
-            }
-        }
+        Year = year,
+        TotalMsPlayed = acc.Ms,
+        PlayCount = acc.Plays,
+        UniqueArtists = acc.ArtistMs.Count,
+        UniqueTracks = acc.TrackMs.Count,
+        TopArtist = acc.TopArtist().Artist,
+        TopTrack = acc.TopTrack().Key.Track,
+    };
 
-        string topTrack = "-";
-        best = -1;
-        foreach (var (key, ms) in acc.TrackMs)
+    private static MonthStat BuildMonthStat(DateTime month, PeriodAccumulator acc)
+    {
+        var (artist, artistMs) = acc.TopArtist();
+        var (track, trackMs) = acc.TopTrack();
+        return new MonthStat
         {
-            if (ms > best)
-            {
-                best = ms;
-                topTrack = key.Track;
-            }
-        }
-
-        return new YearStat
-        {
-            Year = year,
+            Month = month,
             TotalMsPlayed = acc.Ms,
             PlayCount = acc.Plays,
-            UniqueArtists = acc.ArtistMs.Count,
-            UniqueTracks = acc.TrackMs.Count,
-            TopArtist = topArtist,
-            TopTrack = topTrack,
+            TopArtist = artist,
+            TopArtistMs = artistMs,
+            TopTrack = track.Track,
+            TopTrackArtist = track.Artist,
+            TopTrackMs = trackMs,
         };
     }
 
@@ -570,17 +655,19 @@ public static class AnalysisEngine
         return streak;
     }
 
+    /// <summary>A dated play, kept in time order for sessions and milestones.</summary>
+    private readonly record struct TimedPlay(DateTime End, int Ms, TrackStat Track);
+
     /// <summary>
-    /// Groups timestamped plays into sessions. A play whose start (end time minus duration)
-    /// falls within <paramref name="gap"/> of the previous play's end continues the session.
+    /// Groups timestamped plays, sorted by end time, into sessions. A play whose start (end
+    /// time minus duration) falls within <paramref name="gap"/> of the previous play's end
+    /// continues the session.
     /// </summary>
     private static (int count, long avgMs, long longestMs, DateTime? longestDate) ComputeSessions(
-        List<(DateTime End, int Ms)> plays, TimeSpan gap)
+        List<TimedPlay> plays, TimeSpan gap)
     {
         if (plays.Count == 0)
             return (0, 0, 0, null);
-
-        plays.Sort(static (a, b) => a.End.CompareTo(b.End));
 
         int count = 1;
         long totalMs = plays[0].Ms;
@@ -620,7 +707,49 @@ public static class AnalysisEngine
         return (count, totalMs / count, longestMs, longestStart.Date);
     }
 
-    private static DateTime StartOf((DateTime End, int Ms) play)
+    /// <summary>
+    /// The plays that mark the history: the first one, the ones that reached each round play
+    /// count and each round number of hours, and the first time the top artist came on.
+    /// Expects <paramref name="plays"/> sorted by end time.
+    /// </summary>
+    private static List<Milestone> ComputeMilestones(
+        List<TimedPlay> plays, IReadOnlyList<ArtistStat> artists,
+        Dictionary<(string Track, string Artist), TrackStat> tracks)
+    {
+        var milestones = new List<Milestone>();
+        if (plays.Count == 0)
+            return milestones;
+
+        milestones.Add(new Milestone("First play", plays[0].End, plays[0].Track));
+
+        int nextCount = 0, nextHours = 0;
+        long ms = 0;
+        for (int i = 0; i < plays.Count; i++)
+        {
+            ms += plays[i].Ms;
+            if (nextCount < MilestonePlayCounts.Length && i + 1 == MilestonePlayCounts[nextCount])
+            {
+                milestones.Add(new Milestone($"{MilestonePlayCounts[nextCount]:N0}th play", plays[i].End, plays[i].Track));
+                nextCount++;
+            }
+            while (nextHours < MilestoneHours.Length && ms >= MilestoneHours[nextHours] * 3_600_000L)
+            {
+                milestones.Add(new Milestone($"{MilestoneHours[nextHours]:N0} hours listened", plays[i].End, plays[i].Track));
+                nextHours++;
+            }
+        }
+
+        if (artists.Count > 0 && artists[0] is { FirstPlayed: { } first } top &&
+            tracks.TryGetValue((top.FirstTrack, top.Artist), out var firstTrack))
+        {
+            milestones.Add(new Milestone($"First time hearing {top.Artist}, your top artist", first, firstTrack));
+        }
+
+        milestones.Sort(static (a, b) => a.Date.CompareTo(b.Date));
+        return milestones;
+    }
+
+    private static DateTime StartOf(TimedPlay play)
     {
         // Timestamps mark when a play ended; subtract the duration to get its start,
         // clamped so contrived data near DateTime.MinValue can't underflow.

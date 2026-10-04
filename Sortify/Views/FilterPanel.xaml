@@ -8,6 +8,18 @@
              mc:Ignorable="d"
              d:DesignWidth="280">
     <UserControl.Resources>
+        <!-- An item template rather than DisplayMemberPath: the closed box in the app's
+             ComboBox template only shows the selection through a template. -->
+        <DataTemplate x:Key="PlaybackChoiceItem">
+            <TextBlock Text="{Binding Label}" />
+        </DataTemplate>
+
+        <DataTemplate x:Key="ChoiceToggleItem">
+            <CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected}" MinWidth="56"
+                      Margin="0,0,8,2" ToolTip="{Binding Description}"
+                      AutomationProperties.Name="{Binding Description}" />
+        </DataTemplate>
+
         <!-- Removable pill used by both exclusion lists. -->
         <Style x:Key="ExclusionPill" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource PanelBrush2}" />
@@ -45,12 +57,58 @@
                             Padding="8,4" Margin="0" ToolTip="Clear every filter (Ctrl+R)" />
                 </DockPanel>
 
+                <!-- Saved filter sets -->
+                <TextBlock Text="SAVED FILTERS" Style="{StaticResource SectionHeader}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <!-- An item template rather than DisplayMemberPath: the closed box in the
+                         app's ComboBox template only shows the selection through a template. -->
+                    <ComboBox Grid.Column="0" ItemsSource="{Binding Presets}"
+                              SelectedItem="{Binding SelectedPreset}" IsEnabled="{Binding HasPresets}"
+                              AutomationProperties.Name="Saved filter sets"
+                              ToolTip="Pick a saved set to put all of its filters back">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Grid.Column="0" Text="{Binding PresetPrompt}" Margin="11,0,0,0" FontSize="13"
+                               VerticalAlignment="Center" IsHitTestVisible="False"
+                               Foreground="{DynamicResource MutedBrush}"
+                               Visibility="{Binding HasSelectedPreset, Converter={StaticResource NotBoolToVis}}" />
+                    <Button Grid.Column="1" Content="Delete" Margin="6,0,0,0" Padding="10,4"
+                            Command="{Binding DeletePresetCommand}"
+                            ToolTip="Forget the selected saved set (the filters stay as they are)" />
+                </Grid>
+                <Grid Margin="0,6,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}"
+                             MaxLength="40" AutomationProperties.Name="Name for the current filters"
+                             ToolTip="Name the current filters, then press Enter or Save">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding SavePresetCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <Button Grid.Column="1" Content="Save" Margin="6,0,0,0" Padding="10,4"
+                            Command="{Binding SavePresetCommand}" />
+                </Grid>
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Saves every filter below under a name, and picking it puts them all back. Saving under a name that's already taken replaces it. Exclusions (unticked devices and countries too), the minimum duration, and the podcast and private-session settings carry over between launches anyway." />
+
                 <!-- Minimum play duration -->
                 <TextBlock Text="MINIMUM PLAY DURATION (SECONDS)" Style="{StaticResource Caption}" />
                 <TextBox Text="{Binding MinSeconds, UpdateSourceTrigger=PropertyChanged, Delay=400}"
                          AutomationProperties.Name="Minimum play duration in seconds"
                          MaxLength="6"
                          PreviewTextInput="OnDigitsOnlyInput"
+                         PreviewKeyDown="OnDigitsOnlyKeyDown"
                          DataObject.Pasting="OnDigitsOnlyPaste" />
                 <TextBlock Style="{StaticResource Hint}"
                            Text="Listens shorter than this are ignored (default 5s)." />
@@ -72,6 +130,25 @@
                            Text="From is after To, so nothing can match. Swap the dates or clear one."
                            AutomationProperties.LiveSetting="Assertive"
                            Visibility="{Binding HasInvalidDateRange, Converter={StaticResource BoolToVis}}" />
+                <ItemsControl ItemsSource="{Binding QuickRanges}" Margin="0,8,0,0" Focusable="False"
+                              AutomationProperties.Name="Quick date ranges"
+                              Visibility="{Binding HasQuickRanges, Converter={StaticResource BoolToVis}}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
+                                    ToolTip="{Binding Tooltip}"
+                                    AutomationProperties.HelpText="{Binding Tooltip}"
+                                    Command="{Binding DataContext.ApplyQuickRangeCommand,
+                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <!-- Search -->
                 <TextBlock Text="SEARCH ALL PLAYS" Style="{StaticResource SectionHeader}" />
@@ -121,6 +198,48 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+
+                <!-- Playback context -->
+                <TextBlock Text="PLAYBACK" Style="{StaticResource SectionHeader}" />
+                <TextBlock Text="Shuffle" Style="{StaticResource Caption}" />
+                <ComboBox ItemsSource="{Binding ShuffleChoices}" SelectedValuePath="Mode"
+                          SelectedValue="{Binding ShuffleMode}" ItemTemplate="{StaticResource PlaybackChoiceItem}"
+                          AutomationProperties.Name="Shuffled plays" />
+                <TextBlock Text="Offline" Style="{StaticResource Caption}" />
+                <ComboBox ItemsSource="{Binding OfflineChoices}" SelectedValuePath="Mode"
+                          SelectedValue="{Binding OfflineMode}" ItemTemplate="{StaticResource PlaybackChoiceItem}"
+                          AutomationProperties.Name="Offline plays" />
+                <TextBlock Text="Private sessions" Style="{StaticResource Caption}" />
+                <ComboBox ItemsSource="{Binding PrivateChoices}" SelectedValuePath="Mode"
+                          SelectedValue="{Binding PrivateMode}" ItemTemplate="{StaticResource PlaybackChoiceItem}"
+                          AutomationProperties.Name="Private sessions" />
+
+                <TextBlock Text="Devices" Style="{StaticResource Caption}" Margin="0,12,0,3" />
+                <ItemsControl ItemsSource="{Binding Devices}" Focusable="False"
+                              AutomationProperties.Name="Devices to count"
+                              ItemTemplate="{StaticResource ChoiceToggleItem}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+
+                <TextBlock Text="Countries" Style="{StaticResource Caption}" Margin="0,8,0,3" />
+                <ItemsControl ItemsSource="{Binding Countries}" Focusable="False"
+                              AutomationProperties.Name="Countries to count"
+                              ItemTemplate="{StaticResource ChoiceToggleItem}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                </ItemsControl>
+                <TextBlock Style="{StaticResource Hint}"
+                           Visibility="{Binding HasPlaybackChoices, Converter={StaticResource NotBoolToVis}}"
+                           Text="The devices and countries in your history show up here once it's loaded." />
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Untick a device or country to leave its plays out. Older exports don't record any of this, so their plays always count, except when a list above is set to Only." />
 
                 <!-- Excluded artists -->
                 <TextBlock Text="EXCLUDE ARTISTS" Style="{StaticResource SectionHeader}" />

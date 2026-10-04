@@ -43,6 +43,15 @@ public sealed class PlayRecord
     /// <summary>Podcast episode name, or audiobook chapter title. Empty for music.</summary>
     public string EpisodeName { get; init; } = string.Empty;
 
+    // The names a play is ranked and excluded under. A podcast or audiobook folded into the
+    // music statistics stands in with its episode for the track and its show for both the
+    // artist and the album, so a grid row, an exclusion picked from it and the detail view it
+    // opens all name the same plays.
+
+    public string DisplayTrack => Kind == ContentKind.Music ? TrackName : EpisodeName;
+    public string DisplayArtist => Kind == ContentKind.Music ? ArtistName : ShowName;
+    public string DisplayAlbum => Kind == ContentKind.Music ? AlbumName : ShowName;
+
     // ---- Playback context ---------------------------------------------------------------
 
     /// <summary>Device/app the play happened on ("windows", "android", "web_player", ...).</summary>

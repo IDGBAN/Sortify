@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Sortify.Models;
 
 namespace Sortify.Services;
 
@@ -17,12 +18,17 @@ public sealed class AppSettings
     public const int MinSessionGapMinutes = 1;
     public const int MaxSessionGapMinutes = 240;
 
+    /// <summary>How many named filter sets can be saved.</summary>
+    public const int MaxFilterPresets = 30;
+
     // ---- Data -------------------------------------------------------------------------------
 
-    /// <summary>Folder passed to Open Folder last time, reopened at startup when it still exists.</summary>
+    /// <summary>
+    /// Export folder (or export ZIP) opened last time, reopened at startup when it still exists.
+    /// </summary>
     public string? LastFolder { get; set; }
 
-    /// <summary>Most recently opened folders, newest first.</summary>
+    /// <summary>Most recently opened export folders and ZIPs, newest first.</summary>
     public List<string> RecentFolders { get; set; } = new();
 
     /// <summary>Whether to reload the last folder automatically on launch.</summary>
@@ -30,6 +36,17 @@ public sealed class AppSettings
 
     /// <summary>Gap between plays that starts a new listening session, in minutes.</summary>
     public int SessionGapMinutes { get; set; } = 30;
+
+    /// <summary>
+    /// The filters carried over to the next launch. Only the ones that describe what the
+    /// user never wants counted (exclusions, the minimum duration, podcasts, private
+    /// sessions, devices and countries left out) are kept here; a date range or a search
+    /// coming back days later would just be confusing.
+    /// </summary>
+    public FilterPreset? Filters { get; set; }
+
+    /// <summary>Named filter sets, in the order they were saved.</summary>
+    public List<FilterPreset> FilterPresets { get; set; } = new();
 
     // ---- Appearance -------------------------------------------------------------------------
 
@@ -90,7 +107,13 @@ public sealed class AppSettings
         {
             Normalize();
             Directory.CreateDirectory(AppPaths.DataDirectory);
-            File.WriteAllText(SettingsFile, JsonSerializer.Serialize(this, JsonOptions));
+
+            // Written aside and moved into place, like the record cache: a crash halfway
+            // through a direct write would leave a file that loads as defaults, saved filter
+            // sets and all.
+            string temp = SettingsFile + ".tmp";
+            File.WriteAllText(temp, JsonSerializer.Serialize(this, JsonOptions));
+            File.Move(temp, SettingsFile, overwrite: true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
                                      or JsonException or ArgumentException or NotSupportedException)
@@ -117,13 +140,16 @@ public sealed class AppSettings
         LastFolder = folder;
     }
 
-    /// <summary>Drops remembered folders that no longer exist on disk.</summary>
+    /// <summary>Drops remembered folders and ZIPs that no longer exist on disk.</summary>
     public void PruneMissingFolders()
     {
-        RecentFolders.RemoveAll(f => !Directory.Exists(f));
-        if (LastFolder is not null && !Directory.Exists(LastFolder))
+        RecentFolders.RemoveAll(f => !Exists(f));
+        if (LastFolder is not null && !Exists(LastFolder))
             LastFolder = null;
     }
+
+    private static bool Exists(string path) =>
+        ArchivePath.IsArchive(path) ? File.Exists(path) : Directory.Exists(path);
 
     /// <summary>
     /// <see cref="SessionGapMinutes"/> as a TimeSpan. Not persisted: it is derived, and
@@ -148,6 +174,19 @@ public sealed class AppSettings
             .ToList();
         SessionGapMinutes = Math.Clamp(SessionGapMinutes, MinSessionGapMinutes, MaxSessionGapMinutes);
         LastTabIndex = Math.Max(0, LastTabIndex);
+
+        Filters?.Normalize();
+        FilterPresets = (FilterPresets ?? new List<FilterPreset>())
+            .Where(p => p is not null)
+            .Select(p =>
+            {
+                p.Normalize();
+                return p;
+            })
+            .Where(p => p.Name.Length > 0)
+            .DistinctBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(MaxFilterPresets)
+            .ToList();
 
         // Settings written before recent folders existed only have LastFolder.
         if (RecentFolders.Count == 0 && !string.IsNullOrWhiteSpace(LastFolder))

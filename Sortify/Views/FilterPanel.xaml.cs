@@ -19,6 +19,13 @@ public partial class FilterPanel : UserControl
     private void OnDigitsOnlyInput(object sender, TextCompositionEventArgs e)
         => e.Handled = !IsAllDigits(e.Text);
 
+    /// <summary>The space bar types into a TextBox without ever raising PreviewTextInput.</summary>
+    private void OnDigitsOnlyKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Space)
+            e.Handled = true;
+    }
+
     private void OnDigitsOnlyPaste(object sender, DataObjectPastingEventArgs e)
     {
         var pasted = e.DataObject.GetDataPresent(DataFormats.UnicodeText)

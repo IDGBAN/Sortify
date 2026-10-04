@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows;
 using System.Windows.Threading;
 using Sortify.Services;
@@ -23,6 +22,8 @@ public partial class App : Application
         ThemeService.WatchSystemTheme();
 
         DispatcherUnhandledException += OnDispatcherUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+        AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -39,7 +40,7 @@ public partial class App : Application
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         e.Handled = true;
-        TryWriteCrashLog(e.Exception);
+        ErrorLog.TryWrite(e.Exception);
 
         MessageBox.Show(
             MainWindow,
@@ -49,16 +50,20 @@ public partial class App : Application
             "Sortify", MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 
-    private static void TryWriteCrashLog(Exception exception)
+    /// <summary>
+    /// Work started without being awaited (the cache save after a load, a Compare tab
+    /// refresh) would otherwise fail without leaving any trace.
+    /// </summary>
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        try
-        {
-            Directory.CreateDirectory(AppPaths.DataDirectory);
-            File.AppendAllText(AppPaths.ErrorLog, $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {exception}{Environment.NewLine}{Environment.NewLine}");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            // Logging must never be the thing that brings the app down.
-        }
+        ErrorLog.TryWrite(e.Exception);
+        e.SetObserved();
+    }
+
+    /// <summary>A crash on a background thread still ends the process, but now leaves a log entry behind.</summary>
+    private static void OnUnhandledException(object sender, UnhandledExceptionEventArgs e)
+    {
+        if (e.ExceptionObject is Exception exception)
+            ErrorLog.TryWrite(exception);
     }
 }

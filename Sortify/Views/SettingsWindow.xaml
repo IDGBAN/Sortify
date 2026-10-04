@@ -1,7 +1,8 @@
-<Window x:Class="Sortify.Views.SettingsWindow"
+<views:ThemedWindow x:Class="Sortify.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Settings" Height="660" Width="520"
+        xmlns:views="clr-namespace:Sortify.Views"
+        Title="Settings" Height="680" Width="520"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="{DynamicResource BgBrush}"
         Foreground="{DynamicResource TextBrush}">
@@ -38,7 +39,7 @@
                     <StackPanel>
                         <TextBlock Text="Data" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
 
-                        <CheckBox x:Name="ReopenBox" Content="Reopen the last folder on launch"
+                        <CheckBox x:Name="ReopenBox" Content="Reopen the last export on launch"
                                   Checked="OnReopenChanged" Unchecked="OnReopenChanged" />
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="Loads your most recent export automatically when Sortify starts." />
@@ -68,8 +69,8 @@
                         <WrapPanel>
                             <Button x:Name="ClearCacheButton" Content="Clear cache" Click="OnClearCache"
                                     ToolTip="Delete the parsed-history cache. The next load re-reads your JSON files." />
-                            <Button x:Name="ClearRecentButton" Content="Clear recent folders" Click="OnClearRecent"
-                                    ToolTip="Forget the folders in the Recent menu." />
+                            <Button x:Name="ClearRecentButton" Content="Clear recent" Click="OnClearRecent"
+                                    ToolTip="Forget the folders and ZIPs in the Recent menu." />
                             <Button Content="Open data folder" Click="OnOpenDataFolder"
                                     ToolTip="Everything Sortify stores lives here." />
                         </WrapPanel>
@@ -80,8 +81,12 @@
                     </StackPanel>
                 </Border>
 
-                <TextBlock x:Name="VersionText" Style="{StaticResource Hint}"
-                           HorizontalAlignment="Center" Margin="0,14,0,0" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,14,0,0">
+                    <Image Source="{StaticResource SortifyLogo}" Width="16" Height="16" Margin="0,0,6,0"
+                           VerticalAlignment="Center" />
+                    <TextBlock x:Name="VersionText" Style="{StaticResource Hint}" Margin="0"
+                               VerticalAlignment="Center" />
+                </StackPanel>
             </StackPanel>
         </ScrollViewer>
 
@@ -90,4 +95,4 @@
                     Margin="0" Padding="24,8" IsDefault="True" IsCancel="True" Click="OnClose" />
         </DockPanel>
     </Grid>
-</Window>
+</views:ThemedWindow>

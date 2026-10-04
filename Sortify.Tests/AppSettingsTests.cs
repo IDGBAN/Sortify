@@ -69,6 +69,28 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void PruneMissingFolders_KeepsAZipThatStillExists()
+    {
+        var zip = Path.Combine(Path.GetTempPath(), $"sortify-{Guid.NewGuid():N}.zip");
+        File.WriteAllText(zip, "zip");
+        try
+        {
+            var settings = new AppSettings();
+            settings.RememberFolder(Path.Combine(Path.GetTempPath(), "sortify-gone.zip"));
+            settings.RememberFolder(zip);
+
+            settings.PruneMissingFolders();
+
+            Assert.Equal(new[] { zip }, settings.RecentFolders);
+            Assert.Equal(zip, settings.LastFolder);
+        }
+        finally
+        {
+            File.Delete(zip);
+        }
+    }
+
+    [Fact]
     public void Normalize_CleansAHandEditedRecentList()
     {
         var settings = JsonSerializer.Deserialize<AppSettings>(
@@ -98,6 +120,20 @@ public class AppSettingsTests
 
         Assert.DoesNotContain("\"SessionGap\"", json);
         Assert.Contains("\"SessionGapMinutes\"", json);
+    }
+
+    [Fact]
+    public void Save_RoundTripsWithoutLeavingTheTempFileBehind()
+    {
+        var settings = new AppSettings { SessionGapMinutes = 45 };
+        settings.FilterPresets.Add(new Sortify.Models.FilterPreset { Name = "Gym" });
+
+        settings.Save();
+        var loaded = AppSettings.Load();
+
+        Assert.Equal(45, loaded.SessionGapMinutes);
+        Assert.Equal("Gym", Assert.Single(loaded.FilterPresets).Name);
+        Assert.False(File.Exists(Path.Combine(AppPaths.DataDirectory, "settings.json.tmp")));
     }
 
     [Fact]

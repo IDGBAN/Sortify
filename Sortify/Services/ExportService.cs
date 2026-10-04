@@ -21,13 +21,24 @@ public static class ExportService
         Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
-    public static async Task SaveTxtAsync(string path, AnalysisResult result)
+    /// <summary>
+    /// The line saying which filters shaped a report. Filter descriptions can contain commas
+    /// ("Sun, Sat"), so they are separated with semicolons.
+    /// </summary>
+    internal static string FiltersLine(IReadOnlyList<string>? filters) =>
+        filters is { Count: > 0 }
+            ? "Filters: " + string.Join("; ", filters)
+            : "Filters: none (every play in the export)";
+
+    /// <param name="filters">The filters the result was computed under, as the chip row words them.</param>
+    public static async Task SaveTxtAsync(string path, AnalysisResult result, IReadOnlyList<string>? filters = null)
     {
         var sb = new StringBuilder();
 
         // ---- Summary -------------------------------------------------------------------
         sb.AppendLine("Sortify Results");
         sb.AppendLine($"Generated: {TimeFormat.Timestamp(DateTime.Now)}");
+        sb.AppendLine(FiltersLine(filters));
         sb.AppendLine();
         sb.AppendLine($"Total listening time: {TimeFormat.Friendly(result.TotalTime)} ({TimeFormat.HhMmSs(result.TotalTime)})");
         sb.AppendLine($"Total plays: {result.TotalPlays:N0}");
@@ -39,11 +50,11 @@ public static class ExportService
         if (result.ActiveDays > 0)
             sb.AppendLine($"Active days: {result.ActiveDays:N0}");
         if (result.LongestStreakDays > 0 && result.LongestStreakStart is { } ss && result.LongestStreakEnd is { } se)
-            sb.AppendLine($"Longest streak: {result.LongestStreakDays} days ({ss:yyyy-MM-dd} to {se:yyyy-MM-dd})");
+            sb.AppendLine($"Longest streak: {result.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (result.LongestBreakDays > 0 && result.LongestBreakStart is { } bs && result.LongestBreakEnd is { } be)
-            sb.AppendLine($"Longest break: {result.LongestBreakDays} days ({bs:yyyy-MM-dd} to {be:yyyy-MM-dd})");
+            sb.AppendLine($"Longest break: {result.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (result.BiggestDay is { } bd)
-            sb.AppendLine($"Biggest day: {bd:yyyy-MM-dd} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.BiggestDayMs))})");
+            sb.AppendLine($"Biggest day: {TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.BiggestDayMs))})");
         if (result.SessionCount > 0)
             sb.AppendLine($"Listening sessions: {result.SessionCount:N0} (avg {TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.AvgSessionMs))})");
         if (result.SkipEligiblePlays > 0)
@@ -207,11 +218,12 @@ public static class ExportService
     /// A report meant to be read: the summary and insights in full, then the top
     /// <see cref="MarkdownTopN"/> of each ranking as tables.
     /// </summary>
-    public static async Task SaveMarkdownAsync(string path, AnalysisResult r)
+    public static async Task SaveMarkdownAsync(string path, AnalysisResult r, IReadOnlyList<string>? filters = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("# Sortify report").AppendLine();
         sb.AppendLine($"*Generated {TimeFormat.Timestamp(DateTime.Now)}*").AppendLine();
+        sb.AppendLine(MdText(FiltersLine(filters))).AppendLine();
 
         sb.AppendLine("## Summary").AppendLine();
         sb.AppendLine("| Metric | Value |");
@@ -231,13 +243,13 @@ public static class ExportService
         sb.AppendLine("| Metric | Value |");
         sb.AppendLine("| --- | --- |");
         if (r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se)
-            Row("Longest streak", $"{r.LongestStreakDays} days ({ss:yyyy-MM-dd} to {se:yyyy-MM-dd})");
+            Row("Longest streak", $"{r.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (r.CurrentStreakDays > 0)
             Row("Current streak", $"{r.CurrentStreakDays} days");
         if (r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be)
-            Row("Longest break", $"{r.LongestBreakDays} days ({bs:yyyy-MM-dd} to {be:yyyy-MM-dd})");
+            Row("Longest break", $"{r.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (r.BiggestDay is { } bd)
-            Row("Biggest day", $"{bd:yyyy-MM-dd} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})");
+            Row("Biggest day", $"{TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})");
         if (r.SessionCount > 0)
         {
             Row("Listening sessions", r.SessionCount.ToString("N0"));
@@ -300,6 +312,22 @@ public static class ExportService
     /// <summary>Escapes the pipe that would otherwise split a Markdown table cell.</summary>
     internal static string Md(string value) => value.Replace("|", "\\|");
 
+    /// <summary>
+    /// Escapes what Markdown would read as formatting in running text. A search term or an
+    /// excluded artist's name can contain anything.
+    /// </summary>
+    internal static string MdText(string value)
+    {
+        var sb = new StringBuilder(value.Length);
+        foreach (char c in value)
+        {
+            if (c is '\\' or '*' or '_' or '`' or '[' or ']' or '<' or '>' or '#' or '|')
+                sb.Append('\\');
+            sb.Append(c);
+        }
+        return sb.ToString();
+    }
+
     // ---- JSON ----------------------------------------------------------------------------
 
     /// <summary>
@@ -307,11 +335,12 @@ public static class ExportService
     /// analysis on top. Shaped explicitly rather than serializing
     /// <see cref="AnalysisResult"/> directly, so the file format is stable across refactors.
     /// </summary>
-    public static async Task SaveJsonAsync(string path, AnalysisResult r)
+    public static async Task SaveJsonAsync(string path, AnalysisResult r, IReadOnlyList<string>? filters = null)
     {
         var payload = new
         {
             generated = DateTime.Now,
+            filters = filters ?? Array.Empty<string>(),
             summary = new
             {
                 totalTime = TimeFormat.HhMmSs(r.TotalTime),

@@ -14,6 +14,12 @@ public sealed class ChartData
     public Axis[] XAxes { get; init; } = Array.Empty<Axis>();
     public Axis[] YAxes { get; init; } = Array.Empty<Axis>();
 
+    /// <summary>
+    /// The row behind each bar, in the same order as the series values, so a clicked bar can
+    /// be traced back to what it stands for. Empty for charts whose points aren't rows.
+    /// </summary>
+    public IReadOnlyList<object> Items { get; init; } = Array.Empty<object>();
+
     /// <summary>Placeholder for a chart with nothing loaded yet.</summary>
     public static ChartData Empty { get; } = new();
 }

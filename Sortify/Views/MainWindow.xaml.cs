@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Automation.Peers;
 using System.Windows.Controls;
@@ -9,6 +10,8 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Media3D;
+using LiveChartsCore.Kernel;
+using LiveChartsCore.Kernel.Sketches;
 using Microsoft.Win32;
 using Sortify.Models;
 using Sortify.Services;
@@ -16,7 +19,7 @@ using Sortify.ViewModels;
 
 namespace Sortify.Views;
 
-public partial class MainWindow : Window
+public partial class MainWindow : ThemedWindow
 {
     // Preload the next page well before the user reaches the very bottom: trigger once
     // they're within this many viewport-heights of the end (with a small px floor for
@@ -132,8 +135,8 @@ public partial class MainWindow : Window
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
-        // Ctrl+1..8 jump straight to a tab.
-        if (ctrl && e.Key is >= Key.D1 and <= Key.D8)
+        // Ctrl+1..9 jump straight to a tab.
+        if (ctrl && e.Key is >= Key.D1 and <= Key.D9)
         {
             int index = e.Key - Key.D1;
             if (index < Tabs.Items.Count)
@@ -147,6 +150,13 @@ public partial class MainWindow : Window
         if (ctrl && e.Key == Key.F)
         {
             FocusQuickFilter();
+            e.Handled = true;
+            return;
+        }
+
+        if (ctrl && e.Key == Key.K)
+        {
+            OpenJump();
             e.Handled = true;
             return;
         }
@@ -190,6 +200,82 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---- Jump to (Ctrl+K) ---------------------------------------------------------------------
+
+    private void OpenJump()
+    {
+        if (ViewModel is not { } vm || !vm.OpenJump())
+            return;
+
+        // The box only becomes focusable once the overlay has been laid out.
+        Dispatcher.BeginInvoke(() =>
+        {
+            JumpBox.Focus();
+            Keyboard.Focus(JumpBox);
+        }, System.Windows.Threading.DispatcherPriority.Input);
+    }
+
+    private void CloseJump()
+    {
+        ViewModel?.CloseJump();
+        Tabs.Focus();
+    }
+
+    private async void OnJumpBoxKeyDown(object sender, KeyEventArgs e)
+    {
+        if (ViewModel is not { } vm)
+            return;
+
+        switch (e.Key)
+        {
+            case Key.Down:
+            case Key.Up:
+                vm.MoveJumpSelection(e.Key == Key.Down ? 1 : -1);
+                if (vm.SelectedJump is { } selected)
+                    JumpList.ScrollIntoView(selected);
+                e.Handled = true;
+                break;
+            case Key.Enter:
+                e.Handled = true;
+                await OpenJumpResultAsync(vm.SelectedJump);
+                break;
+            case Key.Escape:
+                e.Handled = true;
+                CloseJump();
+                break;
+        }
+    }
+
+    private async void OnJumpItemClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is ListBoxItem { DataContext: JumpResult result })
+        {
+            e.Handled = true;
+            await OpenJumpResultAsync(result);
+        }
+    }
+
+    private void OnJumpBackdropClick(object sender, MouseButtonEventArgs e) => CloseJump();
+
+    private async Task OpenJumpResultAsync(JumpResult? result)
+    {
+        if (result is null)
+            return;
+
+        CloseJump();
+        await ShowDetailAsync(result.Item);
+    }
+
+    /// <summary>Below this width the Compare tab's paired tables go one above the other.</summary>
+    private const double CompareSideBySideMinWidth = 960;
+
+    private void OnCompareSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        int columns = e.NewSize.Width < CompareSideBySideMinWidth ? 1 : 2;
+        CompareRankings.Columns = columns;
+        CompareNewGone.Columns = columns;
+    }
+
     // ---- Tabs --------------------------------------------------------------------------------
 
     // Fade + slide the tab body in whenever the user switches tabs. Filtered to the
@@ -202,6 +288,10 @@ public partial class MainWindow : Window
 
         if (sender is not TabControl tabs)
             return;
+
+        // The comparison is only worked out while someone is looking at it.
+        if (ViewModel is { } vm)
+            vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
 
         var host = FindContentHost(tabs);
         if (host is null)
@@ -267,7 +357,7 @@ public partial class MainWindow : Window
 
         if (vm.RecentFolders.Count == 0)
         {
-            menu.Items.Add(new MenuItem { Header = "No folders opened yet", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = "Nothing opened yet", IsEnabled = false });
         }
         else
         {
@@ -314,7 +404,7 @@ public partial class MainWindow : Window
             bool copied = ImageExporter.CopyToClipboard(card, CardBackground());
             ViewModel?.SetStatus(copied ? "Chart copied to the clipboard." : "There was nothing to copy.", !copied);
         }
-        catch (Exception ex)
+        catch (ExternalException ex)
         {
             // The clipboard can be locked by another process.
             ViewModel?.SetStatus($"Could not copy that chart: {ex.Message}", isError: true);
@@ -350,6 +440,59 @@ public partial class MainWindow : Window
     /// <summary>Charts draw on a transparent background, so the PNG needs the card colour behind it.</summary>
     private Brush CardBackground() => TryFindResource("PanelBrush") as Brush ?? Brushes.White;
 
+    // ---- Clickable charts ------------------------------------------------------------------------
+
+    /// <summary>
+    /// A click on a bar opens the row it stands for. The chart's Tag carries its
+    /// <see cref="ChartData"/>, whose items line up with the bars.
+    /// </summary>
+    private void OnChartBarClick(IChartView chart, IEnumerable<ChartPoint> points)
+    {
+        var point = points.FirstOrDefault(p => !p.IsEmpty);
+        if (point is null || chart is not FrameworkElement { Tag: ChartData data })
+            return;
+        if (point.Index < 0 || point.Index >= data.Items.Count)
+            return;
+
+        // Opened once the click has finished, so the chart isn't still holding the mouse
+        // while a modal window comes up over it.
+        var item = data.Items[point.Index];
+        Dispatcher.BeginInvoke(async () => await ShowDetailAsync(item));
+    }
+
+    /// <summary>
+    /// A square on the heatmap narrows every chart and table to that hour of that day. The
+    /// chips above the tabs show it and clear it.
+    /// </summary>
+    private void OnHeatClick(IChartView chart, IEnumerable<ChartPoint> points)
+    {
+        var point = points.FirstOrDefault(p => !p.IsEmpty);
+        if (point is null || ViewModel is not { } vm)
+            return;
+        if (point.Index < 0 || point.Index >= 7 * 24)
+            return;
+
+        // The heatmap's points run day by day, 24 hours each (see ChartBuilder.DowHourHeat).
+        vm.Filters.SetSlot(point.Index / 24, point.Index % 24);
+    }
+
+    /// <summary>
+    /// A grid sized to its rows has nothing to scroll, but its own scroll viewer still swallows
+    /// the wheel, which would stall the page it sits in. Hand the wheel to the page instead.
+    /// </summary>
+    private void OnPassWheelToPage(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not UIElement grid || VisualTreeHelper.GetParent(grid) is not UIElement parent)
+            return;
+
+        e.Handled = true;
+        parent.RaiseEvent(new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = MouseWheelEvent,
+            Source = grid,
+        });
+    }
+
     // ---- Infinite scroll -------------------------------------------------------------------------
 
     private void OnTracksScrollChanged(object sender, ScrollChangedEventArgs e)
@@ -378,69 +521,70 @@ public partial class MainWindow : Window
         return sv.VerticalOffset >= sv.ScrollableHeight - threshold;
     }
 
-    // ---- Drag & drop of history JSON files (or folders containing them) ---------------------
-
-    private static string[] DroppedJsonFiles(DragEventArgs e)
-    {
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] items)
-            return Array.Empty<string>();
-
-        var files = new List<string>();
-        foreach (var item in items)
-        {
-            if (Directory.Exists(item))
-                files.AddRange(HistoryParser.FindHistoryFiles(item));
-            else if (string.Equals(Path.GetExtension(item), ".json", StringComparison.OrdinalIgnoreCase))
-                files.Add(item);
-        }
-        return files.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-    }
-
-    /// <summary>The dropped folder, when exactly one was dropped, so it can be remembered.</summary>
-    private static string? DroppedFolder(DragEventArgs e)
-    {
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] items)
-            return null;
-
-        var folders = items.Where(Directory.Exists).ToList();
-        return folders.Count == 1 ? folders[0] : null;
-    }
+    // ---- Drag & drop of history JSON files, export folders or export ZIPs ----------------------
 
     private void OnFileDragOver(object sender, DragEventArgs e)
     {
-        // DragOver fires continuously while hovering, so keep this check cheap:
-        // accept folders and .json files without scanning folder contents yet.
+        // DragOver fires continuously while hovering, so keep this check cheap: accept
+        // folders, ZIPs and .json files without looking inside any of them yet.
         bool accept = e.Data.GetData(DataFormats.FileDrop) is string[] items &&
-                      items.Any(i => Directory.Exists(i) ||
-                                     string.Equals(Path.GetExtension(i), ".json", StringComparison.OrdinalIgnoreCase));
+                      items.Any(i => Directory.Exists(i) || MainViewModel.IsJson(i) || ArchivePath.IsArchive(i));
         e.Effects = accept ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
     private async void OnFileDrop(object sender, DragEventArgs e)
     {
-        var files = DroppedJsonFiles(e);
-        if (files.Length == 0 || ViewModel is not { } vm)
-            return;
-
-        await vm.LoadFilesAsync(files, DroppedFolder(e));
+        if (ViewModel is { } vm)
+            await vm.LoadDroppedAsync(e.Data.GetData(DataFormats.FileDrop) as string[] ?? Array.Empty<string>());
     }
 
     // ---- Grid context menus ----------------------------------------------------------------
 
     // WPF DataGrids don't select the row under a right-click, so the context menu would act
-    // on a stale selection; select it manually before the menu opens.
+    // on a stale selection; select it manually before the menu opens. A right-click inside
+    // a multi-row selection keeps the whole selection, so the menu can act on all of it.
     private void OnGridRightClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not DataGrid grid)
             return;
 
         var row = FindParent<DataGridRow>(e.OriginalSource as DependencyObject);
-        if (row is not null)
+        if (row is not null && !row.IsSelected)
         {
+            grid.SelectedItems.Clear();
             row.IsSelected = true;
             grid.SelectedItem = row.Item;
         }
+    }
+
+    /// <summary>
+    /// Words each menu item for the number of rows it will act on. An item's Tag holds
+    /// "singular|plural", where the plural may use {0} for the count.
+    /// </summary>
+    private void OnGridMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is not DataGrid { ContextMenu: { } menu } grid)
+            return;
+
+        int count = grid.SelectedItems.Count;
+        foreach (var item in menu.Items.OfType<MenuItem>())
+        {
+            if (item.Tag is not string tag || tag.Split('|') is not [var one, var many])
+                continue;
+            item.Header = count > 1 ? string.Format(CultureInfo.CurrentCulture, many, count) : one;
+            item.IsEnabled = count > 0;
+        }
+    }
+
+    /// <summary>
+    /// The selected rows of a grid, in the order they appear in it. Looked up through a set:
+    /// Ctrl+A on a big library selects tens of thousands of rows.
+    /// </summary>
+    private static List<T> SelectedRows<T>(DataGrid grid)
+    {
+        var selected = new HashSet<object>(grid.SelectedItems.Cast<object>(), ReferenceEqualityComparer.Instance);
+        return grid.Items.OfType<T>().Where(item => selected.Contains(item!)).ToList();
     }
 
     private static T? FindParent<T>(DependencyObject? d) where T : DependencyObject
@@ -455,28 +599,72 @@ public partial class MainWindow : Window
         return null;
     }
 
-    private void OnExcludeTrackFromTracks(object sender, RoutedEventArgs e)
+    private void OnExcludeTrackFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeTracksFromGrid(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Track));
+
+    private void OnExcludeArtistFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeArtistsFromGrid(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist));
+
+    private void OnExcludeArtistFromArtists(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeArtistsFromGrid(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist));
+
+    private void OnExcludeArtistFromAlbums(object sender, RoutedEventArgs e) =>
+        ViewModel?.ExcludeArtistsFromGrid(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
+
+    private async void OnOpenMonthArtist(object sender, RoutedEventArgs e)
     {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            ViewModel?.ExcludeTrackFromGrid(t.Track);
+        if (MonthsGrid.SelectedItem is MonthStat m)
+            await ShowDetailAsync(new ArtistStat { Artist = m.TopArtist });
     }
 
-    private void OnExcludeArtistFromTracks(object sender, RoutedEventArgs e)
+    private async void OnOpenMonthTrack(object sender, RoutedEventArgs e)
     {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            ViewModel?.ExcludeArtistFromGrid(t.Artist);
+        if (MonthsGrid.SelectedItem is MonthStat m)
+            await ShowDetailAsync(new TrackStat { Track = m.TopTrack, Artist = m.TopTrackArtist });
     }
 
-    private void OnExcludeArtistFromArtists(object sender, RoutedEventArgs e)
+    private async void OnOpenYearDetail(object sender, RoutedEventArgs e)
     {
-        if (ArtistsGrid.SelectedItem is ArtistStat a)
-            ViewModel?.ExcludeArtistFromGrid(a.Artist);
+        if (YearsGrid.SelectedItem is YearStat y)
+            await ShowDetailAsync(y);
     }
 
-    private void OnExcludeArtistFromAlbums(object sender, RoutedEventArgs e)
+    private async void OnYearReview(object sender, RoutedEventArgs e)
     {
-        if (AlbumsGrid.SelectedItem is AlbumStat a)
-            ViewModel?.ExcludeArtistFromGrid(a.Artist);
+        if (YearsGrid.SelectedItem is YearStat y)
+            await ShowYearReviewAsync(y.Year, this);
+    }
+
+    /// <summary>True while a year-in-review card is being worked out.</summary>
+    private bool _buildingReview;
+
+    /// <summary>Works out a year's card and previews it over <paramref name="owner"/>.</summary>
+    private async Task ShowYearReviewAsync(int year, Window owner)
+    {
+        if (_buildingReview || ViewModel is not { } vm)
+            return;
+
+        YearReview? review;
+        _buildingReview = true;
+        Mouse.OverrideCursor = Cursors.AppStarting;
+        try
+        {
+            review = await vm.BuildYearReviewAsync(year);
+        }
+        finally
+        {
+            Mouse.OverrideCursor = null;
+            _buildingReview = false;
+        }
+
+        if (review is not null)
+            new YearReviewWindow(review) { Owner = owner }.ShowDialog();
+    }
+
+    private void OnFilterToYear(object sender, RoutedEventArgs e)
+    {
+        if (YearsGrid.SelectedItem is YearStat y && ViewModel is { } vm)
+            vm.Filters.SetRange(new DateTime(y.Year, 1, 1), new DateTime(y.Year, 12, 31));
     }
 
     // ---- Drill-down --------------------------------------------------------------------------
@@ -507,18 +695,9 @@ public partial class MainWindow : Window
         await ShowDetailAsync(item);
     }
 
-    private static (DetailScope Scope, string Title, string Subtitle)? DetailTarget(object item) => item switch
-    {
-        TrackStat t => (DetailScope.Track, t.Track, t.Artist),
-        ArtistStat a => (DetailScope.Artist, a.Artist, string.Empty),
-        AlbumStat a => (DetailScope.Album, a.Album, a.Artist),
-        YearStat y => (DetailScope.Year, y.Year.ToString(CultureInfo.InvariantCulture), string.Empty),
-        _ => null,
-    };
-
     private async Task ShowDetailAsync(object item)
     {
-        if (_openingDetail || ViewModel is not { } vm || DetailTarget(item) is not { } target)
+        if (_openingDetail || ViewModel is not { } vm || DetailWindow.TargetFor(item) is not { } target)
             return;
 
         DetailResult? detail;
@@ -543,54 +722,91 @@ public partial class MainWindow : Window
             return;
         }
 
-        new DetailWindow(detail) { Owner = this }.ShowDialog();
+        new DetailWindow(detail, vm.BuildDetailAsync) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
     }
 
     // ---- Copy to clipboard -------------------------------------------------------------------
 
-    private static void TryCopy(string text)
+    private static bool TryCopy(string text)
     {
         try
         {
             Clipboard.SetDataObject(text);
+            return true;
         }
-        catch (Exception)
+        catch (ExternalException)
         {
             // The clipboard can be locked by another process; copying is best-effort.
+            return false;
         }
     }
 
-    private void OnCopyTrackFromTracks(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// One line per row, without repeating a line that two rows share. <paramref name="noun"/>
+    /// names one line ("track") for the status bar.
+    /// </summary>
+    private void CopyLines(IEnumerable<string> lines, string noun)
     {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            TryCopy($"{t.Track} - {t.Artist}");
+        var distinct = lines.Distinct().ToList();
+        if (distinct.Count == 0)
+            return;
+
+        if (TryCopy(string.Join(Environment.NewLine, distinct)))
+            ViewModel?.SetStatus($"Copied {distinct.Count:N0} {noun}{(distinct.Count == 1 ? "" : "s")} to the clipboard.");
+        else
+            ViewModel?.SetStatus("Could not copy: another program is holding the clipboard. Try again.", isError: true);
     }
 
-    private void OnCopyArtistFromTracks(object sender, RoutedEventArgs e)
+    private void OnCopyTrackFromTracks(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => $"{t.Track} - {t.Artist}"), "track");
+
+    private void OnCopyArtistFromTracks(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist), "artist");
+
+    private void OnCopyArtistFromArtists(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist), "artist");
+
+    private void OnCopyAlbumFromAlbums(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => $"{a.Album} - {a.Artist}"), "album");
+
+    private void OnCopyArtistFromAlbums(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist), "artist");
+
+    private void OnCopyLinksFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(SelectedRows<TrackStat>(TracksGrid), TryCopy);
+
+    /// <summary>Copies the selected rows of whichever track grid the menu was opened on as Spotify links.</summary>
+    private void OnCopyLinksFromGrid(object sender, RoutedEventArgs e)
     {
-        if (TracksGrid.SelectedItem is TrackStat t)
-            TryCopy(t.Artist);
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: DataGrid grid } })
+            ViewModel?.CopySpotifyLinks(SelectedRows<TrackStat>(grid), TryCopy);
     }
 
-    private void OnCopyArtistFromArtists(object sender, RoutedEventArgs e)
-    {
-        if (ArtistsGrid.SelectedItem is ArtistStat a)
-            TryCopy(a.Artist);
-    }
+    private void OnCopyForgottenLinks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(ForgottenTracksGrid.Items.OfType<TrackStat>(), TryCopy);
 
-    private void OnCopyAlbumFromAlbums(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// Copies the first rows in the order the grid shows them, so a sort by plays or a row
+    /// filter decides which tracks make the cut.
+    /// </summary>
+    private void OnCopyTopTrackLinks(object sender, RoutedEventArgs e)
     {
-        if (AlbumsGrid.SelectedItem is AlbumStat a)
-            TryCopy($"{a.Album} - {a.Artist}");
-    }
-
-    private void OnCopyArtistFromAlbums(object sender, RoutedEventArgs e)
-    {
-        if (AlbumsGrid.SelectedItem is AlbumStat a)
-            TryCopy(a.Artist);
+        if (sender is not MenuItem { Tag: string tag } || !int.TryParse(tag, out int count))
+            return;
+        ViewModel?.CopySpotifyLinks(TracksGrid.Items.OfType<TrackStat>().Take(count), TryCopy);
     }
 
     // ---- Listening-over-time granularity toggle ---------------------------------------------
+
+    private async void OnCompareGranularityChecked(object sender, RoutedEventArgs e)
+    {
+        // Fires during InitializeComponent for the default button; the comparison starts monthly anyway.
+        if (ViewModel is not { } vm || sender is not RadioButton { Tag: string tag })
+            return;
+
+        if (Enum.TryParse<ChartBuilder.TimeGranularity>(tag, out var granularity))
+            await vm.SetCompareGranularityAsync(granularity);
+    }
 
     private void OnGranularityChecked(object sender, RoutedEventArgs e)
     {

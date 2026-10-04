@@ -30,6 +30,12 @@ public sealed class TrackStat
     public DateTime? FirstPlayed { get; set; }
     public DateTime? LastPlayed { get; set; }
 
+    /// <summary>
+    /// A Spotify URI seen on one of this track's plays ("spotify:track:..."). Empty when the
+    /// export never recorded one, as the older account-data export doesn't.
+    /// </summary>
+    public string Uri { get; set; } = string.Empty;
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }
@@ -63,6 +69,29 @@ public sealed class YearStat
 
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
+}
+
+/// <summary>A play that marks the history: the first one, the 10,000th, the one that passed 1,000 hours...</summary>
+public sealed record Milestone(string Label, DateTime Date, TrackStat Track);
+
+/// <summary>One calendar month: how much was played, and the artist and track that led it.</summary>
+public sealed class MonthStat
+{
+    /// <summary>The first day of the month.</summary>
+    public required DateTime Month { get; init; }
+    public long TotalMsPlayed { get; init; }
+    public int PlayCount { get; init; }
+
+    public string TopArtist { get; init; } = "-";
+    public long TopArtistMs { get; init; }
+    public string TopTrack { get; init; } = "-";
+    public string TopTrackArtist { get; init; } = "-";
+    public long TopTrackMs { get; init; }
+
+    public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
+    public double TotalHours => TotalMsPlayed / 3_600_000d;
+    public double TopArtistHours => TopArtistMs / 3_600_000d;
+    public double TopTrackHours => TopTrackMs / 3_600_000d;
 }
 
 /// <summary>Aggregated listening statistics for one podcast show or audiobook.</summary>
@@ -148,6 +177,21 @@ public sealed class AnalysisResult
 
     /// <summary>Per-calendar-year rollups, oldest year first.</summary>
     public IReadOnlyList<YearStat> Years { get; init; } = Array.Empty<YearStat>();
+
+    /// <summary>Per-calendar-month rollups with each month's top artist and track, oldest first.</summary>
+    public IReadOnlyList<MonthStat> Months { get; init; } = Array.Empty<MonthStat>();
+
+    /// <summary>The plays that mark the history, oldest first. See AnalysisEngine.Milestone*.</summary>
+    public IReadOnlyList<Milestone> Milestones { get; init; } = Array.Empty<Milestone>();
+
+    /// <summary>
+    /// Tracks played a lot that then went quiet: nothing in the last stretch of the results.
+    /// Most played first. See the Forgotten* constants on AnalysisEngine.
+    /// </summary>
+    public IReadOnlyList<TrackStat> ForgottenTracks { get; init; } = Array.Empty<TrackStat>();
+
+    /// <summary>Artists played a lot that then went quiet, most played first.</summary>
+    public IReadOnlyList<ArtistStat> ForgottenArtists { get; init; } = Array.Empty<ArtistStat>();
 
     /// <summary>
     /// Counts of Spotify "reason_end" values, most common first. Like the skip statistics,

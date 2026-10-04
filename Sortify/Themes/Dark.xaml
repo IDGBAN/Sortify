@@ -20,6 +20,10 @@
     <Color x:Key="Accent2Color">#FF509CF8</Color>
     <Color x:Key="DangerColor">#FFE76F51</Color>
 
+    <!-- Small text in the accent colours. The fills already read on a dark card, so the same values. -->
+    <Color x:Key="AccentTextColor">#FF1DB954</Color>
+    <Color x:Key="Accent2TextColor">#FF509CF8</Color>
+
     <!-- Text -->
     <Color x:Key="TextColor">#FFEDEDED</Color>
     <Color x:Key="MutedColor">#FF9A9A9A</Color>
@@ -36,6 +40,8 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
     <SolidColorBrush x:Key="Accent2Brush" Color="{StaticResource Accent2Color}" />
     <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="{StaticResource AccentTextColor}" />
+    <SolidColorBrush x:Key="Accent2TextBrush" Color="{StaticResource Accent2TextColor}" />
 
     <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
     <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}" />

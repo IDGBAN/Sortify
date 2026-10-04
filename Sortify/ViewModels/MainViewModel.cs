@@ -1,5 +1,7 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -17,6 +19,9 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly DispatcherTimer _debounce;
     private List<PlayRecord> _rawRecords = new();
     private AnalysisResult _result = AnalysisResult.Empty;
+
+    /// <summary>The filters <see cref="_result"/> was computed under, as the chip row words them.</summary>
+    private IReadOnlyList<string> _resultFilters = Array.Empty<string>();
     private CancellationTokenSource? _analysisCts;
     private CancellationTokenSource? _loadCts;
     private ChartBuilder.TimeGranularity _overTimeGranularity = ChartBuilder.TimeGranularity.Daily;
@@ -24,7 +29,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Files behind the current results, so F5 can re-read them.</summary>
     private IReadOnlyList<string> _loadedFiles = Array.Empty<string>();
 
-    /// <summary>Folder those files came from, or null when they were picked individually.</summary>
+    /// <summary>Folder or ZIP those files came from, or null when they were picked individually.</summary>
     private string? _loadedFolder;
 
     // IsBusy covers two independent things - a parse and any number of overlapping analysis
@@ -34,6 +39,9 @@ public sealed partial class MainViewModel : ObservableObject
     private int _pendingAnalyses;
 
     public FilterViewModel Filters { get; } = new();
+
+    /// <summary>The Compare tab.</summary>
+    public CompareViewModel Compare { get; }
 
     // Grid item sources. Swapped wholesale after each analysis pass instead of using
     // ObservableCollections: repopulating tens of thousands of rows item-by-item raises
@@ -45,6 +53,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<SkippedTrackStat> _skippedTracks = Array.Empty<SkippedTrackStat>();
     [ObservableProperty] private IReadOnlyList<ShowStat> _shows = Array.Empty<ShowStat>();
     [ObservableProperty] private IReadOnlyList<EpisodeStat> _episodes = Array.Empty<EpisodeStat>();
+    /// <summary>Each month's top artist and track, newest month first.</summary>
+    [ObservableProperty] private IReadOnlyList<MonthStat> _months = Array.Empty<MonthStat>();
+    [ObservableProperty] private string _monthlyLeaderText = string.Empty;
+    [ObservableProperty] private IReadOnlyList<Milestone> _milestones = Array.Empty<Milestone>();
+    [ObservableProperty] private IReadOnlyList<TrackStat> _forgottenTracks = Array.Empty<TrackStat>();
+    [ObservableProperty] private IReadOnlyList<ArtistStat> _forgottenArtists = Array.Empty<ArtistStat>();
+
+    /// <summary>The rule a forgotten favorite has to meet, worded for the Insights card.</summary>
+    public string ForgottenHint { get; } =
+        $"Tracks you played at least {AnalysisEngine.ForgottenMinTrackPlays} times and artists at least " +
+        $"{AnalysisEngine.ForgottenMinArtistPlays} times, with nothing in the last {AnalysisEngine.ForgottenAfterDays} " +
+        "days of the history shown. Double-click one for its breakdown.";
 
     // Top-five lists shown on the Overview tab.
     [ObservableProperty] private IReadOnlyList<RankedItem> _topTracks = Array.Empty<RankedItem>();
@@ -70,8 +90,8 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Filter sidebar visibility, restored from and saved to settings.</summary>
     [ObservableProperty] private bool _sidebarVisible = true;
 
-    /// <summary>Human-readable list of the filters currently narrowing the results.</summary>
-    public ObservableCollection<string> ActiveFilters { get; } = new();
+    /// <summary>The filters currently narrowing the results, each removable on its own.</summary>
+    public ObservableCollection<FilterChip> ActiveFilters { get; } = new();
 
     [ObservableProperty] private bool _hasActiveFilters;
 
@@ -110,6 +130,7 @@ public sealed partial class MainViewModel : ObservableObject
     // Playback context ---------------------------------------------------------------------
     [ObservableProperty] private string _shuffleRateText = "-";
     [ObservableProperty] private string _offlineRateText = "-";
+    [ObservableProperty] private string _privateSessionText = "-";
     [ObservableProperty] private string _topDeviceText = "-";
 
     // Podcasts -----------------------------------------------------------------------------
@@ -179,10 +200,18 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = settings ?? AppSettings.Load();
         _settings.PruneMissingFolders();
+        Compare = new CompareViewModel(() => HasData
+            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap)
+            : null);
         SidebarVisible = _settings.SidebarVisible;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
         RefreshRecentFolders();
         RefreshThemeButton();
+
+        // Restored before anything listens for changes, so it doesn't trigger a save or a recompute.
+        if (_settings.Filters is { } remembered)
+            Filters.Apply(remembered);
+        Filters.LoadPresets(_settings.FilterPresets);
 
         _debounce = new DispatcherTimer { Interval = FilterDebounce };
         _debounce.Tick += async (_, _) =>
@@ -193,10 +222,17 @@ public sealed partial class MainViewModel : ObservableObject
         Filters.FiltersChanged += (_, _) =>
         {
             RefreshActiveFilters();
+            RememberFilters();
             if (!HasData) return;
             _debounce.Stop();
             _debounce.Start();
         };
+        Filters.PresetsChanged += (_, _) =>
+        {
+            _settings.FilterPresets = Filters.Presets.ToList();
+            _settings.Save();
+        };
+        Filters.Notice += (_, message) => SetStatus(message);
 
         // Charts bake their colours into Skia paints, so they have to be rebuilt rather
         // than repainted when the palette changes.
@@ -211,19 +247,34 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Loading ---------------------------------------------------------------------------
 
+    private const string NothingInZip =
+        "No Spotify history was found in that ZIP. If it is the file Spotify sent, " +
+        "it may be damaged; try downloading it again.";
+
     [RelayCommand]
     private async Task RunAnalysisAsync()
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Select your Spotify streaming history JSON files",
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Select your Spotify history: the export ZIP or its JSON files",
+            Filter = "Spotify history (*.json, *.zip)|*.json;*.zip|JSON files (*.json)|*.json|" +
+                     "ZIP files (*.zip)|*.zip|All files (*.*)|*.*",
             Multiselect = true,
         };
         if (dialog.ShowDialog() != true)
             return;
 
-        await LoadFilesAsync(dialog.FileNames);
+        // A ZIP is opened up into the history files inside it; anything else is taken as
+        // picked, so a renamed export still loads.
+        var picked = dialog.FileNames;
+        IReadOnlyList<string> FindFiles() => picked
+            .SelectMany(f => ArchivePath.IsArchive(f) ? HistoryParser.FindHistoryFiles(f) : new[] { f })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // A lone ZIP goes into Recent the way a folder does.
+        string? archive = picked is [var only] && ArchivePath.IsArchive(only) ? only : null;
+        await LoadAsync(FindFiles, archive, NothingInZip);
     }
 
     [RelayCommand]
@@ -239,30 +290,29 @@ public sealed partial class MainViewModel : ObservableObject
         await OpenFolderPathAsync(dialog.FolderName);
     }
 
-    /// <summary>Loads a folder by path. Used by Open Folder, the recent list and drag &amp; drop.</summary>
+    /// <summary>
+    /// Loads an export folder, or an export ZIP, by path. Used by Open Folder and the recent list.
+    /// </summary>
     [RelayCommand]
     public async Task OpenFolderPathAsync(string? folder)
     {
         if (string.IsNullOrWhiteSpace(folder))
             return;
 
-        if (!Directory.Exists(folder))
+        bool isArchive = ArchivePath.IsArchive(folder);
+        if (isArchive ? !File.Exists(folder) : !Directory.Exists(folder))
         {
-            SetStatus($"That folder no longer exists: {folder}", isError: true);
+            SetStatus(isArchive
+                ? $"That file no longer exists: {folder}"
+                : $"That folder no longer exists: {folder}", isError: true);
             _settings.PruneMissingFolders();
             _settings.Save();
             RefreshRecentFolders();
             return;
         }
 
-        var files = HistoryParser.FindHistoryFiles(folder);
-        if (files.Count == 0)
-        {
-            SetStatus("No Spotify history JSON files were found in that folder.", isError: true);
-            return;
-        }
-
-        await LoadFilesAsync(files, folder);
+        await LoadAsync(() => HistoryParser.FindHistoryFiles(folder), folder,
+            isArchive ? NothingInZip : "No Spotify history JSON files were found in that folder.");
     }
 
     /// <summary>
@@ -271,15 +321,37 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task RestoreLastFolderAsync()
     {
-        if (!_settings.ReopenLastFolder || string.IsNullOrWhiteSpace(_settings.LastFolder))
+        if (!_settings.ReopenLastFolder || _settings.LastFolder is not { } folder || string.IsNullOrWhiteSpace(folder))
             return;
 
-        var files = HistoryParser.FindHistoryFiles(_settings.LastFolder);
-        if (files.Count == 0)
-            return;
-
-        await LoadFilesAsync(files, _settings.LastFolder);
+        await LoadAsync(() => HistoryParser.FindHistoryFiles(folder), folder, nothingFound: null);
     }
+
+    /// <summary>
+    /// Loads what was dropped on the window. Folders and ZIPs are searched for history files,
+    /// JSON files are read as they are, and anything else is ignored.
+    /// </summary>
+    public Task LoadDroppedAsync(IReadOnlyList<string> items)
+    {
+        IReadOnlyList<string> FindFiles() => items
+            .SelectMany(item => IsExportContainer(item) ? HistoryParser.FindHistoryFiles(item)
+                : IsJson(item) ? new[] { item }
+                : Array.Empty<string>())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        // Only a single dropped folder or ZIP is worth remembering in Recent.
+        var containers = items.Where(IsExportContainer).ToList();
+        return LoadAsync(FindFiles, containers.Count == 1 ? containers[0] : null,
+            "Nothing that was dropped holds Spotify listening history. Drop the ZIP " +
+            "Spotify sent, the folder it unpacks to, or its JSON files.");
+    }
+
+    internal static bool IsJson(string path) =>
+        string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsExportContainer(string path) =>
+        Directory.Exists(path) || (ArchivePath.IsArchive(path) && File.Exists(path));
 
     /// <summary>Re-reads the files behind the current results, bypassing the cache.</summary>
     [RelayCommand(CanExecute = nameof(HasData))]
@@ -306,40 +378,57 @@ public sealed partial class MainViewModel : ObservableObject
         SetStatus("Cancelled. Change a filter or press F5 to run again.");
     }
 
-    /// <summary>Parses the given history files and runs analysis. Also used by drag &amp; drop.</summary>
-    public async Task LoadFilesAsync(IReadOnlyList<string> filePaths, string? folder = null)
+    /// <summary>
+    /// Parses the given history files and runs analysis. <paramref name="folder"/> is the
+    /// folder or ZIP they came from, remembered in Recent.
+    /// </summary>
+    public Task LoadFilesAsync(IReadOnlyList<string> filePaths, string? folder = null) =>
+        filePaths.Count == 0 ? Task.CompletedTask : LoadAsync(() => filePaths, folder, nothingFound: null);
+
+    /// <summary>
+    /// Runs <paramref name="findFiles"/>, then parses what it found and runs analysis. The
+    /// search happens off the UI thread and under the same progress bar and Cancel button as
+    /// the parse, since walking a big folder can take a while. <paramref name="nothingFound"/>
+    /// is the error shown when it finds no files; null says nothing.
+    /// </summary>
+    private async Task LoadAsync(Func<IReadOnlyList<string>> findFiles, string? folder, string? nothingFound)
     {
-        if (filePaths.Count == 0 || _isLoading)
+        if (_isLoading)
             return;
 
         _loadCts?.Dispose();
         _loadCts = new CancellationTokenSource();
         var token = _loadCts.Token;
 
+        var (statusBefore, errorBefore) = (StatusText, StatusIsError);
         _isLoading = true;
         RefreshBusy();
         IsProgressIndeterminate = true;
         ProgressValue = 0;
+
         try
         {
-            _loadedFolder = folder;
-            if (folder is not null)
+            SetStatus("Looking for your Spotify history...");
+            var filePaths = await Task.Run(findFiles, token);
+            token.ThrowIfCancellationRequested();
+            if (filePaths.Count == 0)
             {
-                _settings.RememberFolder(folder);
-                _settings.Save();
-                RefreshRecentFolders();
+                if (nothingFound is null)
+                    SetStatus(statusBefore, errorBefore);
+                else
+                    SetStatus(nothingFound, isError: true);
+                return;
             }
 
             // Re-reading an unchanged export is the common case (relaunching the app, or
             // reopening the same folder), and parsing it again costs seconds for nothing.
             SetStatus("Checking for cached results...");
             var cached = await Task.Run(() => RecordCache.TryLoad(filePaths), token);
+            token.ThrowIfCancellationRequested();
             if (cached is { Count: > 0 })
             {
-                _rawRecords = cached.ToList();
-                _loadedFiles = filePaths;
+                AdoptHistory(cached.ToList(), filePaths, folder);
                 SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
-                HasData = true;
                 await RecomputeAsync();
                 return;
             }
@@ -353,24 +442,29 @@ public sealed partial class MainViewModel : ObservableObject
             });
 
             var parsed = await _parser.ParseAsync(filePaths, progress, token);
-            _rawRecords = parsed.Records;
-            _loadedFiles = filePaths;
-
-            if (_rawRecords.Count == 0)
+            if (parsed.Records.Count == 0)
             {
-                HasData = false;
-                SetStatus(parsed.Warnings.Count > 0
+                // A stray file dropped on the window shouldn't take away the history already open.
+                string problem = parsed.Warnings.Count > 0
                     ? $"No valid listening data found. {parsed.Warnings[0]}"
-                    : "No valid listening data found in the selected files.", isError: true);
+                    : "No valid listening data found in the selected files.";
+                SetStatus(HasData ? $"{problem} Your current history is still open." : problem, isError: true);
                 return;
             }
 
+            AdoptHistory(parsed.Records, filePaths, folder);
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
             IsProgressIndeterminate = true;
             SetStatus($"Loaded {_rawRecords.Count:N0} plays from {filePaths.Count} file(s){warn}. Crunching numbers...");
-            HasData = true;
             await RecomputeAsync();
+
+            // Said after the analysis rather than before it, which would overwrite it at once.
+            if (parsed.DuplicatesRemoved > 0 && !StatusIsError)
+            {
+                SetStatus($"{StatusText} Left out {parsed.DuplicatesRemoved:N0} " +
+                          $"play{(parsed.DuplicatesRemoved == 1 ? "" : "s")} that more than one of the loaded files held.");
+            }
 
             // Save after analysis so the user isn't waiting on disk I/O to see results.
             var toCache = _rawRecords;
@@ -389,7 +483,86 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// Makes freshly read plays the history on screen. Only a load that found plays gets here,
+    /// so a folder or ZIP is remembered in Recent (and reopened at the next launch) once it has
+    /// actually loaded.
+    /// </summary>
+    private void AdoptHistory(List<PlayRecord> records, IReadOnlyList<string> filePaths, string? folder)
+    {
+        // Reloading the same export keeps the artists and periods being compared; a different
+        // one starts again from its own.
+        bool newHistory = !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
+        if (newHistory)
+            _comparisonSeeded = false;
+
+        _rawRecords = records;
+        _loadedFiles = filePaths;
+        _loadedFolder = folder;
+        if (folder is not null)
+        {
+            _settings.RememberFolder(folder);
+            _settings.Save();
+            RefreshRecentFolders();
+        }
+
+        OfferChoicesForHistory(newHistory);
+        HasData = true;
+    }
+
     private void RefreshBusy() => IsBusy = _isLoading || _pendingAnalyses > 0;
+
+    /// <summary>
+    /// Offers the quick date ranges, devices and countries that fit the history just loaded.
+    /// Read off the raw records rather than the filtered results, so filtering to one year
+    /// or one device doesn't take the other choices away. A different export from the one
+    /// before also starts the Compare tab over on its own periods.
+    /// </summary>
+    private void OfferChoicesForHistory(bool newHistory)
+    {
+        DateTime? last = null;
+        var years = new SortedSet<int>();
+        var platformMs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var countryMs = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        foreach (var r in _rawRecords)
+        {
+            if (r.Platform.Length > 0)
+                CollectionsMarshal.GetValueRefOrAddDefault(platformMs, r.Platform, out _) += r.MsPlayed;
+            if (r.Country.Length > 0)
+                CollectionsMarshal.GetValueRefOrAddDefault(countryMs, r.Country, out _) += r.MsPlayed;
+
+            if (r.Timestamp == DateTime.MinValue)
+                continue;
+            years.Add(r.Timestamp.Year);
+            if (last is null || r.Timestamp > last)
+                last = r.Timestamp;
+        }
+
+        Filters.SetAvailableDates(last, years);
+        Compare.SetHistory(last, years.ToList(), resetPeriods: newHistory);
+
+        var devices = platformMs
+            .GroupBy(kv => AnalysisEngine.PlatformFamily(kv.Key))
+            .OrderByDescending(g => g.Sum(kv => kv.Value))
+            .Select(g => (g.Key, g.Key, g.Key));
+        var countries = countryMs
+            .OrderByDescending(kv => kv.Value)
+            .Select(kv => (kv.Key, kv.Key.ToUpperInvariant(), CountryName(kv.Key)));
+        Filters.SetAvailablePlayback(devices, countries);
+    }
+
+    /// <summary>"Canada (CA)" for "CA", or the code alone when .NET doesn't know it.</summary>
+    internal static string CountryName(string code)
+    {
+        try
+        {
+            return $"{new RegionInfo(code).EnglishName} ({code.ToUpperInvariant()})";
+        }
+        catch (ArgumentException)
+        {
+            return code.ToUpperInvariant();
+        }
+    }
 
     // ---- Chart options ---------------------------------------------------------------------
 
@@ -445,18 +618,61 @@ public sealed partial class MainViewModel : ObservableObject
         ThemeTooltip = ThemeService.IsDark ? "Switch to the light theme" : "Switch to the dark theme";
     }
 
+    /// <summary>
+    /// Writes the filters that carry over between launches, when they changed. Most filter
+    /// edits touch none of them, so most calls write nothing.
+    /// </summary>
+    private void RememberFilters()
+    {
+        var remembered = Filters.RememberedSnapshot();
+        if (_settings.Filters is { } saved && saved.SameFiltersAs(remembered))
+            return;
+
+        _settings.Filters = remembered;
+        _settings.Save();
+    }
+
     private void RefreshActiveFilters()
     {
         ActiveFilters.Clear();
-        foreach (var description in Filters.Describe())
-            ActiveFilters.Add(description);
+        foreach (var chip in Filters.Chips())
+            ActiveFilters.Add(chip);
         HasActiveFilters = ActiveFilters.Count > 0;
     }
 
     // ---- Grid-driven exclusions ----------------------------------------------------------
 
-    public void ExcludeArtistFromGrid(string artist) => Filters.ExcludeArtist(artist);
-    public void ExcludeTrackFromGrid(string track) => Filters.ExcludeTrack(track);
+    public void ExcludeArtistsFromGrid(IEnumerable<string> artists) => Filters.ExcludeArtists(artists);
+    public void ExcludeTracksFromGrid(IEnumerable<string> tracks) => Filters.ExcludeTracks(tracks);
+
+    /// <summary>
+    /// Puts Spotify links for <paramref name="tracks"/> on the clipboard via
+    /// <paramref name="copy"/>, and says in the status bar what was copied and what wasn't.
+    /// </summary>
+    public void CopySpotifyLinks(IEnumerable<TrackStat> tracks, Func<string, bool> copy)
+    {
+        var links = SpotifyLink.ForTracks(tracks);
+        if (links.Copied == 0)
+        {
+            SetStatus(links.Missing == 0
+                ? "There were no tracks to copy."
+                : "None of those tracks has a Spotify link. Only the extended streaming history records them.",
+                isError: true);
+            return;
+        }
+
+        if (!copy(links.Text))
+        {
+            SetStatus("Could not copy the links: another program is holding the clipboard. Try again.", isError: true);
+            return;
+        }
+
+        string missing = links.Missing == 0
+            ? string.Empty
+            : $" {links.Missing:N0} track{(links.Missing == 1 ? " has" : "s have")} no link in the export and {(links.Missing == 1 ? "was" : "were")} left out.";
+        SetStatus($"Copied {links.Copied:N0} Spotify link{(links.Copied == 1 ? "" : "s")}. " +
+                  $"Paste {(links.Copied == 1 ? "it" : "them")} into a playlist in the Spotify desktop app.{missing}");
+    }
 
     // ---- Drill-down ------------------------------------------------------------------------
 
@@ -470,6 +686,20 @@ public sealed partial class MainViewModel : ObservableObject
             return null;
 
         return await DetailEngine.BuildAsync(_rawRecords, Filters.ToOptions(), scope, title, subtitle);
+    }
+
+    /// <summary>
+    /// Works out a year's summary card under the sidebar filters, whatever dates the sidebar
+    /// has. Null when there is nothing loaded.
+    /// </summary>
+    public async Task<YearReview?> BuildYearReviewAsync(int year)
+    {
+        if (!HasData || _rawRecords.Count == 0)
+            return null;
+
+        var others = Filters.Describe(includeDates: false).ToList();
+        string note = others.Count == 0 ? string.Empty : "Filtered: " + string.Join("; ", others);
+        return await YearReviewBuilder.BuildAsync(_rawRecords, Filters.ToOptions(), year, note, _settings.SessionGap);
     }
 
     // ---- Analysis --------------------------------------------------------------------------
@@ -486,6 +716,7 @@ public sealed partial class MainViewModel : ObservableObject
         var token = _analysisCts.Token;
 
         var options = Filters.ToOptions();
+        var described = Filters.Describe().ToList();
         _pendingAnalyses++;
         RefreshBusy();
         try
@@ -509,12 +740,15 @@ public sealed partial class MainViewModel : ObservableObject
             if (token.IsCancellationRequested)
                 return;
             _result = result;
+            _resultFilters = described;
 
             UpdateCollections();
             UpdateSummary();
             UpdateInsights();
             UpdateCharts();
             NotifyExportsChanged();
+            if (IsJumpOpen)
+                RefreshJump();
 
             SetStatus(_result.TotalPlays == 0
                 ? Filters.HasInvalidDateRange
@@ -522,6 +756,11 @@ public sealed partial class MainViewModel : ObservableObject
                     : "No plays match the current filters."
                 : $"Showing {_result.TotalPlays:N0} plays across {_result.UniqueTracks:N0} tracks, " +
                   $"{_result.UniqueArtists:N0} artists and {_result.UniqueAlbums:N0} albums.");
+
+            SeedComparison();
+            RefreshCompareSuggestions();
+            Compare.Invalidate();
+            await RefreshArtistTimelineAsync();
         }
         finally
         {
@@ -539,6 +778,11 @@ public sealed partial class MainViewModel : ObservableObject
 
         Years = _result.Years;
         SkippedTracks = _result.SkippedTracks;
+        ForgottenTracks = _result.ForgottenTracks;
+        ForgottenArtists = _result.ForgottenArtists;
+        Months = _result.Months.Reverse().ToList();
+        MonthlyLeaderText = DescribeMonthlyLeader(_result.Months);
+        Milestones = _result.Milestones;
         HasPodcastData = _result.Shows.Count > 0;
 
         TopTracks = _result.Tracks.Take(5)
@@ -599,6 +843,245 @@ public sealed partial class MainViewModel : ObservableObject
         return matches;
     }
 
+    // ---- Comparing artists over time ------------------------------------------------------------
+
+    /// <summary>How many of the top artists the comparison starts with after a history loads.</summary>
+    private const int ComparedArtistsToStartWith = 3;
+
+    /// <summary>How many name suggestions show under the box while typing.</summary>
+    private const int CompareSuggestionCount = 6;
+
+    /// <summary>Artists on the comparison chart, in the order their lines are coloured.</summary>
+    public ObservableCollection<string> ComparedArtists { get; } = new();
+
+    [ObservableProperty] private string _compareQuery = string.Empty;
+    [ObservableProperty] private IReadOnlyList<string> _compareSuggestions = Array.Empty<string>();
+    [ObservableProperty] private ChartData _artistTimelineChart = ChartData.Empty;
+    [ObservableProperty] private string _compareHint = string.Empty;
+
+    private ArtistTimeline _artistTimeline = ArtistTimeline.Empty;
+    private ChartBuilder.TimeGranularity _compareGranularity = ChartBuilder.TimeGranularity.Monthly;
+    private CancellationTokenSource? _timelineCts;
+
+    /// <summary>
+    /// The comparison starts out with the top few artists, once per loaded history, so the
+    /// chart isn't blank. After that it only changes when the user changes it.
+    /// </summary>
+    private bool _comparisonSeeded;
+
+    partial void OnCompareQueryChanged(string value) => RefreshCompareSuggestions();
+
+    private void RefreshCompareSuggestions()
+    {
+        string query = CompareQuery.Trim();
+        CompareSuggestions = query.Length == 0
+            ? Array.Empty<string>()
+            : _result.Artists
+                .Where(a => !ComparedArtists.Contains(a.Artist))
+                .Select(a => (a.Artist, Rank: MatchRank(a.Artist, query), a.TotalMsPlayed))
+                .Where(x => x.Rank >= 0)
+                .OrderBy(x => x.Rank)
+                .ThenByDescending(x => x.TotalMsPlayed)
+                .Take(CompareSuggestionCount)
+                .Select(x => x.Artist)
+                .ToList();
+        RefreshCompareHint();
+    }
+
+    private void RefreshCompareHint()
+    {
+        CompareHint = ComparedArtists.Count == 0
+            ? $"Type an artist's name and pick from the matches to add them. Up to {ArtistComparison.MaxArtists} at once."
+            : CompareQuery.Trim().Length > 0 && CompareSuggestions.Count == 0
+                ? ComparedArtists.Count >= ArtistComparison.MaxArtists
+                    ? $"The chart already has {ArtistComparison.MaxArtists} artists. Remove one to add another."
+                    : $"No artist in the current results matches “{CompareQuery.Trim()}”."
+                : string.Empty;
+    }
+
+    [RelayCommand]
+    private async Task AddComparedArtistAsync(string? artist)
+    {
+        artist ??= CompareSuggestions.FirstOrDefault();
+        if (string.IsNullOrEmpty(artist) || ComparedArtists.Contains(artist))
+            return;
+        if (ComparedArtists.Count >= ArtistComparison.MaxArtists)
+        {
+            RefreshCompareHint();
+            SetStatus($"The comparison chart holds {ArtistComparison.MaxArtists} artists at most. Remove one to add {artist}.");
+            return;
+        }
+
+        ComparedArtists.Add(artist);
+        CompareQuery = string.Empty;
+        await RefreshArtistTimelineAsync();
+    }
+
+    [RelayCommand]
+    private async Task RemoveComparedArtistAsync(string? artist)
+    {
+        if (artist is null || !ComparedArtists.Remove(artist))
+            return;
+        RefreshCompareSuggestions();
+        await RefreshArtistTimelineAsync();
+    }
+
+    /// <summary>Switches the comparison between monthly and weekly buckets.</summary>
+    public async Task SetCompareGranularityAsync(ChartBuilder.TimeGranularity granularity)
+    {
+        if (_compareGranularity == granularity)
+            return;
+        _compareGranularity = granularity;
+        await RefreshArtistTimelineAsync();
+    }
+
+    private void SeedComparison()
+    {
+        if (_comparisonSeeded)
+            return;
+        _comparisonSeeded = true;
+        ComparedArtists.Clear();
+        foreach (var artist in _result.Artists.Take(ComparedArtistsToStartWith))
+            ComparedArtists.Add(artist.Artist);
+    }
+
+    /// <summary>Rebuilds the comparison under the current filters; a newer call cancels an older one.</summary>
+    private async Task RefreshArtistTimelineAsync()
+    {
+        RefreshCompareHint();
+        var previous = _timelineCts;
+        _timelineCts = new CancellationTokenSource();
+        previous?.Cancel();
+        var token = _timelineCts.Token;
+
+        try
+        {
+            var timeline = HasData && ComparedArtists.Count > 0
+                ? await ArtistComparison.BuildAsync(_rawRecords, Filters.ToOptions(), ComparedArtists.ToList(),
+                    _compareGranularity, token)
+                : ArtistTimeline.Empty;
+            if (token.IsCancellationRequested)
+                return;
+            _artistTimeline = timeline;
+            ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer refresh took over; it sets the chart.
+        }
+        finally
+        {
+            previous?.Dispose();
+        }
+    }
+
+    // ---- Jump to (Ctrl+K) ---------------------------------------------------------------------
+
+    /// <summary>How many matches of each kind (artists, tracks...) the jump box lists.</summary>
+    public const int JumpResultsPerKind = 6;
+
+    [ObservableProperty] private bool _isJumpOpen;
+    [ObservableProperty] private string _jumpQuery = string.Empty;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasJumpResults))]
+    private IReadOnlyList<JumpResult> _jumpResults = Array.Empty<JumpResult>();
+
+    public bool HasJumpResults => JumpResults.Count > 0;
+    [ObservableProperty] private JumpResult? _selectedJump;
+    [ObservableProperty] private string _jumpHint = string.Empty;
+
+    partial void OnJumpQueryChanged(string value) => RefreshJump();
+
+    /// <summary>Opens the jump box with an empty query. Returns false when there is nothing to search yet.</summary>
+    public bool OpenJump()
+    {
+        if (!HasData)
+        {
+            SetStatus("Load your history first, then press Ctrl+K to jump to anything in it.");
+            return false;
+        }
+
+        JumpQuery = string.Empty;
+        RefreshJump();
+        IsJumpOpen = true;
+        return true;
+    }
+
+    public void CloseJump() => IsJumpOpen = false;
+
+    /// <summary>Moves the highlighted match up or down, stopping at either end.</summary>
+    public void MoveJumpSelection(int delta)
+    {
+        if (JumpResults.Count == 0)
+            return;
+
+        int at = SelectedJump is null ? -1 : JumpResults.ToList().IndexOf(SelectedJump);
+        SelectedJump = JumpResults[Math.Clamp(at + delta, 0, JumpResults.Count - 1)];
+    }
+
+    private void RefreshJump()
+    {
+        string query = JumpQuery.Trim();
+        JumpResults = SearchForJump(_result, query);
+        SelectedJump = JumpResults.FirstOrDefault();
+        JumpHint = query.Length == 0
+            ? "Type part of a track, artist, album or podcast name. Up and Down pick a match, Enter opens it, Esc closes."
+            : JumpResults.Count == 0
+                ? $"Nothing called “{query}” in the current results. The filters in the sidebar still apply."
+                : string.Empty;
+    }
+
+    /// <summary>
+    /// The best matches of each kind in the current results. A name that is the query, then
+    /// one that starts with it, then one with a word starting with it, beat one that merely
+    /// contains it; ties go to whatever was listened to longest.
+    /// </summary>
+    internal static IReadOnlyList<JumpResult> SearchForJump(AnalysisResult r, string query, int perKind = JumpResultsPerKind)
+    {
+        query = query.Trim();
+        if (query.Length == 0)
+            return Array.Empty<JumpResult>();
+
+        var results = new List<JumpResult>();
+        results.AddRange(Best(r.Artists, a => a.Artist, a => a.TotalMsPlayed)
+            .Select(a => new JumpResult("Artist", a.Artist, $"{a.PlayCount:N0} plays", TimeFormat.Friendly(a.TotalTime), a)));
+        results.AddRange(Best(r.Tracks, t => t.Track, t => t.TotalMsPlayed)
+            .Select(t => new JumpResult("Track", t.Track, t.Artist, TimeFormat.Friendly(t.TotalTime), t)));
+        results.AddRange(Best(r.Albums, a => a.Album, a => a.TotalMsPlayed)
+            .Select(a => new JumpResult("Album", a.Album, a.Artist, TimeFormat.Friendly(a.TotalTime), a)));
+        results.AddRange(Best(r.Shows, s => s.Show, s => s.TotalMsPlayed)
+            .Select(s => new JumpResult(s.Kind == ContentKind.Audiobook ? "Audiobook" : "Podcast", s.Show,
+                $"{s.EpisodeCount:N0} episode{(s.EpisodeCount == 1 ? "" : "s")}", TimeFormat.Friendly(s.TotalTime), s)));
+        results.AddRange(Best(r.Episodes, e => e.Episode, e => e.TotalMsPlayed)
+            .Select(e => new JumpResult("Episode", e.Episode, e.Show, TimeFormat.Friendly(e.TotalTime), e)));
+        return results;
+
+        IEnumerable<T> Best<T>(IReadOnlyList<T> items, Func<T, string> name, Func<T, long> ms) => items
+            .Select(item => (Item: item, Rank: MatchRank(name(item), query)))
+            .Where(x => x.Rank >= 0)
+            .OrderBy(x => x.Rank)
+            .ThenByDescending(x => ms(x.Item))
+            .Take(perKind)
+            .Select(x => x.Item);
+    }
+
+    /// <summary>0 for the whole name, 1 for its start, 2 for the start of a later word, 3 for anywhere else, -1 for no match.</summary>
+    internal static int MatchRank(string name, string query)
+    {
+        int at = name.IndexOf(query, StringComparison.OrdinalIgnoreCase);
+        if (at < 0)
+            return -1;
+        if (at == 0)
+            return name.Length == query.Length ? 0 : 1;
+
+        for (; at > 0; at = name.IndexOf(query, at + 1, StringComparison.OrdinalIgnoreCase))
+        {
+            if (!char.IsLetterOrDigit(name[at - 1]))
+                return 2;
+        }
+        return 3;
+    }
+
     // ---- Summary text -------------------------------------------------------------------------
 
     private void UpdateSummary()
@@ -617,19 +1100,19 @@ public sealed partial class MainViewModel : ObservableObject
         var r = _result;
 
         LongestStreakText = r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se
-            ? $"{r.LongestStreakDays} day{(r.LongestStreakDays == 1 ? "" : "s")}  ({ss:yyyy-MM-dd} to {se:yyyy-MM-dd})"
+            ? $"{r.LongestStreakDays} day{(r.LongestStreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})"
             : "-";
 
         CurrentStreakText = r.CurrentStreakDays > 0 && r.LastListen is { } lastListen
-            ? $"{r.CurrentStreakDays} day{(r.CurrentStreakDays == 1 ? "" : "s")}  (up to {lastListen:yyyy-MM-dd})"
+            ? $"{r.CurrentStreakDays} day{(r.CurrentStreakDays == 1 ? "" : "s")}  (up to {TimeFormat.Day(lastListen)})"
             : "-";
 
         LongestBreakText = r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be
-            ? $"{r.LongestBreakDays} day{(r.LongestBreakDays == 1 ? "" : "s")}  ({bs:yyyy-MM-dd} to {be:yyyy-MM-dd})"
+            ? $"{r.LongestBreakDays} day{(r.LongestBreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})"
             : "-";
 
         BiggestDayText = r.BiggestDay is { } bd
-            ? $"{bd:yyyy-MM-dd}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
+            ? $"{TimeFormat.Day(bd)}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
             : "-";
 
         ActiveDaysText = r.ActiveDays > 0 ? r.ActiveDays.ToString("N0") : "-";
@@ -667,7 +1150,7 @@ public sealed partial class MainViewModel : ObservableObject
             : "-";
 
         LongestSessionText = r.LongestSessionMs > 0 && r.LongestSessionDate is { } sd
-            ? $"{TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.LongestSessionMs))}  ({sd:yyyy-MM-dd})"
+            ? $"{TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.LongestSessionMs))}  ({TimeFormat.Day(sd)})"
             : "-";
 
         WeekSplitText = BuildWeekSplitText(r);
@@ -682,6 +1165,10 @@ public sealed partial class MainViewModel : ObservableObject
             ? $"{r.OfflinePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.OfflinePlays:N0} plays)"
             : "-";
 
+        PrivateSessionText = r.ShuffleEligiblePlays > 0
+            ? $"{r.IncognitoPlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.IncognitoPlays:N0} plays)"
+            : "-";
+
         TopDeviceText = r.Platforms.Count > 0
             ? $"{r.Platforms[0].Name}  ({TimeFormat.Friendly(r.Platforms[0].TotalTime)})"
             : "-";
@@ -693,6 +1180,45 @@ public sealed partial class MainViewModel : ObservableObject
         PodcastPlaysText = r.PodcastPlays > 0 ? r.PodcastPlays.ToString("N0") : "-";
         UniqueShowsText = r.Shows.Count > 0 ? r.Shows.Count.ToString("N0") : "-";
         UniqueEpisodesText = r.Episodes.Count > 0 ? r.Episodes.Count.ToString("N0") : "-";
+    }
+
+    /// <summary>
+    /// Who topped the most months, and their longest run of back-to-back months on top. Ties
+    /// go to the artist with more listening in the months they led.
+    /// </summary>
+    internal static string DescribeMonthlyLeader(IReadOnlyList<MonthStat> months)
+    {
+        if (months.Count == 0)
+            return string.Empty;
+
+        var leader = months
+            .GroupBy(m => m.TopArtist)
+            .OrderByDescending(g => g.Count())
+            .ThenByDescending(g => g.Sum(m => m.TopArtistMs))
+            .First();
+
+        int best = 0, run = 0;
+        DateTime? previous = null;
+        DateTime runStart = default, bestStart = default, bestEnd = default;
+        foreach (var month in months.Where(m => m.TopArtist == leader.Key))
+        {
+            run = previous is { } p && p.AddMonths(1) == month.Month ? run + 1 : 1;
+            if (run == 1)
+                runStart = month.Month;
+            if (run > best)
+            {
+                best = run;
+                bestStart = runStart;
+                bestEnd = month.Month;
+            }
+            previous = month.Month;
+        }
+
+        int count = leader.Count();
+        string text = $"{leader.Key} was your #1 artist in {count} of {months.Count} month{(months.Count == 1 ? "" : "s")}";
+        return best > 1
+            ? $"{text}, {best} of them in a row ({TimeFormat.Month(bestStart)} to {TimeFormat.Month(bestEnd)})."
+            : text + ".";
     }
 
     /// <summary>The busiest hour of the week, read off the same day-by-hour grid as the heatmap.</summary>
@@ -769,6 +1295,7 @@ public sealed partial class MainViewModel : ObservableObject
         EpisodesChart = ChartBuilder.TopEpisodes(_result);
         ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
         EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
+        ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity);
 
         // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
         _tracksShown = Math.Min(BarPageSize, MaxTracks);
@@ -835,17 +1362,17 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportTxtAsync() =>
         ExportAsync("Text files (*.txt)|*.txt", ".txt", "Sortify_results",
-            path => ExportService.SaveTxtAsync(path, _result));
+            path => ExportService.SaveTxtAsync(path, _result, _resultFilters));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportMarkdownAsync() =>
         ExportAsync("Markdown files (*.md)|*.md", ".md", "Sortify_report",
-            path => ExportService.SaveMarkdownAsync(path, _result));
+            path => ExportService.SaveMarkdownAsync(path, _result, _resultFilters));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportJsonAsync() =>
         ExportAsync("JSON files (*.json)|*.json", ".json", "Sortify_results",
-            path => ExportService.SaveJsonAsync(path, _result));
+            path => ExportService.SaveJsonAsync(path, _result, _resultFilters));
 
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportTracksCsvAsync() =>
@@ -931,3 +1458,12 @@ public sealed partial class MainViewModel : ObservableObject
 
 /// <summary>One row of an Overview top-five list.</summary>
 public sealed record RankedItem(int Rank, string Name, string Secondary, string Time, int Plays);
+
+/// <summary>
+/// One match in the jump box: what it is, how it reads, and the row it stands for, which is
+/// what the detail view opens.
+/// </summary>
+public sealed record JumpResult(string Kind, string Name, string Secondary, string Time, object Item)
+{
+    public override string ToString() => $"{Kind}: {Name}";
+}

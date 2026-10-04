@@ -1,4 +1,4 @@
-﻿<Window x:Class="Sortify.Views.MainWindow"
+﻿<views:ThemedWindow x:Class="Sortify.Views.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -9,6 +9,7 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         mc:Ignorable="d"
         Title="Sortify" Height="900" Width="1500" MinHeight="620" MinWidth="900"
+        TitleBarBackground="{DynamicResource PanelBrush}" ShowTitle="False" TitleBarHeight="48"
         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterScreen" Opacity="0"
         AllowDrop="True" Drop="OnFileDrop" DragOver="OnFileDragOver">
@@ -27,6 +28,23 @@
             <Setter Property="ContextMenu" Value="{StaticResource ChartMenu}" />
         </Style>
 
+        <!-- A movement or change on the Compare tab, coloured by which way it went. -->
+        <Style x:Key="TrendText" TargetType="TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Trend}" Value="Up">
+                    <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Trend}" Value="Down">
+                    <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Trend}" Value="New">
+                    <Setter Property="Foreground" Value="{DynamicResource Accent2TextBrush}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- One row of an Overview top-five list. -->
         <DataTemplate x:Key="RankedRow">
             <Grid Margin="0,5">
@@ -36,7 +54,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding Rank}" FontWeight="Bold" FontSize="13"
-                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                           Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
                 <StackPanel Grid.Column="1" Margin="4,0,8,0">
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" />
                     <TextBlock Text="{Binding Secondary}" FontSize="11"
@@ -84,6 +102,82 @@
         </EventTrigger>
     </Window.Triggers>
 
+    <!-- ======================== Toolbar, in the title bar ======================== -->
+    <!-- One bar, like Claude Code's: the buttons are clickable, while the gaps, the logo,
+         the name and the progress bar still drag the window (IsHitTestVisible="False" lets
+         a click fall through to the bar behind). -->
+    <views:ThemedWindow.TitleBarContent>
+        <DockPanel LastChildFill="False" Margin="14,0,8,0" VerticalAlignment="Center">
+            <Image Source="{StaticResource SortifyLogo}" Width="30" Height="30" Margin="0,0,8,0"
+                   VerticalAlignment="Center" IsHitTestVisible="False" />
+            <TextBlock Text="Sortify" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
+                       Foreground="{DynamicResource AccentBrush}" Margin="0,0,16,0"
+                       IsHitTestVisible="False" />
+
+            <Button Content="Open Folder" Style="{StaticResource AccentButton}"
+                    ToolTip="Pick the extracted export folder; history files are found automatically (Ctrl+Shift+O)"
+                    Command="{Binding OpenFolderCommand}" />
+            <Button Content="Open Files"
+                    ToolTip="Pick the export ZIP Spotify sent, or individual history JSON files (Ctrl+O)"
+                    Command="{Binding RunAnalysisCommand}" />
+            <!-- U+25BE, which the UI font has; the Segoe MDL2 chevron would be tofu here. -->
+            <Button Content="Recent  &#x25BE;" Click="OnRecentClick"
+                    AutomationProperties.Name="Recent exports"
+                    ToolTip="Export folders and ZIPs you opened before" />
+
+            <Button Content="Export  &#x25BE;" Click="OnDropdownClick"
+                    AutomationProperties.Name="Export"
+                    ToolTip="Save your results in another format">
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Summary as text..." InputGestureText="Ctrl+E"
+                                  Command="{Binding ExportTxtCommand}" />
+                        <MenuItem Header="Report as Markdown..." InputGestureText="Ctrl+M"
+                                  Command="{Binding ExportMarkdownCommand}" />
+                        <MenuItem Header="Everything as JSON..." InputGestureText="Ctrl+J"
+                                  Command="{Binding ExportJsonCommand}" />
+                        <Separator />
+                        <MenuItem Header="Tracks as CSV..." Command="{Binding ExportTracksCsvCommand}" />
+                        <MenuItem Header="Artists as CSV..." Command="{Binding ExportArtistsCsvCommand}" />
+                        <MenuItem Header="Albums as CSV..." Command="{Binding ExportAlbumsCsvCommand}" />
+                        <MenuItem Header="Years as CSV..." Command="{Binding ExportYearsCsvCommand}" />
+                        <MenuItem Header="Shows as CSV..." Command="{Binding ExportShowsCsvCommand}" />
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+
+            <!-- Right-hand icon cluster -->
+            <!-- Glyph-only buttons: without a name a screen reader announces the raw
+                 private-use character. -->
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="&#xE713;" Click="OnOpenSettings" Margin="0"
+                    AutomationProperties.Name="Settings"
+                    ToolTip="Settings" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="{Binding ThemeGlyph}" Command="{Binding ToggleThemeCommand}"
+                    AutomationProperties.Name="{Binding ThemeTooltip}"
+                    ToolTip="{Binding ThemeTooltip}" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="&#xE72C;" Command="{Binding ReloadCommand}"
+                    AutomationProperties.Name="Reload from disk"
+                    ToolTip="Re-read the files from disk, ignoring the cache (F5)" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="&#xE700;" Command="{Binding ToggleSidebarCommand}"
+                    AutomationProperties.Name="Show or hide filters"
+                    ToolTip="Show or hide the filters (Ctrl+B)" />
+
+            <ProgressBar DockPanel.Dock="Right" Width="140" Height="6"
+                         Margin="0,0,10,0" VerticalAlignment="Center"
+                         Minimum="0" Maximum="100"
+                         Value="{Binding ProgressValue}"
+                         IsIndeterminate="{Binding IsProgressIndeterminate}"
+                         Foreground="{DynamicResource AccentBrush}"
+                         Background="Transparent" BorderThickness="0"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                         IsHitTestVisible="False" />
+        </DockPanel>
+    </views:ThemedWindow.TitleBarContent>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -92,76 +186,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ============================ Top toolbar ============================ -->
-        <Border Grid.Row="0" Background="{DynamicResource PanelBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1" Padding="14,10">
-            <DockPanel LastChildFill="False">
-                <TextBlock Text="Sortify" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
-                           Foreground="{DynamicResource AccentBrush}" Margin="0,0,16,0" />
-
-                <Button Content="Open Folder" Style="{StaticResource AccentButton}"
-                        ToolTip="Pick the extracted export folder; history files are found automatically (Ctrl+Shift+O)"
-                        Command="{Binding OpenFolderCommand}" />
-                <Button Content="Open Files"
-                        ToolTip="Pick individual history JSON files (Ctrl+O)"
-                        Command="{Binding RunAnalysisCommand}" />
-                <!-- U+25BE, which the UI font has; the Segoe MDL2 chevron would be tofu here. -->
-                <Button Content="Recent  &#x25BE;" Click="OnRecentClick"
-                        AutomationProperties.Name="Recent folders"
-                        ToolTip="Folders you opened before" />
-
-                <Button Content="Export  &#x25BE;" Click="OnDropdownClick"
-                        AutomationProperties.Name="Export"
-                        ToolTip="Save your results in another format">
-                    <Button.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="Summary as text..." InputGestureText="Ctrl+E"
-                                      Command="{Binding ExportTxtCommand}" />
-                            <MenuItem Header="Report as Markdown..." InputGestureText="Ctrl+M"
-                                      Command="{Binding ExportMarkdownCommand}" />
-                            <MenuItem Header="Everything as JSON..." InputGestureText="Ctrl+J"
-                                      Command="{Binding ExportJsonCommand}" />
-                            <Separator />
-                            <MenuItem Header="Tracks as CSV..." Command="{Binding ExportTracksCsvCommand}" />
-                            <MenuItem Header="Artists as CSV..." Command="{Binding ExportArtistsCsvCommand}" />
-                            <MenuItem Header="Albums as CSV..." Command="{Binding ExportAlbumsCsvCommand}" />
-                            <MenuItem Header="Years as CSV..." Command="{Binding ExportYearsCsvCommand}" />
-                            <MenuItem Header="Shows as CSV..." Command="{Binding ExportShowsCsvCommand}" />
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
-
-                <!-- Right-hand icon cluster -->
-                <!-- Glyph-only buttons: without a name a screen reader announces the raw
-                     private-use character. -->
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="&#xE713;" Click="OnOpenSettings" Margin="0"
-                        AutomationProperties.Name="Settings"
-                        ToolTip="Settings" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="{Binding ThemeGlyph}" Command="{Binding ToggleThemeCommand}"
-                        AutomationProperties.Name="{Binding ThemeTooltip}"
-                        ToolTip="{Binding ThemeTooltip}" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="&#xE72C;" Command="{Binding ReloadCommand}"
-                        AutomationProperties.Name="Reload from disk"
-                        ToolTip="Re-read the files from disk, ignoring the cache (F5)" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="&#xE700;" Command="{Binding ToggleSidebarCommand}"
-                        AutomationProperties.Name="Show or hide filters"
-                        ToolTip="Show or hide the filters (Ctrl+B)" />
-
-                <ProgressBar DockPanel.Dock="Right" Width="140" Height="6"
-                             Margin="0,0,10,0" VerticalAlignment="Center"
-                             Minimum="0" Maximum="100"
-                             Value="{Binding ProgressValue}"
-                             IsIndeterminate="{Binding IsProgressIndeterminate}"
-                             Foreground="{DynamicResource AccentBrush}"
-                             Background="Transparent" BorderThickness="0"
-                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-            </DockPanel>
-        </Border>
+        <!-- Rule under the title bar, which holds the toolbar. -->
+        <Border Grid.Row="0" Height="1" Background="{DynamicResource BorderBrush}" />
 
         <!-- ========================= Active filter chips ======================= -->
         <Border Grid.Row="1" Background="{DynamicResource BgBrush}" Padding="14,8,14,2"
@@ -182,8 +208,14 @@
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Style="{StaticResource Chip}">
-                                <TextBlock Text="{Binding}" FontSize="11" />
+                            <Border Style="{StaticResource Chip}" Padding="10,1,3,1">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
+                                            Command="{Binding ClearCommand}"
+                                            ToolTip="{Binding ClearHint}"
+                                            AutomationProperties.Name="{Binding ClearHint}" />
+                                </StackPanel>
                             </Border>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
@@ -219,12 +251,12 @@
                         <TextBlock HorizontalAlignment="Center" TextAlignment="Center" Margin="0,10,0,0"
                                    TextWrapping="Wrap" FontSize="13"
                                    Foreground="{DynamicResource MutedBrush}"
-                                   Text="Drag the extracted export folder (or its JSON files) onto this window, or use the buttons below. Everything is processed on this machine - nothing is uploaded." />
+                                   Text="Drag the ZIP Spotify sent you onto this window. No need to unzip it first; the extracted folder or its JSON files work too. Everything is processed on this machine - nothing is uploaded." />
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,22,0,0">
-                            <Button Content="Open Folder" Style="{StaticResource AccentButton}"
-                                    Padding="20,9" Command="{Binding OpenFolderCommand}" />
-                            <Button Content="Choose Files" Padding="20,9" Margin="0"
-                                    Command="{Binding RunAnalysisCommand}" />
+                            <Button Content="Open ZIP or Files" Style="{StaticResource AccentButton}"
+                                    Padding="20,9" Command="{Binding RunAnalysisCommand}" />
+                            <Button Content="Open Folder" Padding="20,9" Margin="0"
+                                    Command="{Binding OpenFolderCommand}" />
                         </StackPanel>
                         <TextBlock HorizontalAlignment="Center" TextAlignment="Center" Margin="0,20,0,0"
                                    FontSize="11" TextWrapping="Wrap"
@@ -337,8 +369,11 @@
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
                                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                                        <TextBlock Text="Top Tracks" Style="{StaticResource SectionHeader}"
-                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                        <TextBlock Style="{StaticResource SectionHeader}"
+                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Run Text="Top Tracks" /><Run Text="   Click a bar for its breakdown" FontWeight="Normal"
+                                                                          FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
                                         <Border HorizontalAlignment="Right" VerticalAlignment="Center"
                                                 Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
                                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -357,7 +392,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnTracksScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=TracksTimeToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding TracksByTime.Series}"
+                                            <lvc:CartesianChart Series="{Binding TracksByTime.Series}" Tag="{Binding TracksByTime}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding TracksChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -366,7 +401,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnTracksScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=TracksCountToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding TracksByCount.Series}"
+                                            <lvc:CartesianChart Series="{Binding TracksByCount.Series}" Tag="{Binding TracksByCount}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding TracksChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -378,7 +413,7 @@
 
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
-                                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
+                                    <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,8">
                                         <TextBox x:Name="TrackQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter track rows"
                                                  Text="{Binding TrackQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
@@ -386,22 +421,38 @@
                                         <TextBlock Text="Filter rows" VerticalAlignment="Center" DockPanel.Dock="Right"
                                                    Margin="0,0,8,0" FontSize="11"
                                                    Foreground="{DynamicResource MutedBrush}" />
-                                        <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown"
-                                                   VerticalAlignment="Center" FontSize="11"
+                                        <Button DockPanel.Dock="Right" Content="Copy as links  &#x25BE;" Click="OnDropdownClick"
+                                                Padding="10,5" FontSize="11" Margin="0,0,14,0" VerticalAlignment="Center"
+                                                AutomationProperties.Name="Copy tracks as Spotify links"
+                                                ToolTip="Copy rows as Spotify links, to paste into a playlist in the Spotify desktop app">
+                                            <Button.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Top 25 rows" Tag="25" Click="OnCopyTopTrackLinks" />
+                                                    <MenuItem Header="Top 50 rows" Tag="50" Click="OnCopyTopTrackLinks" />
+                                                    <MenuItem Header="Top 100 rows" Tag="100" Click="OnCopyTopTrackLinks" />
+                                                    <Separator />
+                                                    <MenuItem Header="Selected rows" Click="OnCopyLinksFromTracks" />
+                                                </ContextMenu>
+                                            </Button.ContextMenu>
+                                        </Button>
+                                        <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown. Ctrl- or Shift-click to pick several."
+                                                   VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
                                     <DataGrid x:Name="TracksGrid" ItemsSource="{Binding Tracks}"
                                               AutomationProperties.Name="Tracks"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                         <DataGrid.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Copy track" Click="OnCopyTrackFromTracks" />
-                                                <MenuItem Header="Copy artist" Click="OnCopyArtistFromTracks" />
+                                                <MenuItem Tag="Copy track|Copy {0} tracks" Click="OnCopyTrackFromTracks" />
+                                                <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromTracks" />
+                                                <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromTracks" />
                                                 <Separator />
-                                                <MenuItem Header="Exclude this track" Click="OnExcludeTrackFromTracks" />
-                                                <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromTracks" />
+                                                <MenuItem Tag="Exclude this track|Exclude these {0} tracks" Click="OnExcludeTrackFromTracks" />
+                                                <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromTracks" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
@@ -440,8 +491,11 @@
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
                                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                                        <TextBlock Text="Top Artists" Style="{StaticResource SectionHeader}"
-                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                        <TextBlock Style="{StaticResource SectionHeader}"
+                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Run Text="Top Artists" /><Run Text="   Click a bar for its breakdown" FontWeight="Normal"
+                                                                           FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
                                         <Border HorizontalAlignment="Right" VerticalAlignment="Center"
                                                 Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
                                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -460,7 +514,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnArtistsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=ArtistsTimeToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding ArtistsByTime.Series}"
+                                            <lvc:CartesianChart Series="{Binding ArtistsByTime.Series}" Tag="{Binding ArtistsByTime}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding ArtistsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -469,7 +523,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnArtistsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=ArtistsCountToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding ArtistsByCount.Series}"
+                                            <lvc:CartesianChart Series="{Binding ArtistsByCount.Series}" Tag="{Binding ArtistsByCount}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding ArtistsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -497,12 +551,13 @@
                                     <DataGrid x:Name="ArtistsGrid" ItemsSource="{Binding Artists}"
                                               AutomationProperties.Name="Artists"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                         <DataGrid.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Copy artist" Click="OnCopyArtistFromArtists" />
+                                                <MenuItem Tag="Copy artist|Copy {0} artists" Click="OnCopyArtistFromArtists" />
                                                 <Separator />
-                                                <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromArtists" />
+                                                <MenuItem Tag="Exclude this artist|Exclude these {0} artists" Click="OnExcludeArtistFromArtists" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
@@ -538,8 +593,11 @@
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
                                     <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
-                                        <TextBlock Text="Top Albums" Style="{StaticResource SectionHeader}"
-                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                        <TextBlock Style="{StaticResource SectionHeader}"
+                                                   Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <Run Text="Top Albums" /><Run Text="   Click a bar for its breakdown" FontWeight="Normal"
+                                                                          FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
                                         <Border HorizontalAlignment="Right" VerticalAlignment="Center"
                                                 Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
                                                 BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
@@ -558,7 +616,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnAlbumsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=AlbumsTimeToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding AlbumsByTime.Series}"
+                                            <lvc:CartesianChart Series="{Binding AlbumsByTime.Series}" Tag="{Binding AlbumsByTime}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding AlbumsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -567,7 +625,7 @@
                                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                                                       ScrollChanged="OnAlbumsScrollChanged"
                                                       Visibility="{Binding IsChecked, ElementName=AlbumsCountToggle, Converter={StaticResource BoolToVis}}">
-                                            <lvc:CartesianChart Series="{Binding AlbumsByCount.Series}"
+                                            <lvc:CartesianChart Series="{Binding AlbumsByCount.Series}" Tag="{Binding AlbumsByCount}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent" Height="{Binding AlbumsChartHeight}"
                                                                 TooltipPosition="Hidden"
                                                                 AnimationsSpeed="0:0:0" EasingFunction="{x:Null}"
@@ -595,13 +653,14 @@
                                     <DataGrid x:Name="AlbumsGrid" ItemsSource="{Binding Albums}"
                                               AutomationProperties.Name="Albums"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                         <DataGrid.ContextMenu>
                                             <ContextMenu>
-                                                <MenuItem Header="Copy album" Click="OnCopyAlbumFromAlbums" />
-                                                <MenuItem Header="Copy artist" Click="OnCopyArtistFromAlbums" />
+                                                <MenuItem Tag="Copy album|Copy {0} albums" Click="OnCopyAlbumFromAlbums" />
+                                                <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromAlbums" />
                                                 <Separator />
-                                                <MenuItem Header="Exclude this artist" Click="OnExcludeArtistFromAlbums" />
+                                                <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromAlbums" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
@@ -639,9 +698,11 @@
                             </Grid.RowDefinitions>
                             <Border Grid.Row="0" Style="{StaticResource ChartCard}">
                                 <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Text="Listening Time per Year"
-                                               Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                    <lvc:CartesianChart Series="{Binding ByYear.Series}"
+                                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                        <Run Text="Listening Time per Year" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
+                                                                                   FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                    </TextBlock>
+                                    <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
                                                         Background="Transparent"
                                                         AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                         XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}" />
@@ -652,12 +713,21 @@
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
                                                Foreground="{DynamicResource MutedBrush}"
-                                               Text="Double-click a year, or select it and press Enter, for its own breakdown" />
+                                               Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
                                     <Grid>
                                     <DataGrid x:Name="YearsGrid" ItemsSource="{Binding Years}"
                                               AutomationProperties.Name="Years"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                        <DataGrid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open this year's breakdown" Click="OnOpenYearDetail"
+                                                          InputGestureText="Enter" />
+                                                <MenuItem Header="Filter everything to this year" Click="OnFilterToYear" />
+                                                <Separator />
+                                                <MenuItem Header="Make a year-in-review image..." Click="OnYearReview" />
+                                            </ContextMenu>
+                                        </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="Auto" />
                                             <DataGridTextColumn Header="Time"
@@ -722,9 +792,11 @@
 
                                     <Border Style="{StaticResource ChartCard}">
                                         <DockPanel>
-                                            <TextBlock DockPanel.Dock="Top" Text="Top Shows and Audiobooks (top 20)"
-                                                       Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                            <lvc:CartesianChart Series="{Binding ShowsChart.Series}"
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                                <Run Text="Top Shows and Audiobooks (top 20)" /><Run Text="   Click a bar for its breakdown"
+                                                    FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <lvc:CartesianChart Series="{Binding ShowsChart.Series}" Tag="{Binding ShowsChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent"
                                                                 Height="{Binding ShowsChartHeight}"
                                                                 TooltipPosition="Hidden"
@@ -735,9 +807,11 @@
 
                                     <Border Style="{StaticResource ChartCard}">
                                         <DockPanel>
-                                            <TextBlock DockPanel.Dock="Top" Text="Top Episodes and Chapters (top 20)"
-                                                       Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                            <lvc:CartesianChart Series="{Binding EpisodesChart.Series}"
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                                <Run Text="Top Episodes and Chapters (top 20)" /><Run Text="   Click a bar for its breakdown"
+                                                    FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <lvc:CartesianChart Series="{Binding EpisodesChart.Series}" Tag="{Binding EpisodesChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                                 Background="Transparent"
                                                                 Height="{Binding EpisodesChartHeight}"
                                                                 TooltipPosition="Hidden"
@@ -755,9 +829,13 @@
                                                          ToolTip="Narrow the shows and episodes below (Ctrl+F)" />
                                                 <TextBlock Text="Shows" Style="{StaticResource SectionHeader}"
                                                            Margin="0" VerticalAlignment="Center" />
+                                                <TextBlock Text="Double-click a show or an episode, or select it and press Enter, for its breakdown"
+                                                           VerticalAlignment="Center" FontSize="11" Margin="14,0,0,0"
+                                                           Foreground="{DynamicResource MutedBrush}" />
                                             </DockPanel>
                                             <Grid>
-                                            <DataGrid ItemsSource="{Binding Shows}" AutomationProperties.Name="Shows">
+                                            <DataGrid x:Name="ShowsGrid" ItemsSource="{Binding Shows}" AutomationProperties.Name="Shows"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="2*" />
                                                     <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="Auto" />
@@ -786,7 +864,8 @@
                                             <TextBlock DockPanel.Dock="Top" Text="Episodes" Style="{StaticResource SectionHeader}"
                                                        Margin="0,0,0,8" />
                                             <Grid>
-                                            <DataGrid ItemsSource="{Binding Episodes}" AutomationProperties.Name="Episodes">
+                                            <DataGrid x:Name="EpisodesGrid" ItemsSource="{Binding Episodes}" AutomationProperties.Name="Episodes"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Episode" Binding="{Binding Episode}" Width="2*" />
                                                     <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="*" />
@@ -842,11 +921,94 @@
                                                             TooltipPosition="Top" />
                                     </DockPanel>
                                 </Border>
+                                <Border Style="{StaticResource ChartCard}" Height="460">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                                            <TextBlock Text="Compare Artists" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Content="Monthly" GroupName="CompareGran" IsChecked="True"
+                                                                 Tag="Monthly" Checked="OnCompareGranularityChecked"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                    <RadioButton Content="Weekly" GroupName="CompareGran"
+                                                                 Tag="Weekly" Checked="OnCompareGranularityChecked"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                        <DockPanel DockPanel.Dock="Top" Margin="0,2,0,4">
+                                            <TextBox DockPanel.Dock="Left" Width="220" VerticalAlignment="Center"
+                                                     Text="{Binding CompareQuery, UpdateSourceTrigger=PropertyChanged}"
+                                                     AutomationProperties.Name="Add an artist to compare"
+                                                     ToolTip="Type an artist's name, then pick a match or press Enter for the first one">
+                                                <TextBox.InputBindings>
+                                                    <KeyBinding Key="Enter" Command="{Binding AddComparedArtistCommand}" />
+                                                </TextBox.InputBindings>
+                                            </TextBox>
+                                            <ItemsControl ItemsSource="{Binding ComparedArtists}" Margin="10,0,0,0"
+                                                          VerticalAlignment="Center" Focusable="False"
+                                                          AutomationProperties.Name="Artists being compared">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Style="{StaticResource Chip}" Padding="10,1,3,1" Margin="0,2,6,2">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding}" FontSize="11" VerticalAlignment="Center" />
+                                                                <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
+                                                                        Command="{Binding DataContext.RemoveComparedArtistCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        ToolTip="Take this artist off the chart"
+                                                                        AutomationProperties.Name="{Binding StringFormat='Stop comparing {0}'}" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </DockPanel>
+                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CompareSuggestions}"
+                                                      Focusable="False" AutomationProperties.Name="Matching artists">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding}" ContentStringFormat="+  {0}" Style="{StaticResource QuickRangeButton}"
+                                                            Command="{Binding DataContext.AddComparedArtistCommand,
+                                                                      RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            AutomationProperties.Name="{Binding StringFormat='Compare {0}'}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding CompareHint}" Style="{StaticResource Hint}"
+                                                   FontSize="11" Margin="0,0,0,4"
+                                                   Visibility="{Binding CompareHint, Converter={StaticResource TextToVis}}" />
+                                        <lvc:CartesianChart Series="{Binding ArtistTimelineChart.Series}"
+                                                            Background="Transparent"
+                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                            XAxes="{Binding ArtistTimelineChart.XAxes}"
+                                                            YAxes="{Binding ArtistTimelineChart.YAxes}"
+                                                            LegendPosition="Bottom" LegendTextSize="12"
+                                                            TooltipPosition="Top" />
+                                    </DockPanel>
+                                </Border>
                                 <Border Style="{StaticResource ChartCard}" Height="340">
                                     <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="Listening Heatmap (day of week vs. hour of day)"
-                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
-                                        <lvc:CartesianChart Series="{Binding Heat.Series}"
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,6">
+                                            <Run Text="Listening Heatmap (day of week vs. hour of day)" /><Run Text="   Click a square to see only that hour of that day"
+                                                FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
+                                        <lvc:CartesianChart Series="{Binding Heat.Series}" Cursor="Hand" DataPointerDown="OnHeatClick" FindingStrategy="CompareAllTakeClosest"
                                                             Background="Transparent"
                                                             AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                             XAxes="{Binding Heat.XAxes}" YAxes="{Binding Heat.YAxes}"
@@ -862,6 +1024,48 @@
                                                             AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                             XAxes="{Binding Discovery.XAxes}" YAxes="{Binding Discovery.YAxes}"
                                                             TooltipPosition="Top" />
+                                    </DockPanel>
+                                </Border>
+                                <Border Style="{StaticResource Card}" Height="400">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Your #1 Each Month"
+                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding MonthlyLeaderText}"
+                                                   FontSize="12" Margin="0,0,0,2" TextWrapping="Wrap" />
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="The artist and track you listened to longest each month. Double-click a month for its top artist; right-click for its top track." />
+                                        <Grid>
+                                            <DataGrid x:Name="MonthsGrid" ItemsSource="{Binding Months}"
+                                                      AutomationProperties.Name="Top artist and track per month"
+                                                      SelectionMode="Single"
+                                                      PreviewMouseRightButtonDown="OnGridRightClick"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Header="Open the top artist" Click="OnOpenMonthArtist"
+                                                                  InputGestureText="Enter" />
+                                                        <MenuItem Header="Open the top track" Click="OnOpenMonthTrack" />
+                                                    </ContextMenu>
+                                                </DataGrid.ContextMenu>
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Month" Binding="{Binding Month, StringFormat=yyyy-MM}"
+                                                                        Width="Auto" SortMemberPath="Month" />
+                                                    <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
+                                                    <DataGridTextColumn Header="Hours" Binding="{Binding TopArtistHours, StringFormat=N1}"
+                                                                        Width="Auto" SortMemberPath="TopArtistMs" />
+                                                    <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="*" />
+                                                    <DataGridTextColumn Header="By" Binding="{Binding TopTrackArtist}" Width="0.7*" />
+                                                    <DataGridTextColumn Header="Hours" Binding="{Binding TopTrackHours, StringFormat=N1}"
+                                                                        Width="Auto" SortMemberPath="TopTrackMs" />
+                                                    <DataGridTextColumn Header="Month Total"
+                                                                        Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
+                                                                        Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <TextBlock Style="{StaticResource EmptyRows}"
+                                                       Visibility="{Binding Months, Converter={StaticResource EmptyToVis}}"
+                                                       Text="No dated plays match the current filters." />
+                                        </Grid>
                                     </DockPanel>
                                 </Border>
                                 <Border Style="{StaticResource ChartCard}" Height="300">
@@ -1050,6 +1254,14 @@
                                     </Border>
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
+                                            <TextBlock Text="PRIVATE SESSIONS" Style="{StaticResource Caption}" />
+                                            <TextBlock Text="{Binding PrivateSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Style="{StaticResource Hint}"
+                                                       Text="Plays from private sessions. The sidebar can leave them out." />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}">
+                                        <StackPanel>
                                             <TextBlock Text="TOP DEVICE" Style="{StaticResource Caption}" />
                                             <TextBlock Text="{Binding TopDeviceText}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
@@ -1057,6 +1269,94 @@
                                         </StackPanel>
                                     </Border>
                                 </UniformGrid>
+
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="Milestones"
+                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="The plays that mark your history: the first, the ones that reached round numbers of plays and hours, and the first time your top artist came on. Double-click one for that track's breakdown." />
+                                        <Grid>
+                                            <DataGrid ItemsSource="{Binding Milestones}" AutomationProperties.Name="Milestones"
+                                                      SelectionMode="Single" MinHeight="80"
+                                                      PreviewMouseWheel="OnPassWheelToPage"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Milestone" Binding="{Binding Label}" Width="1.4*" />
+                                                    <DataGridTextColumn Header="When" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}"
+                                                                        Width="145" SortMemberPath="Date" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="1.2*" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <TextBlock Style="{StaticResource EmptyRows}"
+                                                       Visibility="{Binding Milestones, Converter={StaticResource EmptyToVis}}"
+                                                       Text="No dated plays match the current filters." />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}" Height="400">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">
+                                            <Button DockPanel.Dock="Right" Content="Copy tracks as links" Click="OnCopyForgottenLinks"
+                                                    Padding="10,5" FontSize="11" Margin="0" VerticalAlignment="Center"
+                                                    AutomationProperties.Name="Copy the forgotten tracks as Spotify links"
+                                                    ToolTip="Copy every track below as a Spotify link, to paste into a playlist and hear them again" />
+                                            <TextBlock Text="Forgotten Favorites" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="{Binding ForgottenHint}" />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="3*" />
+                                                <ColumnDefinition Width="12" />
+                                                <ColumnDefinition Width="2*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Grid Grid.Column="0">
+                                                <DataGrid x:Name="ForgottenTracksGrid" ItemsSource="{Binding ForgottenTracks}"
+                                                          AutomationProperties.Name="Forgotten tracks"
+                                                          PreviewMouseRightButtonDown="OnGridRightClick"
+                                                          ContextMenuOpening="OnGridMenuOpening"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromGrid" />
+                                                        </ContextMenu>
+                                                    </DataGrid.ContextMenu>
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Last Played"
+                                                                            Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
+                                                                            Width="108" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding ForgottenTracks, Converter={StaticResource EmptyToVis}}"
+                                                           Text="No forgotten tracks: everything you played that often is still in rotation." />
+                                            </Grid>
+                                            <Grid Grid.Column="2">
+                                                <DataGrid ItemsSource="{Binding ForgottenArtists}"
+                                                          AutomationProperties.Name="Forgotten artists"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Last Played"
+                                                                            Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
+                                                                            Width="108" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding ForgottenArtists, Converter={StaticResource EmptyToVis}}"
+                                                           Text="No forgotten artists." />
+                                            </Grid>
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
 
                                 <Border Style="{StaticResource ChartCard}" Height="440">
                                     <DockPanel>
@@ -1093,15 +1393,223 @@
 
                                 <Border Style="{StaticResource ChartCard}" Height="560">
                                     <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="Most Skipped Tracks (top 15)"
-                                                   Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
-                                        <lvc:CartesianChart Series="{Binding Skipped.Series}"
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
+                                            <Run Text="Most Skipped Tracks (top 15)" /><Run Text="   Click a bar for the track's breakdown"
+                                                FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
+                                        <lvc:CartesianChart Series="{Binding Skipped.Series}" Tag="{Binding Skipped}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyYTakeClosest"
                                                             Background="Transparent"
                                                             TooltipPosition="Hidden"
                                                             AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                             XAxes="{Binding Skipped.XAxes}" YAxes="{Binding Skipped.YAxes}" />
                                     </DockPanel>
                                 </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ============================= COMPARE ============================= -->
+                    <TabItem x:Name="CompareTab" Header="Compare">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel DataContext="{Binding Compare}" SizeChanged="OnCompareSizeChanged">
+                                <Border Style="{StaticResource Card}" Margin="6,6,6,6">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="Swap A and B" Command="{Binding SwapCommand}"
+                                                        Padding="10,5" FontSize="11" />
+                                                <Button Content="Make A the stretch before B" Command="{Binding MatchAToBCommand}"
+                                                        Padding="10,5" FontSize="11" Margin="0"
+                                                        ToolTip="Set period A to the same number of days, ending the day before B starts" />
+                                            </StackPanel>
+                                            <TextBlock Text="Compare Two Periods" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,10"
+                                                   Text="Every other filter in the sidebar applies to both periods. The sidebar's own date range is set aside here." />
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="24" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding PeriodALabel}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <DatePicker Grid.Column="0" SelectedDate="{Binding StartA}"
+                                                                AutomationProperties.Name="Period A from" ToolTip="Period A starts" />
+                                                    <DatePicker Grid.Column="2" SelectedDate="{Binding EndA}"
+                                                                AutomationProperties.Name="Period A to" ToolTip="Period A ends (this day included)" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding RangesA}" Margin="0,8,0,0" Focusable="False"
+                                                              AutomationProperties.Name="Quick ranges for period A">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
+                                                                    ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
+                                                                    Command="{Binding DataContext.ApplyRangeACommand,
+                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="{Binding PeriodBLabel}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="8" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <DatePicker Grid.Column="0" SelectedDate="{Binding StartB}"
+                                                                AutomationProperties.Name="Period B from" ToolTip="Period B starts" />
+                                                    <DatePicker Grid.Column="2" SelectedDate="{Binding EndB}"
+                                                                AutomationProperties.Name="Period B to" ToolTip="Period B ends (this day included)" />
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding RangesB}" Margin="0,8,0,0" Focusable="False"
+                                                              AutomationProperties.Name="Quick ranges for period B">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
+                                                                    ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
+                                                                    Command="{Binding DataContext.ApplyRangeBCommand,
+                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Grid>
+                                        <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                   Visibility="{Binding Message, Converter={StaticResource TextToVis}}" />
+                                        <TextBlock Text="Working out both periods..." Style="{StaticResource Hint}" FontSize="11"
+                                                   Margin="0,8,0,0"
+                                                   Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Text="At a Glance" Style="{StaticResource SectionHeader}"
+                                                   Margin="0,0,0,8" />
+                                        <DataGrid ItemsSource="{Binding Metrics}" AutomationProperties.Name="Headline figures for both periods"
+                                                  SelectionMode="Single" PreviewMouseWheel="OnPassWheelToPage">
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" />
+                                                <DataGridTextColumn Header="Period A" Binding="{Binding A}" Width="*" />
+                                                <DataGridTextColumn Header="Period B" Binding="{Binding B}" Width="*" />
+                                                <DataGridTextColumn Header="Change" Binding="{Binding Change}" Width="*"
+                                                                    ElementStyle="{StaticResource TrendText}" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                    </DockPanel>
+                                </Border>
+
+                                <UniformGrid x:Name="CompareRankings" Columns="2">
+                                    <Border Style="{StaticResource Card}" Height="480">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="Artists" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="Ranked by listening time in period B. ▲ climbed since A, ▼ fell, new wasn't played in A, out isn't played in B." />
+                                            <DataGrid ItemsSource="{Binding Artists}" AutomationProperties.Name="Artists in both periods"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
+                                                                        SortMemberPath="RankB" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                    <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsB" />
+                                                    <DataGridTextColumn Header="Hours A" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsA" />
+                                                    <DataGridTextColumn Header="Move" Binding="{Binding Movement}" Width="Auto"
+                                                                        ElementStyle="{StaticResource TrendText}" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}" Height="480">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="Tracks" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="The same for tracks. Double-click a row for its breakdown under the sidebar's filters." />
+                                            <DataGrid ItemsSource="{Binding Tracks}" AutomationProperties.Name="Tracks in both periods"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
+                                                                        SortMemberPath="RankB" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" />
+                                                    <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsB" />
+                                                    <DataGridTextColumn Header="Hours A" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                        SortMemberPath="MsA" />
+                                                    <DataGridTextColumn Header="Move" Binding="{Binding Movement}" Width="Auto"
+                                                                        ElementStyle="{StaticResource TrendText}" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </DockPanel>
+                                    </Border>
+                                </UniformGrid>
+
+                                <UniformGrid x:Name="CompareNewGone" Columns="2">
+                                    <Border Style="{StaticResource Card}" Height="360">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="New in Period B" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="Artists you listened to for at least an hour in B and not at all in A." />
+                                            <Grid>
+                                                <DataGrid ItemsSource="{Binding NewInB}" AutomationProperties.Name="Artists new in period B"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                        <DataGridTextColumn Header="Hours in B" Binding="{Binding HoursB, StringFormat=N1}"
+                                                                            Width="Auto" SortMemberPath="MsB" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding NewInB, Converter={StaticResource EmptyToVis}}"
+                                                           Text="No artist is new in period B." />
+                                            </Grid>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource Card}" Height="360">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="Gone Since Period A" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="Artists you listened to for at least an hour in A and not at all in B." />
+                                            <Grid>
+                                                <DataGrid ItemsSource="{Binding GoneSinceA}" AutomationProperties.Name="Artists gone since period A"
+                                                          MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                    <DataGrid.Columns>
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                        <DataGridTextColumn Header="Hours in A" Binding="{Binding HoursA, StringFormat=N1}"
+                                                                            Width="Auto" SortMemberPath="MsA" />
+                                                    </DataGrid.Columns>
+                                                </DataGrid>
+                                                <TextBlock Style="{StaticResource EmptyRows}"
+                                                           Visibility="{Binding GoneSinceA, Converter={StaticResource EmptyToVis}}"
+                                                           Text="Every artist from period A was played again in B." />
+                                            </Grid>
+                                        </DockPanel>
+                                    </Border>
+                                </UniformGrid>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
@@ -1117,6 +1625,10 @@
                 <Button DockPanel.Dock="Right" Content="Cancel" Padding="10,3" Margin="8,0,0,0"
                         FontSize="11" Command="{Binding CancelLoadCommand}"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
+                <TextBlock DockPanel.Dock="Right" Text="Ctrl+K to jump to anything" FontSize="11"
+                           VerticalAlignment="Center" Margin="12,0,0,0"
+                           Foreground="{DynamicResource MutedBrush}"
+                           Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}" />
                 <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" ToolTip="{Binding StatusText}"
                            AutomationProperties.LiveSetting="Polite">
@@ -1133,5 +1645,79 @@
                 </TextBlock>
             </DockPanel>
         </Border>
+
+        <!-- ========================= Jump to (Ctrl+K) ========================== -->
+        <Grid Grid.Row="0" Grid.RowSpan="4"
+              Visibility="{Binding IsJumpOpen, Converter={StaticResource BoolToVis}}">
+            <Border Background="#99000000" MouseLeftButtonDown="OnJumpBackdropClick" />
+            <Border Width="600" VerticalAlignment="Top" HorizontalAlignment="Center" Margin="16,70,16,16"
+                    Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="10" Padding="12">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.45" />
+                </Border.Effect>
+                <DockPanel>
+                    <TextBox x:Name="JumpBox" DockPanel.Dock="Top" FontSize="15"
+                             Text="{Binding JumpQuery, UpdateSourceTrigger=PropertyChanged, Delay=80}"
+                             AutomationProperties.Name="Jump to a track, artist, album or podcast"
+                             PreviewKeyDown="OnJumpBoxKeyDown" />
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding JumpHint}" Style="{StaticResource Hint}"
+                               FontSize="11" Margin="2,8,2,0" AutomationProperties.LiveSetting="Polite"
+                               Visibility="{Binding JumpHint, Converter={StaticResource TextToVis}}" />
+                    <ListBox x:Name="JumpList" ItemsSource="{Binding JumpResults}" SelectedItem="{Binding SelectedJump}"
+                             MaxHeight="440" Margin="0,8,0,0" Focusable="False"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             AutomationProperties.Name="Matches"
+                             Visibility="{Binding HasJumpResults, Converter={StaticResource BoolToVis}}">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Focusable" Value="False" />
+                                <Setter Property="Cursor" Value="Hand" />
+                                <EventSetter Event="PreviewMouseLeftButtonUp" Handler="OnJumpItemClick" />
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="bd" CornerRadius="6" Padding="10,6" Background="Transparent">
+                                                <ContentPresenter />
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource HoverBrush}" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="bd" Property="Background" Value="{DynamicResource SelectionBrush}" />
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="84" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Kind}" FontSize="11"
+                                               VerticalAlignment="Center" Foreground="{DynamicResource MutedBrush}" />
+                                    <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextBrush}" />
+                                        <TextBlock Text="{Binding Secondary}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource MutedBrush}" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding Time}" FontSize="12"
+                                               VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
     </Grid>
-</Window>
+</views:ThemedWindow>

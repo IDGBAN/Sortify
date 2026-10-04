@@ -1,0 +1,133 @@
+<UserControl x:Class="Sortify.Views.YearReviewCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:models="clr-namespace:Sortify.Models"
+             d:DataContext="{d:DesignInstance Type=models:YearReview}"
+             mc:Ignorable="d"
+             Width="1080" Height="1350">
+    <!-- Drawn at its final pixel size and rendered off screen, so nothing here may depend on
+         being loaded: the shared Card style fades in on Loaded and would stay invisible. -->
+    <UserControl.Resources>
+        <Style x:Key="Label" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="24" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+        </Style>
+        <Style x:Key="Heading" TargetType="TextBlock" BasedOn="{StaticResource Label}">
+            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,0,0,18" />
+        </Style>
+        <Style x:Key="StatNumber" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="50" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+        </Style>
+
+        <DataTemplate x:Key="Entry" DataType="{x:Type models:YearReviewEntry}">
+            <Grid Margin="0,0,0,14">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="48" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Rank}" FontSize="28" FontWeight="Bold"
+                           Foreground="{DynamicResource AccentBrush}" />
+                <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                    <TextBlock Text="{Binding Name}" FontSize="28" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextBrush}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Secondary}" Style="{StaticResource Label}" TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding Secondary, Converter={StaticResource TextToVis}}" />
+                </StackPanel>
+                <TextBlock Grid.Column="2" Text="{Binding Time}" FontSize="24" Margin="0,3,0,0"
+                           Foreground="{DynamicResource MutedBrush}" />
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Background="{DynamicResource PanelBrush}">
+        <Grid>
+            <Border Height="14" VerticalAlignment="Top" Background="{DynamicResource AccentBrush}" />
+            <Grid Margin="84,84,84,64">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock Grid.Row="0" Text="MY YEAR IN MUSIC" FontSize="30" FontWeight="SemiBold"
+                           Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Grid.Row="1" Text="{Binding Year}" FontSize="150" FontWeight="Bold" Margin="-6,-14,0,-12"
+                           Foreground="{DynamicResource TextBrush}" />
+                <TextBlock Grid.Row="2" FontSize="64" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}">
+                    <Run Text="{Binding TotalMinutes, Mode=OneWay, StringFormat=N0}" /><Run Text=" minutes" />
+                </TextBlock>
+                <TextBlock Grid.Row="3" Style="{StaticResource Label}" FontSize="30" Margin="0,4,0,0"
+                           Text="{Binding TotalHours, StringFormat='{}{0:N0} hours of listening'}" />
+
+                <UniformGrid Grid.Row="4" Columns="4" Margin="0,44,0,44">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Plays, StringFormat=N0}" Style="{StaticResource StatNumber}" />
+                        <TextBlock Text="plays" Style="{StaticResource Label}" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="{Binding Artists, StringFormat=N0}" Style="{StaticResource StatNumber}" />
+                        <TextBlock Text="artists" Style="{StaticResource Label}" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="{Binding NewArtists, StringFormat=N0}" Style="{StaticResource StatNumber}" />
+                        <TextBlock Text="new artists" Style="{StaticResource Label}" />
+                    </StackPanel>
+                    <StackPanel>
+                        <TextBlock Text="{Binding LongestStreakDays, StringFormat=N0}" Style="{StaticResource StatNumber}" />
+                        <TextBlock Text="days in a row" Style="{StaticResource Label}" />
+                    </StackPanel>
+                </UniformGrid>
+
+                <Grid Grid.Row="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="56" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="TOP ARTISTS" Style="{StaticResource Heading}" />
+                        <ItemsControl ItemsSource="{Binding TopArtists}" ItemTemplate="{StaticResource Entry}" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="TOP TRACKS" Style="{StaticResource Heading}" />
+                        <ItemsControl ItemsSource="{Binding TopTracks}" ItemTemplate="{StaticResource Entry}" />
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Row="6" Margin="0,0,0,36">
+                    <TextBlock FontSize="28" Foreground="{DynamicResource TextBrush}"
+                               Visibility="{Binding BiggestMonthText, Converter={StaticResource TextToVis}}">
+                        <Run Text="Biggest month: " Foreground="{DynamicResource MutedBrush}" /><Run Text="{Binding BiggestMonthText, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock FontSize="28" Margin="0,8,0,0" Foreground="{DynamicResource TextBrush}"
+                               Visibility="{Binding BiggestDayText, Converter={StaticResource TextToVis}}">
+                        <Run Text="Biggest day: " Foreground="{DynamicResource MutedBrush}" /><Run Text="{Binding BiggestDayText, Mode=OneWay}" />
+                    </TextBlock>
+                </StackPanel>
+
+                <DockPanel Grid.Row="7">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Bottom">
+                        <Image Source="{StaticResource SortifyLogo}" Width="40" Height="40" Margin="0,0,10,0"
+                               VerticalAlignment="Center" />
+                        <TextBlock Text="Sortify" FontSize="26" FontWeight="Bold" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource AccentBrush}" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding FilterNote}" Style="{StaticResource Label}" FontSize="20"
+                               TextWrapping="Wrap" Margin="0,0,24,0" VerticalAlignment="Bottom" />
+                </DockPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

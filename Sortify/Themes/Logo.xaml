@@ -1,0 +1,107 @@
+<!--
+    The Sortify logo as a vector drawing, converted from Assets/sortify-logo.svg (the source of
+    truth): each SVG path and gradient maps one to one, in the same order. The gradients use
+    absolute mapping because the SVG declares them in user space, and F1 keeps the SVG's
+    nonzero fill rule. Assets/Sortify.ico is rendered from this drawing for the exe, the
+    taskbar and Alt+Tab.
+-->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <LinearGradientBrush x:Key="Logo.orbit-fill" MappingMode="Absolute"
+                         StartPoint="131.95,50.48" EndPoint="191.52,228.38">
+        <GradientStop Offset="0" Color="#FF6AF99A" />
+        <GradientStop Offset="0.25" Color="#FF26F57F" />
+        <GradientStop Offset="0.5" Color="#FF04D371" />
+        <GradientStop Offset="0.75" Color="#FF03B368" />
+        <GradientStop Offset="1" Color="#FF029660" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Logo.wave-fill" MappingMode="Absolute"
+                         StartPoint="173.67,255.54" EndPoint="197.06,429.33">
+        <GradientStop Offset="0" Color="#FF5CF98D" />
+        <GradientStop Offset="0.25" Color="#FF50FA8B" />
+        <GradientStop Offset="0.5" Color="#FF30F881" />
+        <GradientStop Offset="0.75" Color="#FF06DA76" />
+        <GradientStop Offset="1" Color="#FF03B46E" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Logo.leaf-fill" MappingMode="Absolute"
+                         StartPoint="300.38,365.51" EndPoint="329.08,479.55">
+        <GradientStop Offset="0" Color="#FF55F88F" />
+        <GradientStop Offset="0.25" Color="#FF27EA80" />
+        <GradientStop Offset="0.5" Color="#FF05CF74" />
+        <GradientStop Offset="0.75" Color="#FF03AD6D" />
+        <GradientStop Offset="1" Color="#FF039F6A" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Logo.bar-1-fill" MappingMode="Absolute"
+                         StartPoint="93.48,244.53" EndPoint="157.93,340.58">
+        <GradientStop Offset="0" Color="#FF72FA9C" />
+        <GradientStop Offset="0.25" Color="#FF41F884" />
+        <GradientStop Offset="0.5" Color="#FF08D870" />
+        <GradientStop Offset="0.75" Color="#FF03B068" />
+        <GradientStop Offset="1" Color="#FF029662" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Logo.bar-2-fill" MappingMode="Absolute"
+                         StartPoint="172.34,216.23" EndPoint="245.85,305.18">
+        <GradientStop Offset="0" Color="#FF76FA9F" />
+        <GradientStop Offset="0.25" Color="#FF4BF989" />
+        <GradientStop Offset="0.5" Color="#FF11E274" />
+        <GradientStop Offset="0.75" Color="#FF03BA6C" />
+        <GradientStop Offset="1" Color="#FF03A369" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Logo.bar-3-fill" MappingMode="Absolute"
+                         StartPoint="264.29,165.56" EndPoint="339.19,251.75">
+        <GradientStop Offset="0" Color="#FF7CFAA2" />
+        <GradientStop Offset="0.25" Color="#FF54F98C" />
+        <GradientStop Offset="0.5" Color="#FF1BE977" />
+        <GradientStop Offset="0.75" Color="#FF04C46D" />
+        <GradientStop Offset="1" Color="#FF03B06A" />
+    </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="Logo.bar-4-fill" MappingMode="Absolute"
+                         StartPoint="349.16,116.73" EndPoint="451.99,226.98">
+        <GradientStop Offset="0" Color="#FF7BFAA1" />
+        <GradientStop Offset="0.25" Color="#FF4BF987" />
+        <GradientStop Offset="0.5" Color="#FF0BE071" />
+        <GradientStop Offset="0.75" Color="#FF03B469" />
+        <GradientStop Offset="1" Color="#FF029A65" />
+    </LinearGradientBrush>
+
+    <RadialGradientBrush x:Key="Logo.wave-glow" MappingMode="Absolute"
+                         Center="473.76,278.09" GradientOrigin="473.76,278.09" RadiusX="97.7" RadiusY="97.7">
+        <GradientStop Offset="0" Color="#FF06F571" />
+        <GradientStop Offset="0.55" Color="#E606F571" />
+        <GradientStop Offset="1" Color="#0006F571" />
+    </RadialGradientBrush>
+
+    <DrawingImage x:Key="SortifyLogo">
+        <DrawingImage.Drawing>
+            <DrawingGroup>
+                <!-- Transparent square pinning the bounds to the SVG's 512x512 viewBox, so the mark
+                     keeps its padding and centring at every size. -->
+                <GeometryDrawing Brush="Transparent" Geometry="M0,0 H512 V512 H0 Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.orbit-fill}"
+                                 Geometry="F1 M46.72 317.05C45.96 315.64 45.21 314.22 44.82 312.66C43.77 308.37 44.19 299.02 44.4 294.36C45.27 274.5 50.43 255.02 58.04 236.71C69.34 209.51 86.81 185.27 107.02 164.01C141.25 127.99 183.58 100.15 229.87 82.18C266.39 68.01 302.69 61.07 341.56 57.34C348.14 56.71 359.17 56.24 365.03 53.79C368.9 52.18 371.61 48.26 368.47 44.48C366.71 42.37 363.98 41.15 361.59 39.9C356.5 37.24 351.17 35.01 345.83 32.9C324.17 24.33 301.06 19.07 277.88 16.81C169.39 6.24 58.69 79.23 25.53 183.07C21.06 197.08 17.8 211.43 15.89 226.02C15.12 231.92 13.96 240.36 14.36 246.17C15.22 258.72 21.45 276.87 26.51 288.47C29.73 295.83 33.38 302.99 37.35 309.97C39.82 314.31 41.07 317.56 46.72 317.05Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.wave-fill}"
+                                 Geometry="F1 M457.4 190.47C462.23 200.12 465.66 210.23 465.9 221.1C466.39 243.36 453.11 264.8 433.25 274.67C414.24 284.12 395.04 278.62 375.02 277.73C356.36 276.9 337.53 280.4 320.12 287.05C288.92 298.95 265.62 319.4 238.24 337.33C205.91 358.51 169.81 373.88 130.38 368.66C118.57 367.09 107.16 363.7 96.32 358.78C83.53 352.97 71.97 344.76 62 334.9C49.35 322.38 40.13 308.01 32.62 291.96C26.24 278.32 21.21 263.97 18.75 249.08C18.02 244.7 17.53 240.29 17.27 235.86C17.08 232.64 17.09 229.41 16.66 226.21C14.62 230.55 14.61 238.49 14.26 243.41C13.23 257.75 13.63 272.32 15.33 286.6C21.09 335.08 43.28 385.58 81.11 417.45C102.73 435.66 128.53 447.43 157.15 440.6C196.52 431.22 226.3 397.24 254.23 370.09C284.04 341.11 317.59 315.75 358.3 304.73C384.76 297.57 413.59 296.36 439.34 306.9C454.79 313.22 469.38 326.05 472.75 343.03C473.9 348.8 473.42 354.54 472.49 360.29C480.7 349.77 487.33 334.65 491.34 321.95C502.13 287.76 502.1 249.22 482.96 217.91C476.33 207.07 467.84 197.76 457.4 190.47Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.wave-glow}"
+                                 Geometry="F1 M457.4 190.47C462.23 200.12 465.66 210.23 465.9 221.1C466.39 243.36 453.11 264.8 433.25 274.67C414.24 284.12 395.04 278.62 375.02 277.73C356.36 276.9 337.53 280.4 320.12 287.05C288.92 298.95 265.62 319.4 238.24 337.33C205.91 358.51 169.81 373.88 130.38 368.66C118.57 367.09 107.16 363.7 96.32 358.78C83.53 352.97 71.97 344.76 62 334.9C49.35 322.38 40.13 308.01 32.62 291.96C26.24 278.32 21.21 263.97 18.75 249.08C18.02 244.7 17.53 240.29 17.27 235.86C17.08 232.64 17.09 229.41 16.66 226.21C14.62 230.55 14.61 238.49 14.26 243.41C13.23 257.75 13.63 272.32 15.33 286.6C21.09 335.08 43.28 385.58 81.11 417.45C102.73 435.66 128.53 447.43 157.15 440.6C196.52 431.22 226.3 397.24 254.23 370.09C284.04 341.11 317.59 315.75 358.3 304.73C384.76 297.57 413.59 296.36 439.34 306.9C454.79 313.22 469.38 326.05 472.75 343.03C473.9 348.8 473.42 354.54 472.49 360.29C480.7 349.77 487.33 334.65 491.34 321.95C502.13 287.76 502.1 249.22 482.96 217.91C476.33 207.07 467.84 197.76 457.4 190.47Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.leaf-fill}"
+                                 Geometry="F1 M100.41 436.49C122.07 454.97 146.59 469.99 173.25 480.11C232.91 502.77 299.27 499.49 357.55 474.29C390.16 460.19 419.61 439.09 442.44 411.79C445.42 408.23 448.28 404.62 451.05 400.89C458.1 391.41 461.75 383.55 454.56 372.63C452.8 369.96 450.51 367.72 448.12 365.61C437.59 356.33 423.06 351.02 409.55 347.92C376.23 340.27 340.01 345.89 309.21 360.2C294.76 366.91 281.2 375.27 268.51 384.9C253.42 396.36 239.74 409.57 224.48 420.79C199.69 439.02 171.15 451.86 139.73 449.1C129.25 448.17 118.98 445.17 109.41 440.84C106.37 439.46 103.47 437.82 100.41 436.49Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.bar-1-fill}"
+                                 Geometry="F1 M90.87 336.66V258.07A32.54 32.54 0 0 1 155.95 258.07V352.4C131.21 354.4 112.13 349.28 90.87 336.66Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.bar-2-fill}"
+                                 Geometry="F1 M178.9 347.87V219.87A33.43 33.43 0 0 1 245.76 219.87V311.68C223.74 327.26 204.82 339.49 178.9 347.87Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.bar-3-fill}"
+                                 Geometry="F1 M269.87 294.82V169.56A34.27 34.27 0 0 1 338.4 169.56V264.12C311.64 270.36 292.82 280.02 269.87 294.82Z" />
+                <GeometryDrawing Brush="{StaticResource Logo.bar-4-fill}"
+                                 Geometry="F1 M363.97 260.9V110.41A36.31 36.31 0 0 1 436.6 110.41V251.91C431.3 256.16 425.87 260.03 419.24 261.88C409.84 264.5 400 263.02 390.47 262.03C381.65 261.12 372.83 260.74 363.97 260.9Z" />
+            </DrawingGroup>
+        </DrawingImage.Drawing>
+    </DrawingImage>
+
+</ResourceDictionary>

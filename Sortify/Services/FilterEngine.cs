@@ -21,6 +21,14 @@ public static class FilterEngine
         bool hasExcludedArtists = filter.ExcludedArtists.Count > 0;
         bool hasExcludedTracks = filter.ExcludedTracks.Count > 0;
         bool checkTimeOfDay = !fullHours || !allDays;
+        bool checkFlags = filter.Shuffle != PlaybackMode.Any || filter.Offline != PlaybackMode.Any ||
+                          filter.Private != PlaybackMode.Any;
+        bool hasExcludedCountries = filter.ExcludedCountries.Count > 0;
+
+        // Only a few dozen distinct platform strings exist, so each is classified once.
+        Dictionary<string, string>? families = filter.ExcludedDevices.Count > 0
+            ? new Dictionary<string, string>(StringComparer.Ordinal)
+            : null;
 
         foreach (var r in records)
         {
@@ -36,12 +44,32 @@ public static class FilterEngine
             // Podcasts show up in the grids under their show and episode names, so that is
             // what an exclusion picked from a grid row holds. Their ArtistName/TrackName are
             // placeholders that would never match it.
-            bool isMusic = r.Kind == ContentKind.Music;
-
-            if (hasExcludedArtists && filter.ExcludedArtists.Contains(isMusic ? r.ArtistName : r.ShowName))
+            if (hasExcludedArtists && filter.ExcludedArtists.Contains(r.DisplayArtist))
                 continue;
 
-            if (hasExcludedTracks && filter.ExcludedTracks.Contains(isMusic ? r.TrackName : r.EpisodeName))
+            if (hasExcludedTracks && filter.ExcludedTracks.Contains(r.DisplayTrack))
+                continue;
+
+            if (checkFlags &&
+                !(FlagMatches(filter.Shuffle, r.HasPlaybackFlags, r.Shuffle) &&
+                  FlagMatches(filter.Offline, r.HasPlaybackFlags, r.Offline) &&
+                  FlagMatches(filter.Private, r.HasPlaybackFlags, r.Incognito)))
+            {
+                continue;
+            }
+
+            if (families is not null && r.Platform.Length > 0)
+            {
+                if (!families.TryGetValue(r.Platform, out var family))
+                {
+                    family = AnalysisEngine.PlatformFamily(r.Platform);
+                    families[r.Platform] = family;
+                }
+                if (filter.ExcludedDevices.Contains(family))
+                    continue;
+            }
+
+            if (hasExcludedCountries && r.Country.Length > 0 && filter.ExcludedCountries.Contains(r.Country))
                 continue;
 
             // Time-of-day / day-of-week only apply when a real timestamp exists.
@@ -60,6 +88,18 @@ public static class FilterEngine
             yield return r;
         }
     }
+
+    /// <summary>
+    /// Older exports don't record shuffle, offline or private sessions at all. Asking for
+    /// only flagged plays can't include those; leaving flagged plays out has no reason to
+    /// drop them.
+    /// </summary>
+    private static bool FlagMatches(PlaybackMode mode, bool recorded, bool flag) => mode switch
+    {
+        PlaybackMode.Only => recorded && flag,
+        PlaybackMode.Exclude => !recorded || !flag,
+        _ => true,
+    };
 
     /// <summary>
     /// Searches the fields that carry a name for this record's kind: track/artist/album for

@@ -39,6 +39,15 @@ public static class ChartBuilder
     private const int PlatformSlices = 8;
     private const int CountrySlices = 10;
 
+    // Axis text in pixels. LiveCharts defaults to 16 for labels and 20 for axis titles, which
+    // shouts next to the 11-13px UI text around the charts.
+    private const double AxisTextSize = 12;
+    private const double DenseAxisTextSize = 11;
+
+    // Month-labelled axes never step by less than this. Anything shorter than the longest
+    // month can land twice in one month and print the same "yyyy-MM" label twice.
+    private static readonly long MonthStepTicks = TimeSpan.FromDays(31).Ticks;
+
     // Donut hole radii in pixels. The artist donut is drawn larger, so it gets a bigger hole.
     private const double ArtistDonutInnerRadius = 75;
     private const double ContextDonutInnerRadius = 60;
@@ -87,7 +96,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(t => Math.Round(t.TotalHours, 2)).ToArray(),
             items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Hours", ChartPalette.Accent);
+            "Hours", ChartPalette.Accent, items);
     }
 
     public static ChartData TopTracksByCount(AnalysisResult r, int take)
@@ -96,7 +105,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(t => (double)t.PlayCount).ToArray(),
             items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Plays", ChartPalette.Accent2);
+            "Plays", ChartPalette.Accent2, items);
     }
 
     public static ChartData TopArtistsByTime(AnalysisResult r, int take)
@@ -105,7 +114,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
             items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Hours", ChartPalette.Accent);
+            "Hours", ChartPalette.Accent, items);
     }
 
     public static ChartData TopArtistsByCount(AnalysisResult r, int take)
@@ -114,7 +123,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => (double)a.PlayCount).ToArray(),
             items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Plays", ChartPalette.Accent2);
+            "Plays", ChartPalette.Accent2, items);
     }
 
     public static ChartData TopAlbumsByTime(AnalysisResult r, int take)
@@ -123,7 +132,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
             items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Hours", ChartPalette.Accent);
+            "Hours", ChartPalette.Accent, items);
     }
 
     public static ChartData TopAlbumsByCount(AnalysisResult r, int take)
@@ -132,7 +141,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(a => (double)a.PlayCount).ToArray(),
             items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Plays", ChartPalette.Accent2);
+            "Plays", ChartPalette.Accent2, items);
     }
 
     public static ChartData TopSkippedTracks(AnalysisResult r, int take = SkippedTrackBars)
@@ -141,10 +150,11 @@ public static class ChartBuilder
         return Rows(
             items.Select(s => (double)s.SkipCount).ToArray(),
             items.Select(s => ShortLabel(s.Track)).ToArray(),
-            "Skips", ChartPalette.Warm);
+            "Skips", ChartPalette.Warm, items);
     }
 
-    private static ChartData Rows(double[] values, string[] labels, string unit, SKColor color)
+    private static ChartData Rows<T>(double[] values, string[] labels, string unit, SKColor color, IReadOnlyList<T> items)
+        where T : class
     {
         var series = new ISeries[]
         {
@@ -167,7 +177,7 @@ public static class ChartBuilder
             {
                 Labels = labels,
                 LabelsPaint = Label(),
-                TextSize = 11,
+                TextSize = DenseAxisTextSize,
                 MinStep = 1,
                 ForceStepToMin = true,
                 SeparatorsPaint = null,
@@ -194,7 +204,7 @@ public static class ChartBuilder
                 MaxLimit = maxLimit,
             },
         };
-        return new ChartData { Series = series, XAxes = x, YAxes = y };
+        return new ChartData { Series = series, XAxes = x, YAxes = y, Items = items };
     }
 
     // ---- Column charts ---------------------------------------------------------------------
@@ -218,10 +228,11 @@ public static class ChartBuilder
     {
         var values = r.Years.Select(y => Math.Round(y.TotalHours, 1)).ToArray();
         var labels = r.Years.Select(y => y.Year.ToString()).ToArray();
-        return Columns(values, labels, "Hours", "Year", ChartPalette.Accent);
+        return Columns(values, labels, "Hours", "Year", ChartPalette.Accent, r.Years);
     }
 
-    private static ChartData Columns(double[] values, string[] labels, string unit, string xName, SKColor color)
+    private static ChartData Columns(
+        double[] values, string[] labels, string unit, string xName, SKColor color, IReadOnlyList<object>? items = null)
     {
         var series = new ISeries[]
         {
@@ -235,8 +246,20 @@ public static class ChartBuilder
         return new ChartData
         {
             Series = series,
-            XAxes = new[] { new Axis { Name = xName, Labels = labels, NamePaint = Label(), LabelsPaint = Label() } },
-            YAxes = new[] { new Axis { Name = unit, NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            XAxes = new[]
+            {
+                new Axis
+                {
+                    Name = xName,
+                    Labels = labels,
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                },
+            },
+            YAxes = new[] { ValueAxis(unit) },
+            Items = items ?? Array.Empty<object>(),
         };
     }
 
@@ -291,7 +314,7 @@ public static class ChartBuilder
         {
             Series = series,
             XAxes = new[] { DateAxis(unitTicks) },
-            YAxes = new[] { new Axis { Name = "Hours", NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            YAxes = new[] { ValueAxis("Hours") },
         };
     }
 
@@ -317,15 +340,55 @@ public static class ChartBuilder
         {
             Series = series,
             XAxes = new[] { DateAxis(TimeSpan.FromDays(30).Ticks) },
-            YAxes = new[] { new Axis { Name = "New artists", NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            YAxes = new[] { ValueAxis("New artists") },
+        };
+    }
+
+    /// <summary>One line per compared artist, in the category colours, on a shared date axis.</summary>
+    public static ChartData ArtistTimelines(ArtistTimeline timeline, TimeGranularity granularity)
+    {
+        var series = timeline.Series
+            .Select((s, i) => (ISeries)new LineSeries<LcDateTimePoint>
+            {
+                Values = timeline.Buckets.Select((b, j) => new LcDateTimePoint(b, s.Hours.ElementAtOrDefault(j))).ToArray(),
+                Name = ShortLabel(s.Artist),
+                Fill = null,
+                Stroke = new SolidColorPaint(Category(i)) { StrokeThickness = 2 },
+                GeometrySize = 0,
+                // Straight segments: smoothing a line that drops to zero between busy months
+                // would swing it below zero and back.
+                LineSmoothness = 0,
+            })
+            .ToArray();
+
+        long unitTicks = granularity == TimeGranularity.Weekly
+            ? TimeSpan.FromDays(7).Ticks
+            : TimeSpan.FromDays(30).Ticks;
+        return new ChartData
+        {
+            Series = series,
+            XAxes = new[] { DateAxis(unitTicks) },
+            YAxes = new[] { ValueAxis("Hours") },
         };
     }
 
     private static Axis DateAxis(long unitTicks) => new()
     {
         LabelsPaint = Label(),
+        TextSize = AxisTextSize,
         Labeler = MonthLabel,
         UnitWidth = unitTicks,
+        MinStep = MonthStepTicks,
+    };
+
+    private static Axis ValueAxis(string name) => new()
+    {
+        Name = name,
+        NamePaint = Label(),
+        NameTextSize = AxisTextSize,
+        LabelsPaint = Label(),
+        TextSize = AxisTextSize,
+        MinLimit = 0,
     };
 
     /// <summary>
@@ -337,7 +400,7 @@ public static class ChartBuilder
     {
         if (value < DateTime.MinValue.Ticks || value > DateTime.MaxValue.Ticks)
             return string.Empty;
-        return new DateTime((long)value).ToString("yyyy-MM");
+        return TimeFormat.Month(new DateTime((long)value));
     }
 
     // ---- Heatmap ---------------------------------------------------------------------------
@@ -371,7 +434,9 @@ public static class ChartBuilder
                 {
                     Labels = Enumerable.Range(0, 24).Select(h => h.ToString("00")).ToArray(),
                     LabelsPaint = Label(),
-                    TextSize = 10,
+                    TextSize = DenseAxisTextSize,
+                    MinStep = 1,
+                    ForceStepToMin = true,
                 },
             },
             YAxes = new[]
@@ -380,7 +445,11 @@ public static class ChartBuilder
                 {
                     Labels = dayNames,
                     LabelsPaint = Label(),
-                    TextSize = 11,
+                    TextSize = DenseAxisTextSize,
+                    // Without this LiveCharts labels every other row and leaves Mon, Wed
+                    // and Fri blank.
+                    MinStep = 1,
+                    ForceStepToMin = true,
                 },
             },
         };
@@ -542,11 +611,12 @@ public static class ChartBuilder
                 {
                     Labeler = MonthLabel,
                     UnitWidth = TimeSpan.FromDays(30).Ticks,
+                    MinStep = MonthStepTicks,
                     LabelsPaint = Label(),
-                    TextSize = 11,
+                    TextSize = AxisTextSize,
                 },
             },
-            YAxes = new[] { new Axis { Name = "Hours", NamePaint = Label(), LabelsPaint = Label(), MinLimit = 0 } },
+            YAxes = new[] { ValueAxis("Hours") },
         };
     }
 
@@ -566,7 +636,7 @@ public static class ChartBuilder
         return Rows(
             items.Select(s => Math.Round(s.TotalHours, 2)).ToArray(),
             items.Select(s => ShortLabel(s.Show)).ToArray(),
-            "Hours", ChartPalette.Violet);
+            "Hours", ChartPalette.Violet, items);
     }
 
     public static ChartData TopEpisodes(AnalysisResult r, int take = PodcastBars)
@@ -575,6 +645,6 @@ public static class ChartBuilder
         return Rows(
             items.Select(e => Math.Round(e.TotalHours, 2)).ToArray(),
             items.Select(e => ShortLabel(e.Episode)).ToArray(),
-            "Hours", ChartPalette.Cyan);
+            "Hours", ChartPalette.Cyan, items);
     }
 }

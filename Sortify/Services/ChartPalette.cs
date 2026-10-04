@@ -45,7 +45,7 @@ public static class ChartPalette
         HeatEmpty,
         Blend(HeatEmpty, Accent, 0.35f),
         Accent,
-        Blend(Accent, new SKColor(255, 255, 255), 0.15f),
+        _active.HeatPeak,
     };
 
     /// <summary>
@@ -61,6 +61,7 @@ public static class ChartPalette
         SKColor Violet,
         SKColor Cyan,
         SKColor HeatEmpty,
+        SKColor HeatPeak,
         SKColor[] Categories);
 
     private static readonly SKColor[] DarkCategories =
@@ -74,16 +75,19 @@ public static class ChartPalette
         new(176, 205, 80),
     };
 
-    // Same hues, darkened so they hold their own against a white card.
+    // The dark set, kept as bright as a white card allows: each colour is the dark one where
+    // that already clears 3:1 on white, otherwise the same hue stepped down only until it does.
+    // Darkening every slot further turned the donut muddy. Slots 4, 13, 14 and 17 change hue
+    // because stepping them down left them indistinguishable from a neighbour or another slot.
     private static readonly SKColor[] LightCategories =
     {
-        new(21, 128, 61), new(47, 111, 208), new(202, 118, 42), new(198, 76, 47),
-        new(28, 122, 112), new(179, 138, 44), new(120, 63, 191), new(198, 24, 104),
-        new(23, 149, 189), new(147, 17, 128), new(90, 8, 145), new(37, 99, 205),
-        new(203, 118, 12), new(24, 150, 139), new(206, 55, 60), new(85, 152, 34),
-        new(191, 140, 20), new(0, 137, 145), new(178, 51, 71), new(105, 90, 186),
-        new(38, 145, 105), new(203, 98, 68), new(72, 122, 197), new(160, 88, 166),
-        new(126, 150, 40),
+        new(24, 169, 77), new(74, 150, 242), new(209, 130, 64), new(220, 38, 38),
+        new(42, 157, 143), new(180, 144, 51), new(155, 93, 229), new(247, 37, 133),
+        new(5, 161, 199), new(181, 23, 158), new(114, 9, 183), new(58, 134, 255),
+        new(202, 90, 0), new(213, 60, 217), new(255, 89, 94), new(93, 167, 1),
+        new(85, 79, 254), new(11, 165, 173), new(220, 80, 100), new(147, 130, 220),
+        new(42, 168, 123), new(229, 117, 82), new(101, 150, 218), new(199, 120, 204),
+        new(133, 159, 18),
     };
 
     private static readonly Palette Dark = new(
@@ -95,18 +99,24 @@ public static class ChartPalette
         Violet: new SKColor(155, 93, 229),
         Cyan: new SKColor(76, 201, 240),
         HeatEmpty: new SKColor(24, 24, 24),
+        // Hottest cells glow brighter than the accent on a dark card.
+        HeatPeak: Blend(new SKColor(29, 185, 84), new SKColor(255, 255, 255), 0.15f),
         Categories: DarkCategories);
 
     private static readonly Palette Light = new(
-        // Matches AccentColor in Themes/Light.xaml.
-        Accent: new SKColor(21, 128, 61),
-        Accent2: new SKColor(47, 111, 208),
+        // Accent and Accent2 match AccentColor and Accent2Color in Themes/Light.xaml: the
+        // brightest green and blue that still stand out from a white card (3:1).
+        Accent: new SKColor(24, 169, 77),
+        Accent2: new SKColor(74, 150, 242),
         Text: new SKColor(40, 45, 52),
-        Muted: new SKColor(150, 157, 165),
-        Warm: new SKColor(198, 76, 47),
-        Violet: new SKColor(120, 63, 191),
-        Cyan: new SKColor(23, 149, 189),
+        // Pale, so the "Other" slice recedes behind the coloured ones instead of dominating.
+        Muted: new SKColor(188, 195, 202),
+        Warm: new SKColor(228, 87, 46),
+        Violet: new SKColor(139, 92, 246),
+        Cyan: new SKColor(5, 161, 199),
         HeatEmpty: new SKColor(244, 246, 248),
+        // On white the ramp runs light to dark, so the hottest cells go deeper, not paler.
+        HeatPeak: new SKColor(21, 128, 61),
         Categories: LightCategories);
 
     private static Palette _active = Dark;

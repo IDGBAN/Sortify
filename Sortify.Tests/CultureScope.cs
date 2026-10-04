@@ -23,5 +23,11 @@ internal sealed class CultureScope : IDisposable
         return new CultureScope(culture);
     }
 
+    /// <summary>
+    /// A real culture by name. th-TH and ar-SA are the useful ones: their default calendars
+    /// are Buddhist and Hijri, so a date formatted under them gets a different year.
+    /// </summary>
+    public static CultureScope Named(string name) => new(new CultureInfo(name));
+
     public void Dispose() => CultureInfo.CurrentCulture = _previous;
 }

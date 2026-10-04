@@ -45,6 +45,11 @@ public static class DetailEngine
         if (scope == DetailScope.Year && !int.TryParse(title, out scopeYear))
             return Empty(scope, title, subtitle);
 
+        // A show or episode is opened from the Podcasts tab, which lists them whether or not
+        // they count toward the music statistics, so it can't depend on that setting.
+        bool podcastScope = scope is DetailScope.Show or DetailScope.Episode;
+        bool anyAudiobook = false, anyPodcast = false;
+
         int counter = 0;
         foreach (var r in FilterEngine.Apply(records, filter))
         {
@@ -54,16 +59,18 @@ public static class DetailEngine
             // Mirror the main analysis: podcasts and audiobooks only feed these aggregates
             // when the user asked for them, otherwise a year's totals would disagree with
             // the Years tab they were opened from.
-            if (r.Kind != ContentKind.Music && !filter.IncludePodcasts)
+            if (r.Kind != ContentKind.Music && !filter.IncludePodcasts && !podcastScope)
                 continue;
 
-            var (trackName, artistName, albumName) = DisplayNames(r);
+            string trackName = r.DisplayTrack, artistName = r.DisplayArtist, albumName = r.DisplayAlbum;
 
             if (!IsMatch(r, trackName, artistName, albumName, scope, title, subtitle, scopeYear))
                 continue;
 
             totalMs += r.MsPlayed;
             playCount++;
+            anyAudiobook |= r.Kind == ContentKind.Audiobook;
+            anyPodcast |= r.Kind == ContentKind.Podcast;
 
             // Any URI from a matching play works; the first non-empty one wins.
             if (uri.Length == 0 && r.Uri.Length > 0)
@@ -77,6 +84,8 @@ public static class DetailEngine
             }
             track.TotalMsPlayed += r.MsPlayed;
             track.PlayCount++;
+            if (track.Uri.Length == 0)
+                track.Uri = r.Uri;
 
             var albumKey = (albumName, artistName);
             if (!albums.TryGetValue(albumKey, out var album))
@@ -134,6 +143,9 @@ public static class DetailEngine
             Scope = scope,
             Title = title,
             Subtitle = subtitle,
+            Kind = !podcastScope ? ContentKind.Music
+                : anyAudiobook && !anyPodcast ? ContentKind.Audiobook
+                : ContentKind.Podcast,
             TotalMsPlayed = totalMs,
             PlayCount = playCount,
             FirstPlayed = first,
@@ -150,16 +162,6 @@ public static class DetailEngine
         };
     }
 
-    /// <summary>
-    /// The names a record appears under in the grids. Podcasts and audiobooks stand in with
-    /// their episode and show titles exactly as <see cref="AnalysisEngine"/> folds them in,
-    /// so a row opened from a grid finds the plays it was built from.
-    /// </summary>
-    private static (string Track, string Artist, string Album) DisplayNames(PlayRecord r)
-        => r.Kind == ContentKind.Music
-            ? (r.TrackName, r.ArtistName, r.AlbumName)
-            : (r.EpisodeName, r.ShowName, r.ShowName);
-
     private static bool IsMatch(
         PlayRecord r, string track, string artist, string album,
         DetailScope scope, string title, string subtitle, int scopeYear)
@@ -173,6 +175,10 @@ public static class DetailEngine
                                  && string.Equals(artist, subtitle, StringComparison.Ordinal),
             // Undated rows belong to no year.
             DetailScope.Year => r.Timestamp != DateTime.MinValue && r.Timestamp.Year == scopeYear,
+            DetailScope.Show => r.Kind != ContentKind.Music && string.Equals(r.ShowName, title, StringComparison.Ordinal),
+            DetailScope.Episode => r.Kind != ContentKind.Music
+                                   && string.Equals(r.EpisodeName, title, StringComparison.Ordinal)
+                                   && string.Equals(r.ShowName, subtitle, StringComparison.Ordinal),
             _ => false,
         };
     }
