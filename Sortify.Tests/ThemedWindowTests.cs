@@ -60,6 +60,32 @@ public class ThemedWindowTests
     }
 
     [Fact]
+    public void TheMainToolbarSitsInTheTitleBar()
+    {
+        WpfTestHost.Run(() =>
+        {
+            var window = new MainWindow();
+            window.ApplyTemplate();
+            var chrome = WindowChrome.GetWindowChrome(window);
+            var toolbar = Assert.IsAssignableFrom<Panel>(window.TitleBarContent);
+
+            // The taller bar still drags along its whole height.
+            Assert.True(window.TitleBarHeight > 32);
+            Assert.Equal(window.TitleBarHeight, chrome.ResizeBorderThickness.Top + chrome.CaptionHeight);
+
+            // A logical child of the window, so its bindings reach the view model.
+            Assert.Same(window, LogicalTreeHelper.GetParent(toolbar));
+            var openFolder = toolbar.Children.OfType<Button>().First(b => Equals(b.Content, "Open Folder"));
+            Assert.Same(window.DataContext, openFolder.DataContext);
+
+            // Buttons take clicks; the logo and name let them through to drag the window.
+            Assert.True(WindowChrome.GetIsHitTestVisibleInChrome(openFolder));
+            Assert.False(toolbar.Children.OfType<Image>().Single().IsHitTestVisible);
+            Assert.False(toolbar.Children.OfType<TextBlock>().First().IsHitTestVisible);
+        });
+    }
+
+    [Fact]
     public void TheDragAreaEndsWhereTheTitleBarDoes()
     {
         WpfTestHost.Run(() =>
@@ -71,7 +97,7 @@ public class ThemedWindowTests
             // WindowChrome counts the caption from below the resize band, so the two together
             // have to cover the drawn bar exactly - no dead strip, no dragging the content.
             Assert.True(chrome.ResizeBorderThickness.Top > 0);
-            Assert.Equal(ThemedWindow.TitleBarHeight, chrome.ResizeBorderThickness.Top + chrome.CaptionHeight);
+            Assert.Equal(window.TitleBarHeight, chrome.ResizeBorderThickness.Top + chrome.CaptionHeight);
         });
     }
 
@@ -90,7 +116,7 @@ public class ThemedWindowTests
 
             // No resize cursor at edges that cannot be dragged.
             Assert.Equal(new Thickness(0), chrome.ResizeBorderThickness);
-            Assert.Equal(ThemedWindow.TitleBarHeight, chrome.CaptionHeight);
+            Assert.Equal(window.TitleBarHeight, chrome.CaptionHeight);
         });
     }
 
@@ -108,7 +134,7 @@ public class ThemedWindowTests
             // pulled back in by that much, and the drag area follows it down.
             Assert.True(frame.Margin.Top > 0);
             Assert.Equal(new Thickness(0), chrome.ResizeBorderThickness);
-            Assert.Equal(frame.Margin.Top + ThemedWindow.TitleBarHeight, chrome.CaptionHeight);
+            Assert.Equal(frame.Margin.Top + window.TitleBarHeight, chrome.CaptionHeight);
 
             var maximize = Part<Button>(window, "MaximizeButton");
             Assert.Same(SystemCommands.RestoreWindowCommand, maximize.Command);

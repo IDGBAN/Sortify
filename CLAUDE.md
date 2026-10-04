@@ -86,11 +86,14 @@ change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before re-runni
 theme/animation/session-gap/cache-clearing preferences. Every window derives from
 `Views/ThemedWindow.cs`, which swaps the native title bar for a palette-coloured one via `WindowChrome`
 (template and caption-button styles at the end of `Themes/Controls.xaml`); a new window should derive
-from it too, or it gets the white Windows title bar. Grid item sources (`Tracks`, `Artists`,
-etc.) are swapped wholesale after each analysis pass rather than mutated via
-`ObservableCollection`, since incremental updates to tens of thousands of rows would raise a
-`CollectionChanged` per row and freeze the UI. Large horizontal bar charts (tracks/artists/albums)
-page in via `LoadMore*` methods as the user scrolls rather than rendering every bar up front.
+from it too, or it gets the white Windows title bar. MainWindow's toolbar lives in that bar, via
+`ThemedWindow.TitleBarContent`: its buttons take clicks, while the gaps and anything marked
+`IsHitTestVisible="False"` (the logo, the name, the progress bar) still drag the window. Grid item
+sources (`Tracks`, `Artists`, etc.) are swapped wholesale after each analysis pass rather than
+mutated via `ObservableCollection`, since incremental updates to tens of thousands of rows would
+raise a `CollectionChanged` per row and freeze the UI. Large horizontal bar charts
+(tracks/artists/albums) page in via `LoadMore*` methods as the user scrolls rather than rendering
+every bar up front.
 
 The logo's source is `Sortify/Assets/sortify-logo.svg`. `Themes/Logo.xaml` is the same drawing as a
 WPF `DrawingImage` (key `SortifyLogo`) that the title bar, toolbar, Settings and the year-in-review

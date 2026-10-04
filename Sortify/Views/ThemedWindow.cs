@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
@@ -14,11 +15,16 @@ namespace Sortify.Views;
 /// </summary>
 public class ThemedWindow : Window
 {
-    /// <summary>Height of the drawn title bar. The template sizes the bar from this.</summary>
-    public const double TitleBarHeight = 32;
+    public static readonly DependencyProperty TitleBarHeightProperty = DependencyProperty.Register(
+        nameof(TitleBarHeight), typeof(double), typeof(ThemedWindow),
+        new PropertyMetadata(32.0, (d, _) => ((ThemedWindow)d).UpdateChrome()));
 
     public static readonly DependencyProperty TitleBarBackgroundProperty = DependencyProperty.Register(
         nameof(TitleBarBackground), typeof(Brush), typeof(ThemedWindow));
+
+    public static readonly DependencyProperty TitleBarContentProperty = DependencyProperty.Register(
+        nameof(TitleBarContent), typeof(object), typeof(ThemedWindow),
+        new PropertyMetadata(null, OnTitleBarContentChanged));
 
     public static readonly DependencyProperty ShowTitleProperty = DependencyProperty.Register(
         nameof(ShowTitle), typeof(bool), typeof(ThemedWindow), new PropertyMetadata(true));
@@ -53,10 +59,14 @@ public class ThemedWindow : Window
         CommandBindings.Add(new CommandBinding(SystemCommands.CloseWindowCommand, (_, _) => SystemCommands.CloseWindow(this)));
     }
 
-    /// <summary>
-    /// Fill behind the title and caption buttons. The style defaults it to the window background;
-    /// MainWindow sets the toolbar's colour so the two read as one bar.
-    /// </summary>
+    /// <summary>Height of the drawn title bar, which is also how far down the window drags.</summary>
+    public double TitleBarHeight
+    {
+        get => (double)GetValue(TitleBarHeightProperty);
+        set => SetValue(TitleBarHeightProperty, value);
+    }
+
+    /// <summary>Fill behind the title bar. The style defaults it to the window background.</summary>
     public Brush? TitleBarBackground
     {
         get => (Brush?)GetValue(TitleBarBackgroundProperty);
@@ -64,13 +74,52 @@ public class ThemedWindow : Window
     }
 
     /// <summary>
+    /// Controls drawn in the title bar, between the title and the caption buttons - MainWindow's
+    /// toolbar. They are clickable; gaps between them and anything set IsHitTestVisible="False"
+    /// still drag the window.
+    /// </summary>
+    public object? TitleBarContent
+    {
+        get => GetValue(TitleBarContentProperty);
+        set => SetValue(TitleBarContentProperty, value);
+    }
+
+    /// <summary>
     /// Whether the title bar shows the logo and title. MainWindow turns it off because its
-    /// toolbar, directly below, already carries both; the taskbar and Alt+Tab still show the title.
+    /// toolbar, in the bar, carries both; the taskbar and Alt+Tab still show the title.
     /// </summary>
     public bool ShowTitle
     {
         get => (bool)GetValue(ShowTitleProperty);
         set => SetValue(ShowTitleProperty, value);
+    }
+
+    // Made a logical child, as Window.Content is, so it inherits the window's DataContext and
+    // resources directly rather than through the template.
+    protected override IEnumerator LogicalChildren
+    {
+        get
+        {
+            var children = new ArrayList();
+            for (var e = base.LogicalChildren; e?.MoveNext() == true;)
+                children.Add(e.Current);
+            if (TitleBarContent is { } content)
+                children.Add(content);
+            return children.GetEnumerator();
+        }
+    }
+
+    private static void OnTitleBarContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        var window = (ThemedWindow)d;
+        window.RemoveLogicalChild(e.OldValue);
+        window.AddLogicalChild(e.NewValue);
+
+        // Without this the caption swallows every click in the bar. Set on the content itself:
+        // it inherits down the content's own tree, whereas a value on the template's presenter
+        // would not reach a logical child of the window.
+        if (e.NewValue is UIElement content)
+            WindowChrome.SetIsHitTestVisibleInChrome(content, true);
     }
 
     public override void OnApplyTemplate()

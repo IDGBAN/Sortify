@@ -1480,7 +1480,7 @@
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
 
-                        <DockPanel Grid.Row="0" Height="{x:Static views:ThemedWindow.TitleBarHeight}"
+                        <DockPanel Grid.Row="0" Height="{TemplateBinding TitleBarHeight}"
                                    Background="{TemplateBinding TitleBarBackground}">
                             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                 <Button x:Name="MinimizeButton" Style="{StaticResource CaptionButton}"
@@ -1497,9 +1497,13 @@
                             <Image x:Name="TitleIcon" DockPanel.Dock="Left" Width="16" Height="16"
                                    Margin="10,0,0,0" VerticalAlignment="Center"
                                    Source="{DynamicResource SortifyLogo}" />
-                            <TextBlock x:Name="TitleText" Text="{TemplateBinding Title}" Margin="8,0,12,0"
-                                       FontSize="12" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                                       Foreground="{DynamicResource MutedBrush}" />
+                            <TextBlock x:Name="TitleText" DockPanel.Dock="Left" Text="{TemplateBinding Title}"
+                                       Margin="8,0,12,0" FontSize="12" VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" Foreground="{DynamicResource MutedBrush}" />
+                            <!-- Clickable controls in the bar (MainWindow's toolbar); ThemedWindow
+                                 marks them hit-testable. Nothing here has a background, so clicks
+                                 between controls fall through to the bar and drag the window. -->
+                            <ContentPresenter Content="{TemplateBinding TitleBarContent}" />
                         </DockPanel>
 
                         <AdornerDecorator Grid.Row="1">

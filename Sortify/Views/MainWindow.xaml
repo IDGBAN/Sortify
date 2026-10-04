@@ -9,7 +9,7 @@
         d:DataContext="{d:DesignInstance Type=vm:MainViewModel}"
         mc:Ignorable="d"
         Title="Sortify" Height="900" Width="1500" MinHeight="620" MinWidth="900"
-        TitleBarBackground="{DynamicResource PanelBrush}" ShowTitle="False"
+        TitleBarBackground="{DynamicResource PanelBrush}" ShowTitle="False" TitleBarHeight="48"
         Background="{DynamicResource BgBrush}" Foreground="{DynamicResource TextBrush}"
         WindowStartupLocation="CenterScreen" Opacity="0"
         AllowDrop="True" Drop="OnFileDrop" DragOver="OnFileDragOver">
@@ -102,6 +102,82 @@
         </EventTrigger>
     </Window.Triggers>
 
+    <!-- ======================== Toolbar, in the title bar ======================== -->
+    <!-- One bar, like Claude Code's: the buttons are clickable, while the gaps, the logo,
+         the name and the progress bar still drag the window (IsHitTestVisible="False" lets
+         a click fall through to the bar behind). -->
+    <views:ThemedWindow.TitleBarContent>
+        <DockPanel LastChildFill="False" Margin="14,0,8,0" VerticalAlignment="Center">
+            <Image Source="{StaticResource SortifyLogo}" Width="30" Height="30" Margin="0,0,8,0"
+                   VerticalAlignment="Center" IsHitTestVisible="False" />
+            <TextBlock Text="Sortify" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
+                       Foreground="{DynamicResource AccentBrush}" Margin="0,0,16,0"
+                       IsHitTestVisible="False" />
+
+            <Button Content="Open Folder" Style="{StaticResource AccentButton}"
+                    ToolTip="Pick the extracted export folder; history files are found automatically (Ctrl+Shift+O)"
+                    Command="{Binding OpenFolderCommand}" />
+            <Button Content="Open Files"
+                    ToolTip="Pick the export ZIP Spotify sent, or individual history JSON files (Ctrl+O)"
+                    Command="{Binding RunAnalysisCommand}" />
+            <!-- U+25BE, which the UI font has; the Segoe MDL2 chevron would be tofu here. -->
+            <Button Content="Recent  &#x25BE;" Click="OnRecentClick"
+                    AutomationProperties.Name="Recent exports"
+                    ToolTip="Export folders and ZIPs you opened before" />
+
+            <Button Content="Export  &#x25BE;" Click="OnDropdownClick"
+                    AutomationProperties.Name="Export"
+                    ToolTip="Save your results in another format">
+                <Button.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="Summary as text..." InputGestureText="Ctrl+E"
+                                  Command="{Binding ExportTxtCommand}" />
+                        <MenuItem Header="Report as Markdown..." InputGestureText="Ctrl+M"
+                                  Command="{Binding ExportMarkdownCommand}" />
+                        <MenuItem Header="Everything as JSON..." InputGestureText="Ctrl+J"
+                                  Command="{Binding ExportJsonCommand}" />
+                        <Separator />
+                        <MenuItem Header="Tracks as CSV..." Command="{Binding ExportTracksCsvCommand}" />
+                        <MenuItem Header="Artists as CSV..." Command="{Binding ExportArtistsCsvCommand}" />
+                        <MenuItem Header="Albums as CSV..." Command="{Binding ExportAlbumsCsvCommand}" />
+                        <MenuItem Header="Years as CSV..." Command="{Binding ExportYearsCsvCommand}" />
+                        <MenuItem Header="Shows as CSV..." Command="{Binding ExportShowsCsvCommand}" />
+                    </ContextMenu>
+                </Button.ContextMenu>
+            </Button>
+
+            <!-- Right-hand icon cluster -->
+            <!-- Glyph-only buttons: without a name a screen reader announces the raw
+                 private-use character. -->
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="&#xE713;" Click="OnOpenSettings" Margin="0"
+                    AutomationProperties.Name="Settings"
+                    ToolTip="Settings" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="{Binding ThemeGlyph}" Command="{Binding ToggleThemeCommand}"
+                    AutomationProperties.Name="{Binding ThemeTooltip}"
+                    ToolTip="{Binding ThemeTooltip}" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="&#xE72C;" Command="{Binding ReloadCommand}"
+                    AutomationProperties.Name="Reload from disk"
+                    ToolTip="Re-read the files from disk, ignoring the cache (F5)" />
+            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                    Content="&#xE700;" Command="{Binding ToggleSidebarCommand}"
+                    AutomationProperties.Name="Show or hide filters"
+                    ToolTip="Show or hide the filters (Ctrl+B)" />
+
+            <ProgressBar DockPanel.Dock="Right" Width="140" Height="6"
+                         Margin="0,0,10,0" VerticalAlignment="Center"
+                         Minimum="0" Maximum="100"
+                         Value="{Binding ProgressValue}"
+                         IsIndeterminate="{Binding IsProgressIndeterminate}"
+                         Foreground="{DynamicResource AccentBrush}"
+                         Background="Transparent" BorderThickness="0"
+                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}"
+                         IsHitTestVisible="False" />
+        </DockPanel>
+    </views:ThemedWindow.TitleBarContent>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -110,78 +186,8 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <!-- ============================ Top toolbar ============================ -->
-        <Border Grid.Row="0" Background="{DynamicResource PanelBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="0,0,0,1" Padding="14,10">
-            <DockPanel LastChildFill="False">
-                <Image Source="{StaticResource SortifyLogo}" Width="30" Height="30" Margin="0,0,8,0"
-                       VerticalAlignment="Center" />
-                <TextBlock Text="Sortify" FontSize="20" FontWeight="Bold" VerticalAlignment="Center"
-                           Foreground="{DynamicResource AccentBrush}" Margin="0,0,16,0" />
-
-                <Button Content="Open Folder" Style="{StaticResource AccentButton}"
-                        ToolTip="Pick the extracted export folder; history files are found automatically (Ctrl+Shift+O)"
-                        Command="{Binding OpenFolderCommand}" />
-                <Button Content="Open Files"
-                        ToolTip="Pick the export ZIP Spotify sent, or individual history JSON files (Ctrl+O)"
-                        Command="{Binding RunAnalysisCommand}" />
-                <!-- U+25BE, which the UI font has; the Segoe MDL2 chevron would be tofu here. -->
-                <Button Content="Recent  &#x25BE;" Click="OnRecentClick"
-                        AutomationProperties.Name="Recent exports"
-                        ToolTip="Export folders and ZIPs you opened before" />
-
-                <Button Content="Export  &#x25BE;" Click="OnDropdownClick"
-                        AutomationProperties.Name="Export"
-                        ToolTip="Save your results in another format">
-                    <Button.ContextMenu>
-                        <ContextMenu>
-                            <MenuItem Header="Summary as text..." InputGestureText="Ctrl+E"
-                                      Command="{Binding ExportTxtCommand}" />
-                            <MenuItem Header="Report as Markdown..." InputGestureText="Ctrl+M"
-                                      Command="{Binding ExportMarkdownCommand}" />
-                            <MenuItem Header="Everything as JSON..." InputGestureText="Ctrl+J"
-                                      Command="{Binding ExportJsonCommand}" />
-                            <Separator />
-                            <MenuItem Header="Tracks as CSV..." Command="{Binding ExportTracksCsvCommand}" />
-                            <MenuItem Header="Artists as CSV..." Command="{Binding ExportArtistsCsvCommand}" />
-                            <MenuItem Header="Albums as CSV..." Command="{Binding ExportAlbumsCsvCommand}" />
-                            <MenuItem Header="Years as CSV..." Command="{Binding ExportYearsCsvCommand}" />
-                            <MenuItem Header="Shows as CSV..." Command="{Binding ExportShowsCsvCommand}" />
-                        </ContextMenu>
-                    </Button.ContextMenu>
-                </Button>
-
-                <!-- Right-hand icon cluster -->
-                <!-- Glyph-only buttons: without a name a screen reader announces the raw
-                     private-use character. -->
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="&#xE713;" Click="OnOpenSettings" Margin="0"
-                        AutomationProperties.Name="Settings"
-                        ToolTip="Settings" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="{Binding ThemeGlyph}" Command="{Binding ToggleThemeCommand}"
-                        AutomationProperties.Name="{Binding ThemeTooltip}"
-                        ToolTip="{Binding ThemeTooltip}" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="&#xE72C;" Command="{Binding ReloadCommand}"
-                        AutomationProperties.Name="Reload from disk"
-                        ToolTip="Re-read the files from disk, ignoring the cache (F5)" />
-                <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
-                        Content="&#xE700;" Command="{Binding ToggleSidebarCommand}"
-                        AutomationProperties.Name="Show or hide filters"
-                        ToolTip="Show or hide the filters (Ctrl+B)" />
-
-                <ProgressBar DockPanel.Dock="Right" Width="140" Height="6"
-                             Margin="0,0,10,0" VerticalAlignment="Center"
-                             Minimum="0" Maximum="100"
-                             Value="{Binding ProgressValue}"
-                             IsIndeterminate="{Binding IsProgressIndeterminate}"
-                             Foreground="{DynamicResource AccentBrush}"
-                             Background="Transparent" BorderThickness="0"
-                             Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
-            </DockPanel>
-        </Border>
+        <!-- Rule under the title bar, which holds the toolbar. -->
+        <Border Grid.Row="0" Height="1" Background="{DynamicResource BorderBrush}" />
 
         <!-- ========================= Active filter chips ======================= -->
         <Border Grid.Row="1" Background="{DynamicResource BgBrush}" Padding="14,8,14,2"
