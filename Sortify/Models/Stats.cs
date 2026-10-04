@@ -14,6 +14,12 @@ public sealed class ArtistStat
     /// <summary>The track that was playing at the artist's first recorded listen.</summary>
     public string FirstTrack { get; set; } = "Unknown Track";
 
+    /// <summary>Different tracks of theirs that were played.</summary>
+    public int TrackCount { get; set; }
+
+    /// <summary>Calendar months with at least one dated play: how long the artist stayed in rotation.</summary>
+    public int MonthCount { get; set; }
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }
@@ -36,6 +42,18 @@ public sealed class TrackStat
     /// </summary>
     public string Uri { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Share of this track's plays that were skipped (0-100). Counted with the minimum-duration
+    /// cutoff relaxed, like the other skip figures, since a skip is usually shorter than it.
+    /// </summary>
+    public double SkipRate { get; set; }
+
+    /// <summary>
+    /// The album the analysis last counted this track toward. A track nearly always comes from
+    /// the same album, so this spares the analysis a set lookup on almost every play.
+    /// </summary>
+    internal AlbumStat? CountedAlbum;
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }
@@ -51,6 +69,9 @@ public sealed class AlbumStat
     /// <summary>Null when no counted play of this album carried a timestamp.</summary>
     public DateTime? FirstPlayed { get; set; }
     public DateTime? LastPlayed { get; set; }
+
+    /// <summary>Different tracks of this album that were played.</summary>
+    public int TrackCount { get; set; }
 
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;

@@ -70,6 +70,10 @@ public static class AnalysisEngine
         var byDowHour = new long[7, 24];
         var timedPlays = new List<TimedPlay>();
 
+        // Which tracks each album was heard through. Keyed by the stat objects, which are one
+        // per name already, so a lookup costs two reference hashes rather than three string ones.
+        var albumTracks = new HashSet<(AlbumStat, TrackStat)>();
+
         var shows = new Dictionary<string, ShowStat>(StringComparer.Ordinal);
         var showEpisodeKeys = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         var episodes = new Dictionary<(string Episode, string Show), EpisodeStat>();
@@ -205,6 +209,12 @@ public static class AnalysisEngine
             }
             album.TotalMsPlayed += r.MsPlayed;
             album.PlayCount++;
+            if (!ReferenceEquals(track.CountedAlbum, album))
+            {
+                track.CountedAlbum = album;
+                if (albumTracks.Add((album, track)))
+                    album.TrackCount++;
+            }
 
             var ts = r.Timestamp;
             if (ts != DateTime.MinValue)
@@ -253,6 +263,19 @@ public static class AnalysisEngine
         }
 
         cancellationToken.ThrowIfCancellationRequested();
+
+        // The per-row figures the tables show beyond time and plays.
+        foreach (var track in tracks.Values)
+        {
+            var counts = skips[(track.Track, track.Artist)];
+            track.SkipRate = counts.Plays == 0 ? 0 : counts.Skips * 100.0 / counts.Plays;
+            artists[track.Artist].TrackCount++;
+        }
+        foreach (var month in months.Values)
+        {
+            foreach (var artist in month.ArtistMs.Keys)
+                artist.MonthCount++;
+        }
 
         var artistList = artists.Values.OrderByDescending(a => a.TotalMsPlayed).ToList();
         var trackList = tracks.Values.OrderByDescending(t => t.TotalMsPlayed).ToList();
