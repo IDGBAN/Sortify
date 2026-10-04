@@ -1091,7 +1091,7 @@
                                             <Run Text="Listening Heatmap (day of week vs. hour of day)" /><Run Text="   Click a square to see only that hour of that day"
                                                 FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
                                         </TextBlock>
-                                        <lvc:CartesianChart Series="{Binding Heat.Series}" Cursor="Hand" DataPointerDown="OnHeatClick" FindingStrategy="CompareAllTakeClosest"
+                                        <lvc:CartesianChart Series="{Binding Heat.Series}" Tag="{Binding Heat}" Cursor="Hand" DataPointerDown="OnHeatClick" FindingStrategy="CompareAllTakeClosest"
                                                             Background="Transparent"
                                                             AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                             XAxes="{Binding Heat.XAxes}" YAxes="{Binding Heat.YAxes}"

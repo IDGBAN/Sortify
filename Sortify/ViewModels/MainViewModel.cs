@@ -230,6 +230,7 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshThemeButton();
 
         // Restored before anything listens for changes, so it doesn't trigger a save or a recompute.
+        Filters.SetFirstDayOfWeek(_settings.FirstDayOfWeek);
         if (_settings.Filters is { } remembered)
             Filters.Apply(remembered);
         Filters.LoadPresets(_settings.FilterPresets);
@@ -632,7 +633,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         _overTimeGranularity = granularity;
         if (HasData)
-            OverTime = ChartBuilder.OverTime(_result, granularity);
+            OverTime = ChartBuilder.OverTime(_result, granularity, _settings.FirstDayOfWeek);
     }
 
     // ---- Appearance and preferences ----------------------------------------------------------
@@ -658,6 +659,8 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task ApplySettingsChangesAsync()
     {
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
+        Filters.SetFirstDayOfWeek(_settings.FirstDayOfWeek);
+        RefreshActiveFilters();
         RefreshRecentFolders();
         if (HasData)
             await RecomputeAsync();
@@ -1022,7 +1025,7 @@ public sealed partial class MainViewModel : ObservableObject
         {
             var timeline = HasData && ComparedArtists.Count > 0
                 ? await ArtistComparison.BuildAsync(_rawRecords, Filters.ToOptions(), ComparedArtists.ToList(),
-                    _compareGranularity, token)
+                    _compareGranularity, _settings.FirstDayOfWeek, token)
                 : ArtistTimeline.Empty;
             if (token.IsCancellationRequested)
                 return;
@@ -1342,9 +1345,9 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateCharts()
     {
         ByHour = ChartBuilder.ByHour(_result);
-        ByDayOfWeek = ChartBuilder.ByDayOfWeek(_result);
-        Heat = ChartBuilder.DowHourHeat(_result);
-        OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity);
+        ByDayOfWeek = ChartBuilder.ByDayOfWeek(_result, _settings.FirstDayOfWeek);
+        Heat = ChartBuilder.DowHourHeat(_result, _settings.FirstDayOfWeek);
+        OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity, _settings.FirstDayOfWeek);
         ByYear = ChartBuilder.HoursPerYear(_result);
         Discovery = ChartBuilder.NewArtistsByMonth(_result);
         Skipped = ChartBuilder.TopSkippedTracks(_result);

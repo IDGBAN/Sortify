@@ -31,6 +31,7 @@ public partial class SettingsWindow : ThemedWindow
             _ => 0,
         };
         AnimateBox.IsChecked = _settings.AnimateCharts;
+        WeekStartBox.SelectedIndex = Math.Max(0, Array.IndexOf(Weeks.Starts, _settings.FirstDayOfWeek));
         ReopenBox.IsChecked = _settings.ReopenLastFolder;
         GapSlider.Minimum = AppSettings.MinSessionGapMinutes;
         GapSlider.Maximum = AppSettings.MaxSessionGapMinutes;
@@ -65,6 +66,16 @@ public partial class SettingsWindow : ThemedWindow
     {
         if (_loading) return;
         _settings.AnimateCharts = AnimateBox.IsChecked == true;
+        _settings.Save();
+        NeedsRefresh = true;
+    }
+
+    private void OnWeekStartChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || WeekStartBox.SelectedItem is not ComboBoxItem { Tag: string tag } || !Enum.TryParse<DayOfWeek>(tag, out var day))
+            return;
+
+        _settings.FirstDayOfWeek = day;
         _settings.Save();
         NeedsRefresh = true;
     }

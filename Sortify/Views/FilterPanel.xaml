@@ -253,7 +253,7 @@
 
                 <!-- Day of week -->
                 <TextBlock Text="DAYS OF WEEK" Style="{StaticResource SectionHeader}" />
-                <ItemsControl ItemsSource="{Binding Days}">
+                <ItemsControl ItemsSource="{Binding DaysInWeekOrder}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <WrapPanel />

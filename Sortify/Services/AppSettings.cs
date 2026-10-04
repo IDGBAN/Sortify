@@ -59,6 +59,13 @@ public sealed class AppSettings
     /// </summary>
     public bool AnimateCharts { get; set; } = true;
 
+    /// <summary>
+    /// The day weeks start on: where weekly totals begin, and the order days are listed in.
+    /// One of <see cref="Weeks.Starts"/>.
+    /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public DayOfWeek FirstDayOfWeek { get; set; } = DayOfWeek.Sunday;
+
     // ---- Window and layout -------------------------------------------------------------------
 
     public double WindowWidth { get; set; }
@@ -174,6 +181,8 @@ public sealed class AppSettings
             .ToList();
         SessionGapMinutes = Math.Clamp(SessionGapMinutes, MinSessionGapMinutes, MaxSessionGapMinutes);
         LastTabIndex = Math.Max(0, LastTabIndex);
+        if (!Weeks.Starts.Contains(FirstDayOfWeek))
+            FirstDayOfWeek = DayOfWeek.Sunday;
 
         Filters?.Normalize();
         FilterPresets = (FilterPresets ?? new List<FilterPreset>())

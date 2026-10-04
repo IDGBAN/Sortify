@@ -48,7 +48,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 - Reads both the extended streaming history (`Streaming_History_Audio_*.json`) and the older account-data export (`StreamingHistory*.json`). Load both together and each play is still counted once: account-data plays the extended history already has are left out, and the newer ones are kept, so a recent account-data export can top up an older extended one. Loading the same export twice doesn't double anything either.
 - Reopens the folder you used last time when it starts, remembers your window size and layout, and caches the parsed history so an unchanged export loads instantly instead of being re-read.
 - Export a text summary, a Markdown report, everything as JSON, or tracks, artists, albums, years and shows as CSV. The text, Markdown and JSON exports say which filters they were made under. **Every play as CSV** writes the plays that pass the filters one per row, cleaned up, with duplicates dropped and times in your local time, for your own analysis in a spreadsheet or pandas.
-- Settings for the theme, chart animations, how long a break has to be before it starts a new listening session, and clearing the cache.
+- Settings for the theme, chart animations, the day weeks start on (Sunday, Monday or Saturday, which orders the heatmap, the day-of-week chart and the sidebar, and decides where weekly totals begin), how long a break has to be before it starts a new listening session, and clearing the cache.
 
 ## Keyboard Shortcuts
 | Shortcut | Action |

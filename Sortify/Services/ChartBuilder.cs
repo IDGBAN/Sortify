@@ -195,11 +195,15 @@ public static class ChartBuilder
         return Columns(values, labels, "Hours", "Hour of day", ChartPalette.Accent);
     }
 
-    public static ChartData ByDayOfWeek(AnalysisResult r)
+    /// <summary>Short day names, Sunday first, as <see cref="DayOfWeek"/> numbers them.</summary>
+    private static readonly string[] DayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+
+    /// <summary>Listening time per day of the week, starting from <paramref name="firstDay"/>.</summary>
+    public static ChartData ByDayOfWeek(AnalysisResult r, DayOfWeek firstDay = DayOfWeek.Sunday)
     {
-        string[] names = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-        var values = r.PlaytimeByDayOfWeek.Select(ms => Math.Round(ms / 3_600_000d, 2)).ToArray();
-        return Columns(values, names, "Hours", "Day of week", ChartPalette.Accent2);
+        var days = Weeks.Ordered(firstDay);
+        var values = days.Select(d => Math.Round(r.PlaytimeByDayOfWeek[(int)d] / 3_600_000d, 2)).ToArray();
+        return Columns(values, days.Select(d => DayNames[(int)d]).ToArray(), "Hours", "Day of week", ChartPalette.Accent2);
     }
 
     /// <summary>Total listening time per calendar year.</summary>
@@ -247,12 +251,14 @@ public static class ChartBuilder
     /// <summary>Bucket size for the listening-over-time chart.</summary>
     public enum TimeGranularity { Daily, Weekly, Monthly }
 
-    public static ChartData OverTime(AnalysisResult r, TimeGranularity granularity = TimeGranularity.Daily)
+    /// <param name="firstDay">The day a weekly bucket starts on.</param>
+    public static ChartData OverTime(
+        AnalysisResult r, TimeGranularity granularity = TimeGranularity.Daily, DayOfWeek firstDay = DayOfWeek.Sunday)
     {
         IEnumerable<DateTimePoint> source = granularity switch
         {
             TimeGranularity.Weekly => r.PlaytimeByDay
-                .GroupBy(p => p.Date.AddDays(-(int)p.Date.DayOfWeek))
+                .GroupBy(p => Weeks.Start(p.Date, firstDay))
                 .Select(g => new DateTimePoint(g.Key, g.Sum(p => p.Value))),
             TimeGranularity.Monthly => r.PlaytimeByDay
                 .GroupBy(p => new DateTime(p.Date.Year, p.Date.Month, 1))
@@ -384,13 +390,24 @@ public static class ChartBuilder
 
     // ---- Heatmap ---------------------------------------------------------------------------
 
-    /// <summary>Hour-of-day (x) by day-of-week (y) listening heatmap.</summary>
-    public static ChartData DowHourHeat(AnalysisResult r)
+    /// <summary>
+    /// Hour-of-day (x) by day-of-week (y) listening heatmap, its rows starting from
+    /// <paramref name="firstDay"/>. Each square's day and hour ride along as the chart's items,
+    /// so a click can be traced back to them whatever the order.
+    /// </summary>
+    public static ChartData DowHourHeat(AnalysisResult r, DayOfWeek firstDay = DayOfWeek.Sunday)
     {
+        var days = Weeks.Ordered(firstDay);
         var points = new List<WeightedPoint>(7 * 24);
-        for (int dow = 0; dow < 7; dow++)
+        var slots = new List<HeatSlot>(7 * 24);
+        for (int row = 0; row < 7; row++)
+        {
             for (int hour = 0; hour < 24; hour++)
-                points.Add(new WeightedPoint(hour, dow, Math.Round(r.PlaytimeByDowHour[dow, hour] / 3_600_000d, 2)));
+            {
+                points.Add(new WeightedPoint(hour, row, Math.Round(r.PlaytimeByDowHour[(int)days[row], hour] / 3_600_000d, 2)));
+                slots.Add(new HeatSlot(days[row], hour));
+            }
+        }
 
         var series = new ISeries[]
         {
@@ -403,10 +420,10 @@ public static class ChartBuilder
                     .ToArray(),
             },
         };
-        string[] dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
         return new ChartData
         {
             Series = series,
+            Items = slots,
             XAxes = new[]
             {
                 new Axis
@@ -422,7 +439,7 @@ public static class ChartBuilder
             {
                 new Axis
                 {
-                    Labels = dayNames,
+                    Labels = days.Select(d => DayNames[(int)d]).ToArray(),
                     LabelsPaint = Label(),
                     TextSize = DenseAxisTextSize,
                     // Without this LiveCharts labels every other row and leaves Mon, Wed
@@ -433,6 +450,9 @@ public static class ChartBuilder
             },
         };
     }
+
+    /// <summary>One square of the heatmap: an hour of a day of the week.</summary>
+    public sealed record HeatSlot(DayOfWeek Day, int Hour);
 
     // ---- Pie / donut -----------------------------------------------------------------------
 

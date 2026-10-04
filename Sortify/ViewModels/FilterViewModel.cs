@@ -84,7 +84,11 @@ public sealed partial class FilterViewModel : ObservableObject
     public ObservableCollection<string> ExcludedArtists { get; } = new();
     public ObservableCollection<string> ExcludedTracks { get; } = new();
 
+    /// <summary>One toggle per day, in <see cref="DayOfWeek"/> order (Sunday first).</summary>
     public DayToggle[] Days { get; }
+
+    /// <summary>The same toggles in the order the week is shown in, from the chosen first day.</summary>
+    [ObservableProperty] private IReadOnlyList<DayToggle> _daysInWeekOrder = Array.Empty<DayToggle>();
 
     /// <summary>Saved filter sets, in the order they were made.</summary>
     public ObservableCollection<FilterPreset> Presets { get; } = new();
@@ -139,6 +143,7 @@ public sealed partial class FilterViewModel : ObservableObject
             RefreshIncludeSuggestions();
             Raise();
         };
+        DaysInWeekOrder = Days;
         ExcludedArtists.CollectionChanged += (_, _) => Raise();
         ExcludedTracks.CollectionChanged += (_, _) => Raise();
         Presets.CollectionChanged += (_, _) => HasPresets = Presets.Count > 0;
@@ -530,7 +535,7 @@ public sealed partial class FilterViewModel : ObservableObject
             }));
         }
 
-        var days = Days.Where(d => d.IsSelected).Select(d => d.Label).ToList();
+        var days = DaysInWeekOrder.Where(d => d.IsSelected).Select(d => d.Label).ToList();
         if (days.Count < Days.Length)
         {
             yield return new FilterChip(days.Count == 0 ? "No days selected" : string.Join(", ", days),
@@ -588,6 +593,10 @@ public sealed partial class FilterViewModel : ObservableObject
         PlaybackMode.Exclude => new FilterChip(exclude, clearHint, clear),
         _ => null,
     };
+
+    /// <summary>Lists the day toggles from <paramref name="first"/> on, as the rest of the window orders the week.</summary>
+    public void SetFirstDayOfWeek(DayOfWeek first) =>
+        DaysInWeekOrder = Weeks.Ordered(first).Select(d => Days[(int)d]).ToArray();
 
     // ---- Date ranges -------------------------------------------------------------------------
 

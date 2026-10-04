@@ -31,6 +31,16 @@
                                   Checked="OnAnimateChanged" Unchecked="OnAnimateChanged" />
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="Turn this off if charts feel sluggish on a very large history." />
+
+                        <TextBlock Text="WEEKS START ON" Style="{StaticResource Caption}" Margin="0,14,0,3" />
+                        <ComboBox x:Name="WeekStartBox" SelectionChanged="OnWeekStartChanged"
+                                  AutomationProperties.Name="Weeks start on">
+                            <ComboBoxItem Content="Sunday" Tag="Sunday" />
+                            <ComboBoxItem Content="Monday" Tag="Monday" />
+                            <ComboBoxItem Content="Saturday" Tag="Saturday" />
+                        </ComboBox>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Sets the order of the days in the heatmap, the day-of-week chart and the sidebar, and where weekly totals begin." />
                     </StackPanel>
                 </Border>
 

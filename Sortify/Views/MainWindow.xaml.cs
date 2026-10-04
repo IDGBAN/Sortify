@@ -495,13 +495,12 @@ public partial class MainWindow : ThemedWindow
     private void OnHeatClick(IChartView chart, IEnumerable<ChartPoint> points)
     {
         var point = points.FirstOrDefault(p => !p.IsEmpty);
-        if (point is null || ViewModel is not { } vm)
+        if (point is null || ViewModel is not { } vm || chart is not FrameworkElement { Tag: ChartData data })
             return;
-        if (point.Index < 0 || point.Index >= 7 * 24)
+        if (point.Index < 0 || point.Index >= data.Items.Count || data.Items[point.Index] is not ChartBuilder.HeatSlot slot)
             return;
 
-        // The heatmap's points run day by day, 24 hours each (see ChartBuilder.DowHourHeat).
-        vm.Filters.SetSlot(point.Index / 24, point.Index % 24);
+        vm.Filters.SetSlot((int)slot.Day, slot.Hour);
     }
 
     /// <summary>
