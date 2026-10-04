@@ -32,6 +32,7 @@ public partial class MainWindow : ThemedWindow
     public MainWindow()
     {
         InitializeComponent();
+        ChartTableWindow.MakeChartsReachable(this, SayChartIsEmpty);
 
         // App owns the settings so the dialog, the view model and window placement all
         // read and write one instance.
@@ -431,11 +432,28 @@ public partial class MainWindow : ThemedWindow
             await vm.ApplySettingsChangesAsync();
     }
 
-    // ---- Chart images ---------------------------------------------------------------------------
+    // ---- Chart images and numbers ---------------------------------------------------------------
 
     /// <summary>The card a chart context menu was opened on.</summary>
     private static FrameworkElement? CardFor(object sender) =>
         sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement card } } ? card : null;
+
+    /// <summary>Offers a chart's numbers only when it has some, which an empty one (no podcasts, say) doesn't.</summary>
+    private void OnChartMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu { PlacementTarget: FrameworkElement card } menu)
+            return;
+        foreach (var item in menu.Items.OfType<MenuItem>().Where(i => Equals(i.Tag, "numbers")))
+            item.IsEnabled = ChartTableWindow.TableFor(card) is not null;
+    }
+
+    private void OnShowChartNumbers(object sender, RoutedEventArgs e)
+    {
+        if (CardFor(sender) is { } card && !ChartTableWindow.ShowFor(card, this))
+            SayChartIsEmpty();
+    }
+
+    private void SayChartIsEmpty() => ViewModel?.SetStatus("That chart has no numbers to show yet.");
 
     private void OnCopyChartImage(object sender, RoutedEventArgs e)
     {

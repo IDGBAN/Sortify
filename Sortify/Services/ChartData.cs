@@ -21,6 +21,15 @@ public sealed class ChartData
     /// </summary>
     public IReadOnlyList<object> Items { get; init; } = Array.Empty<object>();
 
+    /// <summary>True when <see cref="Items"/> go with the series, one per line, rather than with the points.</summary>
+    public bool ItemsFollowSeries { get; init; }
+
     /// <summary>Placeholder for a chart with nothing loaded yet.</summary>
     public static ChartData Empty { get; } = new();
 }
+
+/// <summary>
+/// What a pie slice stands for, kept on its series so the chart's numbers can be listed
+/// without reading them back out of the legend text, which shortens long names.
+/// </summary>
+public sealed record ChartSlice(string Label, string Kind, string Unit, double SharePercent);

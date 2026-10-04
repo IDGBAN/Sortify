@@ -19,7 +19,9 @@
              resource rather than inline in the style setter: WPF cannot wire event handlers
              to elements built inside a Setter.Value. One shared instance is fine - the
              handlers read PlacementTarget, which is set to the card as the menu opens. -->
-        <ContextMenu x:Key="ChartMenu">
+        <ContextMenu x:Key="ChartMenu" Opened="OnChartMenuOpened">
+            <MenuItem Header="Show the numbers..." Tag="numbers" Click="OnShowChartNumbers" InputGestureText="Enter" />
+            <Separator />
             <MenuItem Header="Copy chart as image" Click="OnCopyChartImage" />
             <MenuItem Header="Save chart as image..." Click="OnSaveChartImage" />
         </ContextMenu>

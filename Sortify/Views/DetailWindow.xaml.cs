@@ -47,6 +47,12 @@ public partial class DetailWindow : ThemedWindow
         }
     }
 
+    private void OnShowChartNumbers(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement card } })
+            ChartTableWindow.ShowFor(card, this);
+    }
+
     private async void OnYearReview(object sender, RoutedEventArgs e)
     {
         if (_openYearReview is not null && int.TryParse(_detail.Title, NumberStyles.None, CultureInfo.InvariantCulture, out int year))
@@ -93,6 +99,7 @@ public partial class DetailWindow : ThemedWindow
     public DetailWindow(DetailResult detail, Func<DetailScope, string, string, Task<DetailResult?>>? openDetail)
     {
         InitializeComponent();
+        ChartTableWindow.MakeChartsReachable(this);
         _detail = detail;
         _openDetail = openDetail;
 

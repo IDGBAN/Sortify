@@ -314,6 +314,9 @@ public static class ChartBuilder
             {
                 new Axis
                 {
+                    Name = "Year",
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
                     Labels = r.Years.Select(y => y.Year.ToString()).ToArray(),
                     LabelsPaint = Label(),
                     TextSize = AxisTextSize,
@@ -338,6 +341,7 @@ public static class ChartBuilder
                 },
             },
             Items = r.RankHistory.Select(a => a.Artist).ToList(),
+            ItemsFollowSeries = true,
         };
     }
 
@@ -601,6 +605,7 @@ public static class ChartBuilder
             {
                 Values = new double[] { hours },
                 Name = $"{ShortLabel(a.Artist)}  ({pct:0.#}%)",
+                Tag = new ChartSlice(a.Artist, "Artist", "Hours", pct),
                 Fill = new SolidColorPaint(Category(i)),
                 ToolTipLabelFormatter = _ => $"{hours:0.#} h  ({pct:0.#}%)",
                 InnerRadius = ArtistDonutInnerRadius,
@@ -616,6 +621,7 @@ public static class ChartBuilder
             {
                 Values = new double[] { oHours },
                 Name = $"Other  ({oPct:0.#}%)",
+                Tag = new ChartSlice("Other", "Artist", "Hours", oPct),
                 Fill = new SolidColorPaint(ChartPalette.Muted),
                 ToolTipLabelFormatter = _ => $"{oHours:0.#} h  ({oPct:0.#}%)",
                 InnerRadius = ArtistDonutInnerRadius,
@@ -636,22 +642,22 @@ public static class ChartBuilder
         int i = 0;
         foreach (var reason in r.ReasonEnds.Take(ReasonSlices))
         {
-            AddCountSlice(series, EndReasons.Label(reason.Reason), reason.Count, total, Category(i));
+            AddCountSlice(series, "Reason", EndReasons.Label(reason.Reason), reason.Count, total, Category(i));
             i++;
         }
 
         int otherCount = r.ReasonEnds.Skip(ReasonSlices).Sum(x => x.Count);
         if (otherCount > 0)
-            AddCountSlice(series, "Other", otherCount, total, ChartPalette.Muted);
+            AddCountSlice(series, "Reason", "Other", otherCount, total, ChartPalette.Muted);
 
         return series.ToArray();
     }
 
     /// <summary>Donut of listening time by device family.</summary>
-    public static ISeries[] PlatformShare(AnalysisResult r) => ContextShare(r.Platforms, PlatformSlices);
+    public static ISeries[] PlatformShare(AnalysisResult r) => ContextShare(r.Platforms, PlatformSlices, "Device");
 
     /// <summary>Donut of listening time by the country each play streamed from.</summary>
-    public static ISeries[] CountryShare(AnalysisResult r) => ContextShare(r.Countries, CountrySlices);
+    public static ISeries[] CountryShare(AnalysisResult r) => ContextShare(r.Countries, CountrySlices, "Country");
 
     private static SKColor Category(int index)
     {
@@ -659,7 +665,7 @@ public static class ChartBuilder
         return categories[index % categories.Length];
     }
 
-    private static ISeries[] ContextShare(IReadOnlyList<ContextStat> stats, int maxSlices)
+    private static ISeries[] ContextShare(IReadOnlyList<ContextStat> stats, int maxSlices, string kind)
     {
         long total = stats.Sum(s => s.TotalMsPlayed);
         if (total <= 0)
@@ -669,18 +675,18 @@ public static class ChartBuilder
         int i = 0;
         foreach (var stat in stats.Take(maxSlices))
         {
-            AddHoursSlice(series, stat.Name, stat.TotalMsPlayed, total, Category(i));
+            AddHoursSlice(series, kind, stat.Name, stat.TotalMsPlayed, total, Category(i));
             i++;
         }
 
         long otherMs = stats.Skip(maxSlices).Sum(s => s.TotalMsPlayed);
         if (otherMs > 0)
-            AddHoursSlice(series, "Other", otherMs, total, ChartPalette.Muted);
+            AddHoursSlice(series, kind, "Other", otherMs, total, ChartPalette.Muted);
 
         return series.ToArray();
     }
 
-    private static void AddHoursSlice(List<ISeries> series, string label, long ms, long total, SKColor color)
+    private static void AddHoursSlice(List<ISeries> series, string kind, string label, long ms, long total, SKColor color)
     {
         double hours = Math.Round(ms / 3_600_000d, 2);
         double pct = ms * 100.0 / total;
@@ -688,19 +694,21 @@ public static class ChartBuilder
         {
             Values = new double[] { hours },
             Name = $"{ShortLabel(label)}  ({pct:0.#}%)",
+            Tag = new ChartSlice(label, kind, "Hours", pct),
             Fill = new SolidColorPaint(color),
             ToolTipLabelFormatter = _ => $"{hours:0.#} h  ({pct:0.#}%)",
             InnerRadius = ContextDonutInnerRadius,
         });
     }
 
-    private static void AddCountSlice(List<ISeries> series, string label, int count, long total, SKColor color)
+    private static void AddCountSlice(List<ISeries> series, string kind, string label, int count, long total, SKColor color)
     {
         double pct = count * 100.0 / total;
         series.Add(new PieSeries<double>
         {
             Values = new double[] { count },
             Name = $"{label}  ({pct:0.#}%)",
+            Tag = new ChartSlice(label, kind, "Plays", pct),
             Fill = new SolidColorPaint(color),
             ToolTipLabelFormatter = _ => $"{count:N0} plays  ({pct:0.#}%)",
             InnerRadius = ContextDonutInnerRadius,

@@ -127,6 +127,11 @@
                 </UniformGrid>
 
                 <Border x:Name="MonthCard" Style="{StaticResource Card}" Height="280">
+                    <Border.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Show the numbers..." Click="OnShowChartNumbers" InputGestureText="Enter" />
+                        </ContextMenu>
+                    </Border.ContextMenu>
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Top" Text="Listening Over Time (monthly)"
                                    Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
@@ -135,6 +140,11 @@
                 </Border>
 
                 <Border Style="{StaticResource Card}" Height="260">
+                    <Border.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="Show the numbers..." Click="OnShowChartNumbers" InputGestureText="Enter" />
+                        </ContextMenu>
+                    </Border.ContextMenu>
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Top" Text="Listening by Hour of Day"
                                    Style="{StaticResource SectionHeader}" Margin="0,0,0,6" />
