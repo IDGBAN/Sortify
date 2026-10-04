@@ -19,6 +19,18 @@ public sealed partial class MainViewModel : ObservableObject
     private readonly AppSettings _settings;
     private readonly DispatcherTimer _debounce;
     private List<PlayRecord> _rawRecords = new();
+
+    /// <summary>The plays with re-releases folded together, worked out the first time the option is on.</summary>
+    private List<PlayRecord>? _combinedRecords;
+
+    /// <summary>
+    /// The plays every view reads: as loaded, or with remasters and deluxe editions counted
+    /// under the original when the sidebar asks. Going through one list keeps exclusions,
+    /// searches and drill-downs matching the names on screen.
+    /// </summary>
+    private IReadOnlyList<PlayRecord> Records => Filters.CombineReleases
+        ? _combinedRecords ??= ReleaseNames.Combine(_rawRecords)
+        : _rawRecords;
     private AnalysisResult _result = AnalysisResult.Empty;
 
     /// <summary>The filters <see cref="_result"/> was computed under, as the chip row words them.</summary>
@@ -251,10 +263,10 @@ public sealed partial class MainViewModel : ObservableObject
         _settings = settings ?? AppSettings.Load();
         _settings.PruneMissingFolders();
         History = new HistoryViewModel(() => HasData
-            ? new HistoryViewModel.Source(_rawRecords, _resultOptions ?? Filters.ToOptions())
+            ? new HistoryViewModel.Source(Records, _resultOptions ?? Filters.ToOptions())
             : null);
         Compare = new CompareViewModel(() => HasData
-            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
+            ? new CompareViewModel.Source(Records, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
                 PlayTimeZones.From(_settings))
             : null);
         SidebarVisible = _settings.SidebarVisible;
@@ -593,6 +605,7 @@ public sealed partial class MainViewModel : ObservableObject
             _comparisonSeeded = false;
 
         _rawRecords = records;
+        _combinedRecords = null;
         _loadedFiles = filePaths;
         _loadedFolder = folder;
         IsSample = isSample;
@@ -822,7 +835,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasData || _rawRecords.Count == 0)
             return null;
 
-        return await DetailEngine.BuildAsync(_rawRecords, Filters.ToOptions(), scope, title, subtitle, _result);
+        return await DetailEngine.BuildAsync(Records, Filters.ToOptions(), scope, title, subtitle, _result);
     }
 
     /// <summary>
@@ -834,7 +847,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasData || _rawRecords.Count == 0)
             return null;
 
-        return await YearReviewBuilder.BuildAsync(_rawRecords, Filters.ToOptions(), year, CardFilterNote(), _settings.SessionGap);
+        return await YearReviewBuilder.BuildAsync(Records, Filters.ToOptions(), year, CardFilterNote(), _settings.SessionGap);
     }
 
     /// <summary>
@@ -847,7 +860,7 @@ public sealed partial class MainViewModel : ObservableObject
             return null;
 
         var options = Filters.ToOptions();
-        return await YearReviewBuilder.BuildForDatesAsync(_rawRecords, options, options.StartDate, options.EndDate,
+        return await YearReviewBuilder.BuildForDatesAsync(Records, options, options.StartDate, options.EndDate,
             CardFilterNote(), _settings.SessionGap, _settings.FirstDayOfWeek);
     }
 
@@ -882,10 +895,20 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshBusy();
         try
         {
+            // Folding re-releases goes through every play, so it is done off the UI thread the
+            // first time; a history adopted in the meantime makes the result moot.
+            if (Filters.CombineReleases && _combinedRecords is null)
+            {
+                var raw = _rawRecords;
+                var combined = await Task.Run(() => ReleaseNames.Combine(raw));
+                if (ReferenceEquals(raw, _rawRecords))
+                    _combinedRecords ??= combined;
+            }
+
             AnalysisResult result;
             try
             {
-                result = await AnalysisEngine.AnalyzeAsync(_rawRecords, options, _settings.SessionGap, token);
+                result = await AnalysisEngine.AnalyzeAsync(Records, options, _settings.SessionGap, token);
             }
             catch (OperationCanceledException)
             {
@@ -1044,7 +1067,7 @@ public sealed partial class MainViewModel : ObservableObject
 
         try
         {
-            var cohorts = await DiscoveryCohorts.BuildAsync(_rawRecords, _resultOptions ?? Filters.ToOptions(), token);
+            var cohorts = await DiscoveryCohorts.BuildAsync(Records, _resultOptions ?? Filters.ToOptions(), token);
             if (token.IsCancellationRequested)
                 return;
 
@@ -1192,7 +1215,7 @@ public sealed partial class MainViewModel : ObservableObject
         try
         {
             var timeline = HasData && ComparedArtists.Count > 0
-                ? await ArtistComparison.BuildAsync(_rawRecords, Filters.ToOptions(), ComparedArtists.ToList(),
+                ? await ArtistComparison.BuildAsync(Records, Filters.ToOptions(), ComparedArtists.ToList(),
                     _compareGranularity, _settings.FirstDayOfWeek, token)
                 : ArtistTimeline.Empty;
             if (token.IsCancellationRequested)
@@ -1647,7 +1670,7 @@ public sealed partial class MainViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(CanExport))]
     private Task ExportPlaysCsvAsync() =>
         ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_plays",
-            path => ExportService.SavePlaysCsvAsync(path, FilterEngine.Apply(_rawRecords, _resultOptions ?? Filters.ToOptions())));
+            path => ExportService.SavePlaysCsvAsync(path, FilterEngine.Apply(Records, _resultOptions ?? Filters.ToOptions())));
 
     [RelayCommand(CanExecute = nameof(CanExportPodcasts))]
     private Task ExportShowsCsvAsync() =>

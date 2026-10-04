@@ -50,6 +50,12 @@ public static class SampleHistory
     private const double AlbumSessionChance = 0.2;
     private const double ArtistSessionChance = 0.3;
 
+    // Every fourth of the top artists has an album re-released on this day, so the sample has
+    // remasters and deluxe editions for the sidebar's option to fold back together.
+    private const int ReissueArtists = 30;
+    private const int ReissueEvery = 4;
+    private const int ReissueDay = 450;
+
     private const string HomeCountry = "CA";
     private static readonly string[] TripCountries = { "JP", "PT", "MX", "IS" };
 
@@ -103,6 +109,10 @@ public static class SampleHistory
         public required List<List<Track>> Albums { get; init; }
         public required List<Track> Tracks { get; init; }
         public required double[] TrackWeights { get; init; }
+
+        /// <summary>The album that is re-released partway through, if any, and how: 0 deluxe, 1 remaster, 2 expanded.</summary>
+        public string? ReissuedAlbum { get; init; }
+        public int ReissueKind { get; init; }
     }
 
     private sealed class Show
@@ -294,13 +304,17 @@ public static class SampleHistory
                 reason = "trackdone";
             }
 
+            var ended = Advance(ms);
+            var (trackName, albumName) = artist.ReissuedAlbum == track.Album && ended >= _first.AddDays(ReissueDay)
+                ? Reissued(track, artist.ReissueKind, _first.AddDays(ReissueDay).Year)
+                : (track.Name, track.Album);
             _plays.Add(new PlayRecord
             {
-                TrackName = track.Name,
+                TrackName = trackName,
                 ArtistName = artist.Name,
-                AlbumName = track.Album,
+                AlbumName = albumName,
                 MsPlayed = ms,
-                Timestamp = Advance(ms),
+                Timestamp = ended,
                 ReasonEnd = reason,
                 Skipped = skipped,
                 Platform = session.Platform,
@@ -311,6 +325,15 @@ public static class SampleHistory
                 HasPlaybackFlags = true,
             });
         }
+
+        // Named the way Spotify names a re-release: a deluxe or expanded edition keeps the
+        // track titles, a remaster tags them as well.
+        private static (string Track, string Album) Reissued(Track track, int kind, int year) => kind switch
+        {
+            0 => (track.Name, $"{track.Album} (Deluxe Edition)"),
+            1 => ($"{track.Name} - {year} Remaster", $"{track.Album} ({year} Remaster)"),
+            _ => (track.Name, $"{track.Album} (Expanded Edition)"),
+        };
 
         /// <summary>
         /// How likely each artist is to come on, on a given day: nothing before they were
@@ -390,6 +413,8 @@ public static class SampleHistory
                     Albums = albums,
                     Tracks = all,
                     TrackWeights = ranks.Select(r => 1 / Math.Pow(r + 1, HitFalloff)).ToArray(),
+                    ReissuedAlbum = i < ReissueArtists && i % ReissueEvery == 1 ? albums[0][0].Album : null,
+                    ReissueKind = i / ReissueEvery % 3,
                 });
             }
             return artists;

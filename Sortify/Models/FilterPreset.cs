@@ -13,6 +13,10 @@ public sealed class FilterPreset
 
     public int MinSeconds { get; set; } = FilterOptions.DefaultMinMs / 1000;
     public bool IncludePodcasts { get; set; }
+
+    /// <summary>Remasters and deluxe editions counted with the original release.</summary>
+    public bool CombineReleases { get; set; }
+
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
     public string SearchTerm { get; set; } = string.Empty;
@@ -76,6 +80,7 @@ public sealed class FilterPreset
     public bool SameFiltersAs(FilterPreset other) =>
         MinSeconds == other.MinSeconds &&
         IncludePodcasts == other.IncludePodcasts &&
+        CombineReleases == other.CombineReleases &&
         StartDate == other.StartDate &&
         EndDate == other.EndDate &&
         SearchTerm == other.SearchTerm &&

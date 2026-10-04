@@ -126,6 +126,10 @@
                           IsChecked="{Binding IncludePodcasts}" />
                 <TextBlock Style="{StaticResource Hint}"
                            Text="Off by default so shows don't outrank your music. The Podcasts tab always shows them." />
+                <CheckBox Content="Combine remasters and deluxe editions" Margin="0,10,0,0"
+                          IsChecked="{Binding CombineReleases}" />
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Counts &quot;Song - 2011 Remaster&quot; as &quot;Song&quot; and &quot;Album (Deluxe Edition)&quot; as &quot;Album&quot;. Live versions, remixes and other edits stay apart." />
 
                 <!-- Date range -->
                 <TextBlock Text="DATE RANGE" Style="{StaticResource SectionHeader}" />

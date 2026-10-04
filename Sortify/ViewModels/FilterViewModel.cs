@@ -30,6 +30,10 @@ public sealed partial class FilterViewModel : ObservableObject
 
     [ObservableProperty] private int _minSeconds = FilterOptions.DefaultMinMs / 1000;
     [ObservableProperty] private bool _includePodcasts;
+
+    /// <summary>Counts remasters and deluxe editions with the original release. The main view model swaps the plays every view reads.</summary>
+    [ObservableProperty] private bool _combineReleases;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasInvalidDateRange))]
     private DateTime? _startDate;
@@ -151,6 +155,7 @@ public sealed partial class FilterViewModel : ObservableObject
 
     partial void OnMinSecondsChanged(int value) => Raise();
     partial void OnIncludePodcastsChanged(bool value) => Raise();
+    partial void OnCombineReleasesChanged(bool value) => Raise();
     partial void OnStartDateChanged(DateTime? value)
     {
         RefreshQuickRanges();
@@ -234,6 +239,7 @@ public sealed partial class FilterViewModel : ObservableObject
         Name = name,
         MinSeconds = MinSeconds,
         IncludePodcasts = IncludePodcasts,
+        CombineReleases = CombineReleases,
         StartDate = StartDate?.Date,
         EndDate = EndDate?.Date,
         SearchTerm = SearchTerm ?? string.Empty,
@@ -260,6 +266,7 @@ public sealed partial class FilterViewModel : ObservableObject
     {
         MinSeconds = MinSeconds,
         IncludePodcasts = IncludePodcasts,
+        CombineReleases = CombineReleases,
         ExcludedArtists = ExcludedArtists.ToList(),
         ExcludedTracks = ExcludedTracks.ToList(),
         Private = PrivateMode,
@@ -275,6 +282,7 @@ public sealed partial class FilterViewModel : ObservableObject
         {
             MinSeconds = Math.Max(0, preset.MinSeconds);
             IncludePodcasts = preset.IncludePodcasts;
+            CombineReleases = preset.CombineReleases;
             StartDate = preset.StartDate;
             EndDate = preset.EndDate;
             SearchTerm = preset.SearchTerm ?? string.Empty;
@@ -499,6 +507,9 @@ public sealed partial class FilterViewModel : ObservableObject
 
         if (IncludePodcasts)
             yield return new FilterChip("Podcasts counted", "Stop counting podcasts", () => IncludePodcasts = false);
+
+        if (CombineReleases)
+            yield return new FilterChip("Re-releases combined", "Count remasters and deluxe editions on their own again", () => CombineReleases = false);
 
         string? range = (StartDate, EndDate) switch
         {
@@ -793,6 +804,7 @@ public sealed partial class FilterViewModel : ObservableObject
     {
         MinSeconds = FilterOptions.DefaultMinMs / 1000;
         IncludePodcasts = false;
+        CombineReleases = false;
         StartDate = null;
         EndDate = null;
         SearchTerm = string.Empty;

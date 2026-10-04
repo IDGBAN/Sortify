@@ -31,6 +31,28 @@ public sealed class PlayRecord
     /// </summary>
     internal void SetLocalTime(DateTime local) => _timestamp = local;
 
+    /// <summary>A copy of this play under other track and album names, for folding re-releases together.</summary>
+    internal PlayRecord WithNames(string trackName, string albumName) => new()
+    {
+        TrackName = trackName,
+        ArtistName = ArtistName,
+        AlbumName = albumName,
+        MsPlayed = MsPlayed,
+        Timestamp = Timestamp,
+        ReasonEnd = ReasonEnd,
+        Skipped = Skipped,
+        Kind = Kind,
+        ShowName = ShowName,
+        EpisodeName = EpisodeName,
+        Uri = Uri,
+        Platform = Platform,
+        Country = Country,
+        Shuffle = Shuffle,
+        Offline = Offline,
+        Incognito = Incognito,
+        HasPlaybackFlags = HasPlaybackFlags,
+    };
+
     /// <summary>Spotify "reason_end" (e.g. "trackdone", "fwdbtn", "endplay").</summary>
     public string? ReasonEnd { get; init; }
 
