@@ -34,13 +34,13 @@
             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Trend}" Value="Up">
-                    <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Trend}" Value="Down">
                     <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Trend}" Value="New">
-                    <Setter Property="Foreground" Value="{DynamicResource Accent2Brush}" />
+                    <Setter Property="Foreground" Value="{DynamicResource Accent2TextBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -54,7 +54,7 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0" Text="{Binding Rank}" FontWeight="Bold" FontSize="13"
-                           Foreground="{DynamicResource AccentBrush}" VerticalAlignment="Center" />
+                           Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
                 <StackPanel Grid.Column="1" Margin="4,0,8,0">
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" />
                     <TextBlock Text="{Binding Secondary}" FontSize="11"

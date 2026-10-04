@@ -43,6 +43,7 @@ public class UiSmokeTests
         {
             "BgBrush", "PanelBrush", "PanelBrush2", "HoverBrush", "BorderBrush", "ScrollThumbBrush",
             "AccentBrush", "AccentHoverBrush", "Accent2Brush", "DangerBrush",
+            "AccentTextBrush", "Accent2TextBrush",
             "TextBrush", "MutedBrush", "OnAccentBrush", "SelectionBrush",
         };
 

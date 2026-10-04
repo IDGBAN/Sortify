@@ -88,12 +88,14 @@
 
     <!-- Links inside text, such as the artist under a track's title. -->
     <Style TargetType="Hyperlink">
-        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
         <Setter Property="TextDecorations" Value="Underline" />
         <Setter Property="Cursor" Value="Hand" />
         <Style.Triggers>
+            <!-- To the body colour rather than a brighter green, which on white would be too
+                 faint to read. -->
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource AccentHoverBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
                 <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
@@ -851,7 +853,7 @@
         <Setter Property="FontSize" Value="11" />
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+                <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
                 <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                 <Setter Property="FontWeight" Value="SemiBold" />
             </DataTrigger>
