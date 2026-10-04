@@ -30,11 +30,12 @@ public static class RecordCache
     /// <summary>
     /// Fingerprints the source files. Two runs over an unchanged export produce the same
     /// key; any change to the file set, a file's length or its write time produces a
-    /// different one. The local time zone is part of it too, because the cached timestamps
-    /// were already converted to local time when the export was parsed. A file inside a ZIP
-    /// is fingerprinted by the archive it came from plus its name within it.
+    /// different one. How times were converted is part of it too (the local time zone, or the
+    /// country setting), because the cached timestamps were already converted to local time
+    /// when the export was parsed. A file inside a ZIP is fingerprinted by the archive it came
+    /// from plus its name within it.
     /// </summary>
-    internal static string BuildKey(IEnumerable<string> filePaths)
+    internal static string BuildKey(IEnumerable<string> filePaths, PlayTimeZones? timeZones = null)
     {
         var parts = filePaths
             .Select(p =>
@@ -52,7 +53,7 @@ public static class RecordCache
                 return $"{info.FullName.ToLowerInvariant()}|{length}|{ticks}{entry}";
             })
             .OrderBy(s => s, StringComparer.Ordinal)
-            .Prepend($"tz|{TimeZoneInfo.Local.Id}");
+            .Prepend($"tz|{(timeZones ?? PlayTimeZones.ThisPc).CacheKey}");
 
         var joined = string.Join("\n", parts);
         var hash = System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(joined));
@@ -64,8 +65,9 @@ public static class RecordCache
     /// Any failure - missing, truncated, stale or unreadable - is treated as a miss, since
     /// re-parsing is always a correct fallback.
     /// </summary>
-    public static IReadOnlyList<PlayRecord>? TryLoad(IEnumerable<string> filePaths)
+    public static IReadOnlyList<PlayRecord>? TryLoad(IEnumerable<string> filePaths, PlayTimeZones? timeZones = null)
     {
+        timeZones ??= PlayTimeZones.ThisPc;
         try
         {
             if (!File.Exists(CacheFile))
@@ -80,7 +82,7 @@ public static class RecordCache
                 return null;
             if (reader.ReadInt32() != FormatVersion)
                 return null;
-            if (!string.Equals(reader.ReadString(), BuildKey(filePaths), StringComparison.Ordinal))
+            if (!string.Equals(reader.ReadString(), BuildKey(filePaths, timeZones), StringComparison.Ordinal))
                 return null;
 
             int count = reader.ReadInt32();
@@ -106,7 +108,7 @@ public static class RecordCache
                     ArtistName = reader.ReadString(),
                     AlbumName = reader.ReadString(),
                     MsPlayed = reader.ReadInt32(),
-                    Timestamp = ReadTimestamp(reader),
+                    Timestamp = ReadTimestamp(reader, timeZones.Kind),
                     ReasonEnd = reader.ReadBoolean() ? reader.ReadString() : null,
                     Skipped = reader.ReadBoolean(),
                     Kind = ReadKind(reader),
@@ -135,16 +137,16 @@ public static class RecordCache
     }
 
     /// <summary>
-    /// The parser hands out local-time timestamps, and DateTime.MinValue for rows with none. Ticks
-    /// alone lose that Kind, which would make a cached load serialize dates differently
-    /// (no UTC offset) from a fresh parse of the same export.
+    /// The parser hands out local-time timestamps, of the kind <see cref="PlayTimeZones.Kind"/>
+    /// says, and DateTime.MinValue for rows with none. Ticks alone lose that Kind, which would
+    /// make a cached load serialize dates differently from a fresh parse of the same export.
     /// </summary>
-    private static DateTime ReadTimestamp(BinaryReader reader)
+    private static DateTime ReadTimestamp(BinaryReader reader, DateTimeKind kind)
     {
         long ticks = reader.ReadInt64();
         return ticks == DateTime.MinValue.Ticks
             ? DateTime.MinValue
-            : new DateTime(ticks, DateTimeKind.Local);
+            : new DateTime(ticks, kind);
     }
 
     private static ContentKind ReadKind(BinaryReader reader)
@@ -157,7 +159,7 @@ public static class RecordCache
     /// Writes the cache for these files. Best-effort: a failure here costs nothing but the
     /// speed-up next time, so it is swallowed.
     /// </summary>
-    public static void TrySave(IEnumerable<string> filePaths, IReadOnlyList<PlayRecord> records)
+    public static void TrySave(IEnumerable<string> filePaths, IReadOnlyList<PlayRecord> records, PlayTimeZones? timeZones = null)
     {
         var temp = CacheFile + ".tmp";
         try
@@ -172,7 +174,7 @@ public static class RecordCache
             {
                 writer.Write(Magic);
                 writer.Write(FormatVersion);
-                writer.Write(BuildKey(filePaths));
+                writer.Write(BuildKey(filePaths, timeZones));
                 writer.Write(records.Count);
 
                 var indexOf = new Dictionary<string, int>(StringComparer.Ordinal);

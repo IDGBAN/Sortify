@@ -16,11 +16,13 @@ namespace Sortify.ViewModels;
 public sealed partial class CompareViewModel : ObservableObject
 {
     /// <summary>
-    /// What a comparison runs over: the plays, the sidebar filters, the session gap, and the
-    /// files the plays were read from, so the same export can't be opened as someone else's.
+    /// What a comparison runs over: the plays, the sidebar filters, the session gap, the
+    /// files the plays were read from (so the same export can't be opened as someone else's)
+    /// and how play times are converted, which someone else's export is read with too.
     /// </summary>
     public readonly record struct Source(
-        IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap, IReadOnlyList<string>? Files = null);
+        IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap,
+        IReadOnlyList<string>? Files = null, PlayTimeZones? TimeZones = null);
 
     private readonly Func<Source?> _source;
     private CancellationTokenSource? _cts;
@@ -30,6 +32,12 @@ public sealed partial class CompareViewModel : ObservableObject
     /// <summary>Someone else's plays, held for the session and never cached or saved.</summary>
     private List<PlayRecord>? _other;
     private CancellationTokenSource? _otherCts;
+
+    // Where their plays came from and how their times were converted, to read them again
+    // when the time zone setting changes.
+    private Func<IReadOnlyList<string>>? _otherFiles;
+    private string _otherName = string.Empty;
+    private string? _otherTimeZones;
 
     public CompareViewModel(Func<Source?> source) => _source = source;
 
@@ -396,7 +404,8 @@ public sealed partial class CompareViewModel : ObservableObject
                 OtherProgress = p.Percent;
                 OtherStatus = p.Message;
             });
-            var parsed = await new HistoryParser().ParseAsync(files, progress, token);
+            var timeZones = _source()?.TimeZones;
+            var parsed = await new HistoryParser(timeZones).ParseAsync(files, progress, token);
             token.ThrowIfCancellationRequested();
             if (parsed.Records.Count == 0)
             {
@@ -407,6 +416,9 @@ public sealed partial class CompareViewModel : ObservableObject
             }
 
             _other = parsed.Records;
+            _otherFiles = findFiles;
+            _otherName = name;
+            _otherTimeZones = (timeZones ?? PlayTimeZones.ThisPc).CacheKey;
             OtherSummary = Summarise(parsed.Records, name);
             HasOther = true;
             Invalidate();
@@ -425,6 +437,15 @@ public sealed partial class CompareViewModel : ObservableObject
     [RelayCommand(CanExecute = nameof(IsLoadingOther))]
     private void CancelOther() => _otherCts?.Cancel();
 
+    /// <summary>Reads their export again if play times are now converted differently from when it was read.</summary>
+    public Task ReadOtherAgainIfTimesChangedAsync()
+    {
+        string now = (_source()?.TimeZones ?? PlayTimeZones.ThisPc).CacheKey;
+        return HasOther && _otherFiles is { } files && now != _otherTimeZones
+            ? LoadOtherAsync(files, _otherName)
+            : Task.CompletedTask;
+    }
+
     /// <summary>Forgets the other history, which frees its memory.</summary>
     [RelayCommand]
     private void CloseOther()
@@ -432,6 +453,7 @@ public sealed partial class CompareViewModel : ObservableObject
         _otherCts?.Cancel();
         _cts?.Cancel();
         _other = null;
+        _otherFiles = null;
         HasOther = false;
         OtherSummary = string.Empty;
         Message = string.Empty;

@@ -38,6 +38,16 @@ public sealed class AppSettings
     public int SessionGapMinutes { get; set; } = 30;
 
     /// <summary>
+    /// Shows each play in the time zone of the country it was streamed from rather than this
+    /// PC's. Plays from a country with several zones, or with no country, use
+    /// <see cref="FallbackTimeZoneId"/>.
+    /// </summary>
+    public bool FollowCountryTimeZones { get; set; }
+
+    /// <summary>The zone for plays whose country doesn't settle it, by Windows id. Null for this PC's.</summary>
+    public string? FallbackTimeZoneId { get; set; }
+
+    /// <summary>
     /// The filters carried over to the next launch. Only the ones that describe what the
     /// user never wants counted (exclusions, the minimum duration, podcasts, private
     /// sessions, devices and countries left out) are kept here; a date range or a search
@@ -183,6 +193,8 @@ public sealed class AppSettings
         LastTabIndex = Math.Max(0, LastTabIndex);
         if (!Weeks.Starts.Contains(FirstDayOfWeek))
             FirstDayOfWeek = DayOfWeek.Sunday;
+        if (PlayTimeZones.Find(FallbackTimeZoneId) is null)
+            FallbackTimeZoneId = null;
 
         Filters?.Normalize();
         FilterPresets = (FilterPresets ?? new List<FilterPreset>())

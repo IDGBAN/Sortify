@@ -37,6 +37,12 @@ public partial class SettingsWindow : ThemedWindow
         GapSlider.Maximum = AppSettings.MaxSessionGapMinutes;
         GapSlider.Value = _settings.SessionGapMinutes;
         GapValue.Text = _settings.SessionGapMinutes.ToString();
+        FollowCountryBox.IsChecked = _settings.FollowCountryTimeZones;
+        var zones = TimeZoneInfo.GetSystemTimeZones();
+        string fallback = _settings.FallbackTimeZoneId ?? TimeZoneInfo.Local.Id;
+        FallbackZoneBox.ItemsSource = zones;
+        FallbackZoneBox.SelectedItem = zones.FirstOrDefault(z => z.Id == fallback)
+                                       ?? zones.FirstOrDefault(z => z.Id == TimeZoneInfo.Local.Id);
 
         FolderText.Text = AppPaths.DataDirectory;
         VersionText.Text = $"Sortify {Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?"}";
@@ -76,6 +82,25 @@ public partial class SettingsWindow : ThemedWindow
             return;
 
         _settings.FirstDayOfWeek = day;
+        _settings.Save();
+        NeedsRefresh = true;
+    }
+
+    private void OnFollowCountryChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _settings.FollowCountryTimeZones = FollowCountryBox.IsChecked == true;
+        _settings.Save();
+        NeedsRefresh = true;
+    }
+
+    private void OnFallbackZoneChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || FallbackZoneBox.SelectedItem is not TimeZoneInfo zone)
+            return;
+
+        // This PC's own zone is kept as no choice at all, so it moves with the PC.
+        _settings.FallbackTimeZoneId = zone.Id == TimeZoneInfo.Local.Id ? null : zone.Id;
         _settings.Save();
         NeedsRefresh = true;
     }

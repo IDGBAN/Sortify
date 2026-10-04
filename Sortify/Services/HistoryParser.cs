@@ -36,6 +36,11 @@ public sealed class HistoryParser
         PropertyNameCaseInsensitive = true,
     };
 
+    private readonly PlayTimeZones _timeZones;
+
+    /// <param name="timeZones">How UTC play times become local ones; this PC's zone when null.</param>
+    public HistoryParser(PlayTimeZones? timeZones = null) => _timeZones = timeZones ?? PlayTimeZones.ThisPc;
+
     /// <summary>
     /// Finds Spotify history JSON files under <paramref name="folder"/> (recursively), or
     /// inside it when it is the ZIP Spotify sends. Prefers files matching Spotify's export
@@ -150,6 +155,15 @@ public sealed class HistoryParser
         cancellationToken.ThrowIfCancellationRequested();
         result.Records.AddRange(OverlapFilter.Merge(sources, out int removed));
         result.DuplicatesRemoved = removed;
+
+        // Duplicates were matched on UTC above. Converting only now means a play held by both
+        // export formats can't slip past the match by landing in two different zones: the
+        // older format records no country, so it can be converted differently.
+        foreach (var record in result.Records)
+        {
+            if (record.Timestamp != DateTime.MinValue)
+                record.SetLocalTime(_timeZones.ToLocal(record.Timestamp, record.Country));
+        }
         return result;
     }
 
@@ -273,20 +287,21 @@ public sealed class HistoryParser
 
         long ms = entry.MsPlayed != 0 ? entry.MsPlayed : entry.LegacyMsPlayed ?? 0;
 
-        // Spotify timestamps are UTC; convert to local time so hour-of-day and
-        // day-of-week charts and filters reflect the user's clock, not UTC.
+        // Spotify timestamps are UTC. They stay UTC until the files are merged, and then
+        // become local time so hour-of-day and day-of-week charts and filters reflect the
+        // listener's clock rather than UTC.
         DateTime timestamp = DateTime.MinValue;
         if (!string.IsNullOrEmpty(entry.Ts) &&
             DateTime.TryParse(entry.Ts, CultureInfo.InvariantCulture,
                 DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
         {
-            timestamp = parsed.ToLocalTime();
+            timestamp = parsed;
         }
         else if (!string.IsNullOrEmpty(entry.LegacyEndTime) &&
                  DateTime.TryParseExact(entry.LegacyEndTime, "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture,
                      DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var legacyParsed))
         {
-            timestamp = legacyParsed.ToLocalTime();
+            timestamp = legacyParsed;
         }
 
         return new PlayRecord

@@ -14,7 +14,8 @@ namespace Sortify.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private readonly HistoryParser _parser = new();
+    /// <summary>How the loaded export's play times were converted, so a change in the setting can read it again.</summary>
+    private string? _loadedTimeZones;
     private readonly AppSettings _settings;
     private readonly DispatcherTimer _debounce;
     private List<PlayRecord> _rawRecords = new();
@@ -247,7 +248,8 @@ public sealed partial class MainViewModel : ObservableObject
             ? new HistoryViewModel.Source(_rawRecords, _resultOptions ?? Filters.ToOptions())
             : null);
         Compare = new CompareViewModel(() => HasData
-            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap, _loadedFiles)
+            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
+                PlayTimeZones.From(_settings))
             : null);
         SidebarVisible = _settings.SidebarVisible;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
@@ -503,12 +505,14 @@ public sealed partial class MainViewModel : ObservableObject
 
             // Re-reading an unchanged export is the common case (relaunching the app, or
             // reopening the same folder), and parsing it again costs seconds for nothing.
+            var timeZones = PlayTimeZones.From(_settings);
             SetStatus("Checking for cached results...");
-            var cached = await Task.Run(() => RecordCache.TryLoad(filePaths), token);
+            var cached = await Task.Run(() => RecordCache.TryLoad(filePaths, timeZones), token);
             token.ThrowIfCancellationRequested();
             if (cached is { Count: > 0 })
             {
                 AdoptHistory(cached.ToList(), filePaths, folder);
+                _loadedTimeZones = timeZones.CacheKey;
                 SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
                 await RecomputeAsync();
                 return;
@@ -522,7 +526,7 @@ public sealed partial class MainViewModel : ObservableObject
                 StatusIsError = false;
             });
 
-            var parsed = await _parser.ParseAsync(filePaths, progress, token);
+            var parsed = await new HistoryParser(timeZones).ParseAsync(filePaths, progress, token);
             if (parsed.Records.Count == 0)
             {
                 // A stray file dropped on the window shouldn't take away the history already open.
@@ -534,6 +538,7 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             AdoptHistory(parsed.Records, filePaths, folder);
+            _loadedTimeZones = timeZones.CacheKey;
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
             IsProgressIndeterminate = true;
@@ -549,7 +554,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             // Save after analysis so the user isn't waiting on disk I/O to see results.
             var toCache = _rawRecords;
-            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache), CancellationToken.None);
+            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache, timeZones), CancellationToken.None);
         }
         catch (OperationCanceledException)
         {
@@ -688,6 +693,17 @@ public sealed partial class MainViewModel : ObservableObject
         Filters.SetFirstDayOfWeek(_settings.FirstDayOfWeek);
         RefreshActiveFilters();
         RefreshRecentFolders();
+        _ = Compare.ReadOtherAgainIfTimesChangedAsync();
+
+        // Play times are converted as an export is read, so a new time zone setting means
+        // reading it again. The sample's times are made up in local time to begin with.
+        if (HasData && !IsSample && _loadedFiles.Count > 0 &&
+            PlayTimeZones.From(_settings).CacheKey != _loadedTimeZones)
+        {
+            await LoadFilesAsync(_loadedFiles, _loadedFolder);
+            return;
+        }
+
         if (HasData)
             await RecomputeAsync();
     }

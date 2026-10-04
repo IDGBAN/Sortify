@@ -21,7 +21,15 @@ public sealed class PlayRecord
     public int MsPlayed { get; init; }
 
     /// <summary>Local-time timestamp the play ended (Spotify "ts" field, converted from UTC).</summary>
-    public DateTime Timestamp { get; init; }
+    public DateTime Timestamp { get => _timestamp; init => _timestamp = value; }
+
+    private DateTime _timestamp;
+
+    /// <summary>
+    /// Moves a freshly parsed play from UTC to local time. The parser matches duplicates on
+    /// the UTC times and converts afterwards, which saves copying every record to change one field.
+    /// </summary>
+    internal void SetLocalTime(DateTime local) => _timestamp = local;
 
     /// <summary>Spotify "reason_end" (e.g. "trackdone", "fwdbtn", "endplay").</summary>
     public string? ReasonEnd { get; init; }
