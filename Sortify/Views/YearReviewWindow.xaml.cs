@@ -7,7 +7,7 @@ using Sortify.Services;
 
 namespace Sortify.Views;
 
-/// <summary>Previews a year-in-review card and saves or copies it as an image.</summary>
+/// <summary>Previews a summary card and saves or copies it as an image.</summary>
 public partial class YearReviewWindow : ThemedWindow
 {
     private readonly YearReview _review;
@@ -17,13 +17,13 @@ public partial class YearReviewWindow : ThemedWindow
     {
         InitializeComponent();
         _review = review;
-        Title = $"{review.Year} in Review";
+        Title = $"{review.Range.Title} in Review";
 
         if (review.Plays == 0)
         {
             Preview.Visibility = Visibility.Collapsed;
             EmptyText.Visibility = Visibility.Visible;
-            EmptyText.Text = $"There are no plays in {review.Year} under the current filters, so there's nothing to put on a card.";
+            EmptyText.Text = $"There are no plays {review.Range.Phrase} under the current filters, so there's nothing to put on a card.";
             SaveButton.IsEnabled = false;
             CopyButton.IsEnabled = false;
             return;
@@ -42,7 +42,7 @@ public partial class YearReviewWindow : ThemedWindow
         {
             Filter = "PNG images (*.png)|*.png",
             DefaultExt = ".png",
-            FileName = $"Sortify_{_review.Year}_in_review.png",
+            FileName = _review.Range.FileStem + ".png",
         };
         if (dialog.ShowDialog(this) != true)
             return;

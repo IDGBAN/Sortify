@@ -151,7 +151,7 @@ public class YearReviewViewTests
     {
         WpfTestHost.Run(() =>
         {
-            var window = new YearReviewWindow(new YearReview { Year = 2019 });
+            var window = new YearReviewWindow(new YearReview { Range = CardRange.ForYear(2019) });
 
             Assert.False(((System.Windows.Controls.Button)window.FindName("SaveButton")).IsEnabled);
             Assert.Contains("no plays in 2019", ((System.Windows.Controls.TextBlock)window.FindName("EmptyText")).Text);

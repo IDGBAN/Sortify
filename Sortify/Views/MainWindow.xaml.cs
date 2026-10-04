@@ -686,11 +686,17 @@ public partial class MainWindow : ThemedWindow
             await ShowYearReviewAsync(y.Year, this);
     }
 
-    /// <summary>True while a year-in-review card is being worked out.</summary>
+    private async void OnSummaryCard(object sender, RoutedEventArgs e) =>
+        await ShowReviewAsync(vm => vm.BuildSummaryCardAsync(), this);
+
+    /// <summary>True while a summary card is being worked out.</summary>
     private bool _buildingReview;
 
     /// <summary>Works out a year's card and previews it over <paramref name="owner"/>.</summary>
-    private async Task ShowYearReviewAsync(int year, Window owner)
+    private Task ShowYearReviewAsync(int year, Window owner) =>
+        ShowReviewAsync(vm => vm.BuildYearReviewAsync(year), owner);
+
+    private async Task ShowReviewAsync(Func<MainViewModel, Task<YearReview?>> build, Window owner)
     {
         if (_buildingReview || ViewModel is not { } vm)
             return;
@@ -700,7 +706,7 @@ public partial class MainWindow : ThemedWindow
         Mouse.OverrideCursor = Cursors.AppStarting;
         try
         {
-            review = await vm.BuildYearReviewAsync(year);
+            review = await build(vm);
         }
         finally
         {

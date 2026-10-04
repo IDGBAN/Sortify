@@ -141,6 +141,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uniqueTracksText = "-";
     [ObservableProperty] private string _dateRangeText = "-";
 
+    /// <summary>The Overview's card button, naming what the card would cover: "Summary card for March 2024".</summary>
+    [ObservableProperty] private string _summaryCardText = "Summary card";
+
     // Insights ------------------------------------------------------------------------------
     [ObservableProperty] private string _longestStreakText = "-";
     [ObservableProperty] private string _currentStreakText = "-";
@@ -783,9 +786,31 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasData || _rawRecords.Count == 0)
             return null;
 
+        return await YearReviewBuilder.BuildAsync(_rawRecords, Filters.ToOptions(), year, CardFilterNote(), _settings.SessionGap);
+    }
+
+    /// <summary>
+    /// Works out the summary card for the dates set in the sidebar, or for the whole history
+    /// when none are, under the other filters. Null when there is nothing loaded.
+    /// </summary>
+    public async Task<YearReview?> BuildSummaryCardAsync()
+    {
+        if (!HasData || _rawRecords.Count == 0)
+            return null;
+
+        var options = Filters.ToOptions();
+        return await YearReviewBuilder.BuildForDatesAsync(_rawRecords, options, options.StartDate, options.EndDate,
+            CardFilterNote(), _settings.SessionGap, _settings.FirstDayOfWeek);
+    }
+
+    /// <summary>Whether there is anything to put on a summary card.</summary>
+    public bool CanMakeSummaryCard => CanExport();
+
+    // Dates are left out: the card's heading already says which days it covers.
+    private string CardFilterNote()
+    {
         var others = Filters.Describe(includeDates: false).ToList();
-        string note = others.Count == 0 ? string.Empty : "Filtered: " + string.Join("; ", others);
-        return await YearReviewBuilder.BuildAsync(_rawRecords, Filters.ToOptions(), year, note, _settings.SessionGap);
+        return others.Count == 0 ? string.Empty : "Filtered: " + string.Join("; ", others);
     }
 
     // ---- Analysis --------------------------------------------------------------------------
@@ -1255,6 +1280,17 @@ public sealed partial class MainViewModel : ObservableObject
         DateRangeText = _result.FirstListen is { } f && _result.LastListen is { } l
             ? $"{TimeFormat.Timestamp(f)}  to  {TimeFormat.Timestamp(l)}"
             : "-";
+
+        var options = _resultOptions ?? Filters.ToOptions();
+        var range = _result.TotalPlays == 0
+            ? null
+            : CardRange.For(options.StartDate, options.EndDate, _result.FirstListen, _result.LastListen);
+        SummaryCardText = range switch
+        {
+            null => "Summary card",
+            { AllTime: true } => "Summary card for all time",
+            _ => $"Summary card for {range.Title}",
+        };
     }
 
     private void UpdateInsights()
@@ -1620,6 +1656,7 @@ public sealed partial class MainViewModel : ObservableObject
         ExportYearsCsvCommand.NotifyCanExecuteChanged();
         ExportShowsCsvCommand.NotifyCanExecuteChanged();
         ExportPlaysCsvCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanMakeSummaryCard));
     }
 
     /// <summary>Sets the status line, and whether it should be shown as a problem.</summary>

@@ -217,6 +217,9 @@
                         <MenuItem Header="Shows as CSV..." Command="{Binding ExportShowsCsvCommand}" />
                         <Separator />
                         <MenuItem Header="Every play as CSV..." Command="{Binding ExportPlaysCsvCommand}" />
+                        <Separator />
+                        <MenuItem Header="Summary card image..." Click="OnSummaryCard"
+                                  IsEnabled="{Binding CanMakeSummaryCard}" />
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
@@ -383,6 +386,11 @@
                     <TabItem Header="Overview">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
+                                <Button HorizontalAlignment="Right" Margin="0,8,6,0" Click="OnSummaryCard"
+                                        Content="{Binding SummaryCardText}"
+                                        IsEnabled="{Binding CanMakeSummaryCard}"
+                                        AutomationProperties.Name="{Binding SummaryCardText}"
+                                        ToolTip="A 1080 by 1350 image of your listening to save or share. It covers the dates set in the sidebar, or your whole history when none are set." />
                                 <UniformGrid Columns="5" Margin="0,6,0,0">
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
