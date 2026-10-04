@@ -52,27 +52,6 @@ public static class ChartBuilder
     private const double ArtistDonutInnerRadius = 75;
     private const double ContextDonutInnerRadius = 60;
 
-    /// <summary>Friendly display names for Spotify "reason_end" codes.</summary>
-    private static readonly Dictionary<string, string> ReasonLabels = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["trackdone"] = "Track finished",
-        ["fwdbtn"] = "Skipped (next)",
-        ["backbtn"] = "Back button",
-        ["endplay"] = "Playback stopped",
-        ["logout"] = "Logged out",
-        ["trackerror"] = "Track error",
-        ["remote"] = "Remote control",
-        ["appload"] = "App reloaded",
-        ["popup"] = "Popup",
-        ["uriopen"] = "Opened elsewhere",
-        ["clickrow"] = "Picked another track",
-        ["playbtn"] = "Play button",
-        ["clickside"] = "Sidebar click",
-        ["unexpected-exit"] = "App exited",
-        ["unexpected-exit-while-paused"] = "Exited while paused",
-        ["unknown"] = "Unknown",
-    };
-
     private static SolidColorPaint Label() => new(ChartPalette.Text);
 
     internal static string ShortLabel(string s, int max = LabelMaxChars)
@@ -510,10 +489,7 @@ public static class ChartBuilder
         int i = 0;
         foreach (var reason in r.ReasonEnds.Take(ReasonSlices))
         {
-            string label = ReasonLabels.TryGetValue(reason.Reason, out var friendly)
-                ? friendly
-                : reason.Reason;
-            AddCountSlice(series, label, reason.Count, total, Category(i));
+            AddCountSlice(series, EndReasons.Label(reason.Reason), reason.Count, total, Category(i));
             i++;
         }
 

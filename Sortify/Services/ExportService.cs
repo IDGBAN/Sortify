@@ -212,6 +212,52 @@ public static class ExportService
         await File.WriteAllTextAsync(path, sb.ToString(), Encoding.UTF8).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Every play as one CSV row: the export cleaned up, with duplicates already dropped and
+    /// times in local time. Written as a stream, since a long history runs to tens of megabytes.
+    /// The shuffle, offline and private cells are left empty for plays the export didn't record
+    /// them for, rather than claiming false.
+    /// </summary>
+    public static Task SavePlaysCsvAsync(string path, IEnumerable<PlayRecord> plays) => Task.Run(() =>
+    {
+        using var writer = new StreamWriter(path, append: false, Encoding.UTF8, 64 * 1024);
+        writer.WriteLine("Ended,Kind,Track,Artist,Album,Show,Episode,MsPlayed,ReasonEnd,Skipped,Device,Platform,Country,Shuffle,Offline,Private,SpotifyUri");
+
+        var families = new Dictionary<string, string>(StringComparer.Ordinal) { [string.Empty] = string.Empty };
+        var line = new StringBuilder(256);
+        foreach (var r in plays)
+        {
+            if (!families.TryGetValue(r.Platform, out var family))
+            {
+                family = AnalysisEngine.PlatformFamily(r.Platform);
+                families[r.Platform] = family;
+            }
+
+            bool music = r.Kind == ContentKind.Music;
+            line.Clear()
+                .Append(r.Timestamp == DateTime.MinValue ? string.Empty : r.Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)).Append(',')
+                .Append(r.Kind).Append(',')
+                .Append(music ? Csv(r.TrackName) : string.Empty).Append(',')
+                .Append(music ? Csv(r.ArtistName) : string.Empty).Append(',')
+                .Append(music ? Csv(r.AlbumName) : string.Empty).Append(',')
+                .Append(Csv(r.ShowName)).Append(',')
+                .Append(Csv(r.EpisodeName)).Append(',')
+                .Append(r.MsPlayed).Append(',')
+                .Append(Csv(r.ReasonEnd ?? string.Empty)).Append(',')
+                .Append(r.Skipped ? "true" : "false").Append(',')
+                .Append(Csv(family)).Append(',')
+                .Append(Csv(r.Platform)).Append(',')
+                .Append(r.Country).Append(',')
+                .Append(Flag(r.HasPlaybackFlags, r.Shuffle)).Append(',')
+                .Append(Flag(r.HasPlaybackFlags, r.Offline)).Append(',')
+                .Append(Flag(r.HasPlaybackFlags, r.Incognito)).Append(',')
+                .Append(Csv(r.Uri));
+            writer.WriteLine(line);
+        }
+
+        static string Flag(bool recorded, bool value) => !recorded ? string.Empty : value ? "true" : "false";
+    });
+
     // ---- Markdown ------------------------------------------------------------------------
 
     /// <summary>

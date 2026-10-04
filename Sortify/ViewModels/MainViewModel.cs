@@ -22,6 +22,10 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The filters <see cref="_result"/> was computed under, as the chip row words them.</summary>
     private IReadOnlyList<string> _resultFilters = Array.Empty<string>();
+
+    /// <summary>The filters <see cref="_result"/> was computed under, for views that list its plays.</summary>
+    private FilterOptions? _resultOptions;
+
     private CancellationTokenSource? _analysisCts;
     private CancellationTokenSource? _loadCts;
     private ChartBuilder.TimeGranularity _overTimeGranularity = ChartBuilder.TimeGranularity.Daily;
@@ -42,6 +46,9 @@ public sealed partial class MainViewModel : ObservableObject
 
     /// <summary>The Compare tab.</summary>
     public CompareViewModel Compare { get; }
+
+    /// <summary>The History tab.</summary>
+    public HistoryViewModel History { get; }
 
     // Grid item sources. Swapped wholesale after each analysis pass instead of using
     // ObservableCollections: repopulating tens of thousands of rows item-by-item raises
@@ -211,6 +218,9 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = settings ?? AppSettings.Load();
         _settings.PruneMissingFolders();
+        History = new HistoryViewModel(() => HasData
+            ? new HistoryViewModel.Source(_rawRecords, _resultOptions ?? Filters.ToOptions())
+            : null);
         Compare = new CompareViewModel(() => HasData
             ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap)
             : null);
@@ -793,6 +803,7 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             _result = result;
             _resultFilters = described;
+            _resultOptions = options;
 
             UpdateCollections();
             UpdateSummary();
@@ -812,6 +823,7 @@ public sealed partial class MainViewModel : ObservableObject
             SeedComparison();
             RefreshCompareSuggestions();
             Compare.Invalidate();
+            History.Invalidate();
             await RefreshArtistTimelineAsync();
         }
         finally
@@ -1446,6 +1458,11 @@ public sealed partial class MainViewModel : ObservableObject
         ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_years",
             path => ExportService.SaveYearsCsvAsync(path, _result));
 
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private Task ExportPlaysCsvAsync() =>
+        ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_plays",
+            path => ExportService.SavePlaysCsvAsync(path, FilterEngine.Apply(_rawRecords, _resultOptions ?? Filters.ToOptions())));
+
     [RelayCommand(CanExecute = nameof(CanExportPodcasts))]
     private Task ExportShowsCsvAsync() =>
         ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_shows",
@@ -1500,6 +1517,7 @@ public sealed partial class MainViewModel : ObservableObject
         ExportAlbumsCsvCommand.NotifyCanExecuteChanged();
         ExportYearsCsvCommand.NotifyCanExecuteChanged();
         ExportShowsCsvCommand.NotifyCanExecuteChanged();
+        ExportPlaysCsvCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>Sets the status line, and whether it should be shown as a problem.</summary>

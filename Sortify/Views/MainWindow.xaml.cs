@@ -38,6 +38,13 @@ public partial class MainWindow : ThemedWindow
         _settings = (Application.Current as App)?.Settings ?? AppSettings.Load();
         var vm = new MainViewModel(_settings);
         vm.PropertyChanged += OnViewModelPropertyChanged;
+        vm.History.ScrollRequested += OnHistoryScrollRequested;
+        vm.History.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(HistoryViewModel.Rows))
+                Dispatcher.BeginInvoke(KeepHistorySelectionInView, System.Windows.Threading.DispatcherPriority.Loaded);
+        };
+        vm.History.SortReset += (_, _) => ShowHistorySort(nameof(PlayRow.When), ListSortDirection.Descending);
         DataContext = vm;
 
         RestorePlacement();
@@ -135,10 +142,10 @@ public partial class MainWindow : ThemedWindow
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
-        // Ctrl+1..9 jump straight to a tab.
-        if (ctrl && e.Key is >= Key.D1 and <= Key.D9)
+        // Ctrl+1..9 jump straight to a tab, and Ctrl+0 to the tenth.
+        if (ctrl && e.Key is >= Key.D0 and <= Key.D9)
         {
-            int index = e.Key - Key.D1;
+            int index = e.Key == Key.D0 ? 9 : e.Key - Key.D1;
             if (index < Tabs.Items.Count)
             {
                 Tabs.SelectedIndex = index;
@@ -195,12 +202,14 @@ public partial class MainWindow : ThemedWindow
         2 => ArtistQuickFilter,
         3 => AlbumQuickFilter,
         5 => ShowQuickFilter,
+        9 => HistoryQuickFilter,
         _ => null,
     };
 
     private bool IsQuickFilter(TextBox box) =>
         ReferenceEquals(box, TrackQuickFilter) || ReferenceEquals(box, ArtistQuickFilter) ||
-        ReferenceEquals(box, AlbumQuickFilter) || ReferenceEquals(box, ShowQuickFilter);
+        ReferenceEquals(box, AlbumQuickFilter) || ReferenceEquals(box, ShowQuickFilter) ||
+        ReferenceEquals(box, HistoryQuickFilter);
 
     private void FocusQuickFilter()
     {
@@ -305,9 +314,12 @@ public partial class MainWindow : ThemedWindow
         if (sender is not TabControl tabs)
             return;
 
-        // The comparison is only worked out while someone is looking at it.
+        // The comparison and the play list are only worked out while someone is looking at them.
         if (ViewModel is { } vm)
+        {
             vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
+            vm.History.IsVisible = ReferenceEquals(tabs.SelectedItem, HistoryTab);
+        }
 
         var host = FindContentHost(tabs);
         if (host is null)
@@ -825,6 +837,96 @@ public partial class MainWindow : ThemedWindow
             return;
         ViewModel?.CopySpotifyLinks(TracksGrid.Items.OfType<TrackStat>().Take(count), TryCopy);
     }
+
+    // ---- History ---------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The play list is sorted by its view model: the grid's own sort reads every value by
+    /// reflection, which stalls on a few hundred thousand rows.
+    /// </summary>
+    private void OnHistorySorting(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        if (ViewModel is not { } vm || e.Column.SortMemberPath is not { Length: > 0 } column)
+            return;
+
+        var direction = e.Column.SortDirection == ListSortDirection.Ascending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+        ShowHistorySort(column, direction);
+        _ = vm.History.SortAsync(column, direction == ListSortDirection.Descending);
+    }
+
+    private void ShowHistorySort(string column, ListSortDirection direction)
+    {
+        foreach (var c in HistoryGrid.Columns)
+            c.SortDirection = c.SortMemberPath == column ? direction : null;
+    }
+
+    /// <summary>Selects a play and brings it to the top of the list, as a jump to a day asks.</summary>
+    private void OnHistoryScrollRequested(object? sender, PlayRow row)
+    {
+        HistoryGrid.SelectedItem = row;
+        HistoryGrid.UpdateLayout();
+
+        // The grid scrolls by item, so an offset is a row count and puts the row at the top.
+        int index = HistoryGrid.Items.IndexOf(row);
+        if (index >= 0 && FindChild<ScrollViewer>(HistoryGrid) is { } viewer)
+            viewer.ScrollToVerticalOffset(index);
+        else
+            HistoryGrid.ScrollIntoView(row);
+    }
+
+    /// <summary>
+    /// After a sort or a new row filter, the selected play stays in view if it is still listed;
+    /// otherwise the list starts again from the top.
+    /// </summary>
+    private void KeepHistorySelectionInView()
+    {
+        if (HistoryGrid.SelectedItem is { } selected && HistoryGrid.Items.Contains(selected))
+            HistoryGrid.ScrollIntoView(selected);
+        else if (FindChild<ScrollViewer>(HistoryGrid) is { } viewer)
+            viewer.ScrollToTop();
+    }
+
+    private static T? FindChild<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T found)
+                return found;
+            if (FindChild<T>(child) is { } deeper)
+                return deeper;
+        }
+        return null;
+    }
+
+    private async void OnOpenPlayTrack(object sender, RoutedEventArgs e)
+    {
+        if (HistoryGrid.SelectedItem is PlayRow row)
+            await ShowDetailAsync(row);
+    }
+
+    private async void OnOpenPlayArtist(object sender, RoutedEventArgs e)
+    {
+        if (HistoryGrid.SelectedItem is not PlayRow row)
+            return;
+
+        await ShowDetailAsync(row.Record.Kind == ContentKind.Music
+            ? new ArtistStat { Artist = row.Artist }
+            : new ShowStat { Show = row.Record.ShowName });
+    }
+
+    private void OnCopyPlays(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<PlayRow>(HistoryGrid).Select(r => $"{r.When}  {r.Track} - {r.Artist}"), "play");
+
+    private void OnCopyPlayLinks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(SelectedRows<PlayRow>(HistoryGrid)
+            .Select(r => new TrackStat { Track = r.Track, Artist = r.Artist, Uri = r.Record.Uri }), TryCopy);
+
+    private void OnFocusArtistFromPlays(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<PlayRow>(HistoryGrid).Select(r => r.Artist));
 
     // ---- Listening-over-time granularity toggle ---------------------------------------------
 

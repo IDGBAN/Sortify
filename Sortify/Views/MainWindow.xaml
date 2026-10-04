@@ -158,6 +158,8 @@
                         <MenuItem Header="Albums as CSV..." Command="{Binding ExportAlbumsCsvCommand}" />
                         <MenuItem Header="Years as CSV..." Command="{Binding ExportYearsCsvCommand}" />
                         <MenuItem Header="Shows as CSV..." Command="{Binding ExportShowsCsvCommand}" />
+                        <Separator />
+                        <MenuItem Header="Every play as CSV..." Command="{Binding ExportPlaysCsvCommand}" />
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
@@ -1693,6 +1695,89 @@
                                 </UniformGrid>
                             </StackPanel>
                         </ScrollViewer>
+                    </TabItem>
+                    <!-- ============================= HISTORY ============================= -->
+                    <TabItem x:Name="HistoryTab" Header="History">
+                        <Border Style="{StaticResource Card}" DataContext="{Binding History}">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <TextBlock Text="Every Play" Style="{StaticResource SectionHeader}" Margin="0" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Summary}" FontSize="11" Foreground="{DynamicResource MutedBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="Updating..." FontSize="11" Margin="10,0,0,0"
+                                                       Foreground="{DynamicResource MutedBrush}"
+                                                       Visibility="{Binding IsRefreshing, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Go to" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"
+                                                   Foreground="{DynamicResource MutedBrush}" />
+                                        <DatePicker Width="130" Margin="0,0,14,0" VerticalAlignment="Center"
+                                                    SelectedDate="{Binding GoToDate}"
+                                                    AutomationProperties.Name="Go to a day"
+                                                    ToolTip="Jump to the plays of a day" />
+                                        <TextBlock Text="Filter rows" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"
+                                                   Foreground="{DynamicResource MutedBrush}" />
+                                        <TextBox x:Name="HistoryQuickFilter" Width="180"
+                                                 AutomationProperties.Name="Filter plays"
+                                                 Text="{Binding QuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                                                 ToolTip="Narrow the plays below by track, artist or album (Ctrl+F)" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,4,0,8" FontSize="11"
+                                           Text="Every play that passes the sidebar filters, newest first. Click a column header to sort, and double-click a play, or select it and press Enter, for its track's breakdown." />
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding JumpNote}" FontSize="12" Margin="0,0,0,8"
+                                           Foreground="{DynamicResource Accent2TextBrush}" AutomationProperties.LiveSetting="Polite"
+                                           Visibility="{Binding JumpNote, Converter={StaticResource TextToVis}}" />
+                                <Grid>
+                                    <DataGrid x:Name="HistoryGrid" ItemsSource="{Binding Rows}"
+                                              AutomationProperties.Name="Every play"
+                                              Sorting="OnHistorySorting"
+                                              PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
+                                              MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                        <DataGrid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open the track's breakdown" Click="OnOpenPlayTrack" InputGestureText="Enter" />
+                                                <MenuItem Header="Open the artist's breakdown" Click="OnOpenPlayArtist" />
+                                                <Separator />
+                                                <MenuItem Tag="Copy play|Copy {0} plays" Click="OnCopyPlays" />
+                                                <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyPlayLinks" />
+                                                <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only their artists" Click="OnFocusArtistFromPlays" />
+                                            </ContextMenu>
+                                        </DataGrid.ContextMenu>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="When" Binding="{Binding When}" SortMemberPath="When"
+                                                                SortDirection="Descending" Width="135" MinWidth="135" />
+                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="160" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" />
+                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="*" MinWidth="110" />
+                                            <DataGridTextColumn Header="Played" Binding="{Binding Played, Converter={StaticResource HhMmSs}}"
+                                                                SortMemberPath="Played" Width="80" MinWidth="80" />
+                                            <DataGridTextColumn Header="Ended" Binding="{Binding Ended}" Width="130" MinWidth="130" />
+                                            <DataGridTextColumn Header="Device" Binding="{Binding Device}" Width="115" MinWidth="115" />
+                                            <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Binding="{Binding Mode}" SortMemberPath="Mode" Width="0.8*" MinWidth="100">
+                                                <DataGridTextColumn.Header>
+                                                    <TextBlock Text="Mode" ToolTip="Whether the play was shuffled, offline or in a private session" />
+                                                </DataGridTextColumn.Header>
+                                            </DataGridTextColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                    <TextBlock Style="{StaticResource EmptyRows}" Text="{Binding EmptyText}"
+                                               Visibility="{Binding Rows, Converter={StaticResource EmptyToVis}}" />
+                                    <TextBlock Style="{StaticResource EmptyRows}" Text="Gathering your plays..." Margin="0,82,0,0"
+                                               Visibility="{Binding IsGathering, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
+                            </DockPanel>
+                        </Border>
                     </TabItem>
                 </TabControl>
             </Grid>

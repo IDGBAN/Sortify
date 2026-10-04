@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using Sortify.Models;
 using Sortify.Services;
+using Sortify.ViewModels;
 
 namespace Sortify.Views;
 
@@ -187,6 +188,9 @@ public partial class DetailWindow : ThemedWindow
         SkippedTrackStat s => (DetailScope.Track, s.Track, s.Artist),
         MonthStat m => (DetailScope.Artist, m.TopArtist, string.Empty),
         Milestone m => (DetailScope.Track, m.Track.Track, m.Track.Artist),
+        PlayRow p => p.Record.Kind == ContentKind.Music
+            ? (DetailScope.Track, p.Track, p.Artist)
+            : (DetailScope.Episode, p.Record.EpisodeName, p.Record.ShowName),
         ComparisonRow c => TargetFor(c.Item),
         _ => null,
     };

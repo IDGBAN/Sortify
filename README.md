@@ -28,6 +28,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 - **Light and dark themes**, switchable from the toolbar (Ctrl+T) or set to follow Windows (including when you switch Windows' mode while Sortify is open).
 - Sortable tables. Click any column header to reorder by that field; right-click a row to copy it or exclude that track/artist. Besides time and plays, the tables show each track's skip rate, how many of an artist's tracks you played and in how many months, and how many tracks of each album you heard. Ctrl- or Shift-click to pick several rows and copy or exclude them all at once. Each table has its own filter box that narrows the rows instantly, without re-running the analysis.
 - **Make a playlist from your stats**: on the Tracks tab, **Copy as links** puts the top 25, 50 or 100 rows (in whatever order the table is sorted) or the rows you picked on the clipboard as Spotify links. Paste them into a playlist in the Spotify desktop app. Set the date filter to a year first to get that year's most played songs. Only the extended streaming history records track links.
+- A **History** tab listing every play that passes the filters, newest first: when it ended, the track, artist and album, how long it played, why it ended, the device and country, and whether it was shuffled, offline or private. Sort by any column, narrow it with its own filter box, or pick a day under **Go to** to jump to it. Double-click a play for its track's breakdown.
 - **Double-click any track, artist, album or year row** to open a detail view: listening time, plays, active days, first and last listen, a monthly chart, an hour-of-day profile, its tracks and albums, and a button that opens it in Spotify. Double-click a track, album or artist inside a detail view, or click the artist's name under a track or album, to open that one in turn.
 - **Right-click any chart** to copy it to the clipboard or save it as a PNG.
 - **Click a bar** in the track, artist, album, show, episode or most-skipped charts, or a year on the Years chart, to open its detail view. Click a square on the heatmap to narrow everything to that hour of that day.
@@ -46,7 +47,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 - **Sample history**: no export yet? The start screen opens two years of made-up listening (invented artists, tracks, podcasts and an audiobook) so you can try every tab while Spotify prepares yours. It isn't saved or added to Recent, and opening your own export replaces it.
 - Reads both the extended streaming history (`Streaming_History_Audio_*.json`) and the older account-data export (`StreamingHistory*.json`). Load both together and each play is still counted once: account-data plays the extended history already has are left out, and the newer ones are kept, so a recent account-data export can top up an older extended one. Loading the same export twice doesn't double anything either.
 - Reopens the folder you used last time when it starts, remembers your window size and layout, and caches the parsed history so an unchanged export loads instantly instead of being re-read.
-- Export a text summary, a Markdown report, everything as JSON, or tracks, artists, albums, years and shows as CSV. The text, Markdown and JSON exports say which filters they were made under.
+- Export a text summary, a Markdown report, everything as JSON, or tracks, artists, albums, years and shows as CSV. The text, Markdown and JSON exports say which filters they were made under. **Every play as CSV** writes the plays that pass the filters one per row, cleaned up, with duplicates dropped and times in your local time, for your own analysis in a spreadsheet or pandas.
 - Settings for the theme, chart animations, how long a break has to be before it starts a new listening session, and clearing the cache.
 
 ## Keyboard Shortcuts
@@ -54,7 +55,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 | --- | --- |
 | `Ctrl+O` / `Ctrl+Shift+O` | Open the export ZIP or files / open a folder |
 | `F5` | Re-read the files from disk, ignoring the cache |
-| `Ctrl+1` … `Ctrl+9` | Jump to a tab |
+| `Ctrl+1` … `Ctrl+9`, `Ctrl+0` | Jump to a tab (`Ctrl+0` is History) |
 | `Ctrl+K` | Jump to any artist, track, album or podcast by name and open its detail view |
 | `Ctrl+F` | Focus the current table's filter box (`Esc` clears it) |
 | `Enter` | Open the detail view for the selected track, artist, album or year row |
@@ -69,7 +70,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 1. Request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/) from Spotify. When it arrives, download the ZIP. There's no need to extract it.
 2. Download the latest `Sortify.exe` from the [releases page](https://github.com/IDGBAN/Sortify/releases/) and run it.
 3. Drag the ZIP onto the window, or click **Open Files** and pick it. An extracted folder works too: use **Open Folder**, or drop the folder or its JSON files onto the window.
-4. Browse the Overview, Tracks, Artists, Albums, Years, Podcasts, Trends, Insights and Compare tabs, adjust the filters on the left, and export your results if you want a copy.
+4. Browse the Overview, Tracks, Artists, Albums, Years, Podcasts, Trends, Insights, Compare and History tabs, adjust the filters on the left, and export your results if you want a copy.
 
 While you wait for the export, **Explore a sample history while you wait** on the start screen shows what Sortify does with two years of made-up listening.
 
