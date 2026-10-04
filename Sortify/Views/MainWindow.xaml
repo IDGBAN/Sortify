@@ -504,6 +504,7 @@
                                                 <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromTracks" />
                                                 <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromTracks" />
                                                 <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only their artists" Click="OnFocusArtistFromTracks" />
                                                 <MenuItem Tag="Exclude this track|Exclude these {0} tracks" Click="OnExcludeTrackFromTracks" />
                                                 <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromTracks" />
                                             </ContextMenu>
@@ -616,6 +617,7 @@
                                             <ContextMenu>
                                                 <MenuItem Tag="Copy artist|Copy {0} artists" Click="OnCopyArtistFromArtists" />
                                                 <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only these {0} artists" Click="OnFocusArtistFromArtists" />
                                                 <MenuItem Tag="Exclude this artist|Exclude these {0} artists" Click="OnExcludeArtistFromArtists" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
@@ -733,6 +735,7 @@
                                                 <MenuItem Tag="Copy album|Copy {0} albums" Click="OnCopyAlbumFromAlbums" />
                                                 <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromAlbums" />
                                                 <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only their artists" Click="OnFocusArtistFromAlbums" />
                                                 <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromAlbums" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>

@@ -52,6 +52,37 @@ public partial class DetailWindow : ThemedWindow
             await _openYearReview(year, this);
     }
 
+    private readonly Action<string>? _focusArtist;
+
+    /// <summary>
+    /// Narrows the main window to one artist. An artist's breakdown offers it with a button;
+    /// breakdowns opened from this one are handed it too.
+    /// </summary>
+    public Action<string>? FocusArtist
+    {
+        get => _focusArtist;
+        init
+        {
+            _focusArtist = value;
+            FocusButton.Visibility = value is not null && _detail.Scope == DetailScope.Artist
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>True once this breakdown narrowed the main window to its artist.</summary>
+    public bool FocusedOnArtist { get; private set; }
+
+    private void OnFocusArtist(object sender, RoutedEventArgs e)
+    {
+        if (_focusArtist is null)
+            return;
+
+        _focusArtist(_detail.Title);
+        FocusedOnArtist = true;
+        Close();
+    }
+
     public DetailWindow(DetailResult detail) : this(detail, null) { }
 
     /// <param name="openDetail">
@@ -220,7 +251,20 @@ public partial class DetailWindow : ThemedWindow
         if (detail is not { PlayCount: > 0 })
             return;
 
-        new DetailWindow(detail, _openDetail) { Owner = this, OpenYearReview = _openYearReview }.ShowDialog();
+        var child = new DetailWindow(detail, _openDetail)
+        {
+            Owner = this,
+            OpenYearReview = _openYearReview,
+            FocusArtist = _focusArtist,
+        };
+        child.ShowDialog();
+
+        // The breakdowns it was opened from were worked out under the old filters, so they go too.
+        if (child.FocusedOnArtist)
+        {
+            FocusedOnArtist = true;
+            Close();
+        }
     }
 
     private static DataGridRow? FindRow(DependencyObject? d)

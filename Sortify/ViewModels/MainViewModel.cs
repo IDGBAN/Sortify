@@ -570,8 +570,10 @@ public sealed partial class MainViewModel : ObservableObject
         var years = new SortedSet<int>();
         var platformMs = new Dictionary<string, long>(StringComparer.Ordinal);
         var countryMs = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var artistMs = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var r in _rawRecords)
         {
+            CollectionsMarshal.GetValueRefOrAddDefault(artistMs, r.DisplayArtist, out _) += r.MsPlayed;
             if (r.Platform.Length > 0)
                 CollectionsMarshal.GetValueRefOrAddDefault(platformMs, r.Platform, out _) += r.MsPlayed;
             if (r.Country.Length > 0)
@@ -595,6 +597,7 @@ public sealed partial class MainViewModel : ObservableObject
             .OrderByDescending(kv => kv.Value)
             .Select(kv => (kv.Key, kv.Key.ToUpperInvariant(), CountryName(kv.Key)));
         Filters.SetAvailablePlayback(devices, countries);
+        Filters.SetKnownArtists(artistMs.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).ToList());
     }
 
     /// <summary>"Canada (CA)" for "CA", or the code alone when .NET doesn't know it.</summary>
@@ -689,6 +692,7 @@ public sealed partial class MainViewModel : ObservableObject
     // ---- Grid-driven exclusions ----------------------------------------------------------
 
     public void ExcludeArtistsFromGrid(IEnumerable<string> artists) => Filters.ExcludeArtists(artists);
+    public void FocusOnArtistsFromGrid(IEnumerable<string> artists) => Filters.FocusOnArtists(artists);
     public void ExcludeTracksFromGrid(IEnumerable<string> tracks) => Filters.ExcludeTracks(tracks);
 
     /// <summary>

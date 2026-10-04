@@ -18,6 +18,7 @@ public static class FilterEngine
         string search = filter.SearchTerm.Trim();
         bool allDays = filter.HasAllDaysSelected;
         bool fullHours = filter.HasFullHourRange;
+        bool hasIncludedArtists = filter.IncludedArtists.Count > 0;
         bool hasExcludedArtists = filter.ExcludedArtists.Count > 0;
         bool hasExcludedTracks = filter.ExcludedTracks.Count > 0;
         bool checkTimeOfDay = !fullHours || !allDays;
@@ -44,6 +45,9 @@ public static class FilterEngine
             // Podcasts show up in the grids under their show and episode names, so that is
             // what an exclusion picked from a grid row holds. Their ArtistName/TrackName are
             // placeholders that would never match it.
+            if (hasIncludedArtists && !filter.IncludedArtists.Contains(r.DisplayArtist))
+                continue;
+
             if (hasExcludedArtists && filter.ExcludedArtists.Contains(r.DisplayArtist))
                 continue;
 

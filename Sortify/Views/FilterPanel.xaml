@@ -20,7 +20,14 @@
                       AutomationProperties.Name="{Binding Description}" />
         </DataTemplate>
 
-        <!-- Removable pill used by both exclusion lists. -->
+        <!-- A match to add, shaped like the quick range buttons without their "in effect" outline. -->
+        <Style x:Key="SuggestionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Padding" Value="9,4" />
+            <Setter Property="Margin" Value="0,0,5,5" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
+
+        <!-- Removable pill used by the artist lists and the track exclusions. -->
         <Style x:Key="ExclusionPill" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource PanelBrush2}" />
             <Setter Property="CornerRadius" Value="4" />
@@ -156,6 +163,66 @@
                          AutomationProperties.Name="Search all plays" />
                 <TextBlock Style="{StaticResource Hint}"
                            Text="Matches a track, artist, album or show name and re-runs the whole analysis. To narrow just the rows in a table, use the filter box above it." />
+
+                <!-- Only these artists -->
+                <TextBlock Text="ONLY THESE ARTISTS" Style="{StaticResource SectionHeader}" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBox Grid.Column="0" Text="{Binding NewIncludedArtist, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                             AutomationProperties.Name="Artist to show on their own"
+                             ToolTip="Type an artist's name, then pick a match or press Enter for the first one">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Enter" Command="{Binding AddIncludedArtistCommand}" />
+                        </TextBox.InputBindings>
+                    </TextBox>
+                    <Button Grid.Column="1" Content="Add" Margin="6,0,0,0" Padding="10,4"
+                            Command="{Binding AddIncludedArtistCommand}" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding IncludeSuggestions}" Margin="0,6,0,0" Focusable="False"
+                              AutomationProperties.Name="Matching artists">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Button Content="{Binding}" ContentStringFormat="+  {0}" Style="{StaticResource SuggestionButton}"
+                                    Command="{Binding DataContext.AddIncludedArtistCommand,
+                                               RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                    CommandParameter="{Binding}"
+                                    AutomationProperties.Name="{Binding StringFormat='Show only {0}'}" />
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding IncludeHint}" Style="{StaticResource Hint}"
+                           Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Assertive"
+                           Visibility="{Binding IncludeHint, Converter={StaticResource TextToVis}}" />
+                <ItemsControl ItemsSource="{Binding IncludedArtists}" Margin="0,6,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{StaticResource ExclusionPill}">
+                                <Border.RenderTransform>
+                                    <TranslateTransform X="-10" />
+                                </Border.RenderTransform>
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                    <Button DockPanel.Dock="Right" Content="x" Padding="6,0" Margin="0"
+                                            ToolTip="Stop narrowing to this artist"
+                                            AutomationProperties.Name="{Binding StringFormat='Stop showing only {0}'}"
+                                            Command="{Binding DataContext.RemoveIncludedArtistCommand,
+                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                            CommandParameter="{Binding}" />
+                                </DockPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Leave this empty to count every artist. With names here, every tab shows only their plays. Right-click a row in the Tracks, Artists or Albums table to do the same." />
 
                 <!-- Time of day -->
                 <TextBlock Text="TIME OF DAY" Style="{StaticResource SectionHeader}" />

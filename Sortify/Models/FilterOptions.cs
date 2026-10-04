@@ -43,6 +43,12 @@ public sealed class FilterOptions
     /// </summary>
     public string SearchTerm { get; set; } = string.Empty;
 
+    /// <summary>
+    /// When not empty, only plays by these artists count (case-insensitive). Matches a podcast's
+    /// show name, as the exclusions do.
+    /// </summary>
+    public HashSet<string> IncludedArtists { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     /// <summary>Artist names to exclude entirely (case-insensitive). Matches a podcast's show name.</summary>
     public HashSet<string> ExcludedArtists { get; } = new(StringComparer.OrdinalIgnoreCase);
 
@@ -92,6 +98,7 @@ public sealed class FilterOptions
             Offline = Offline,
             Private = Private,
         };
+        copy.IncludedArtists.UnionWith(IncludedArtists);
         copy.ExcludedArtists.UnionWith(ExcludedArtists);
         copy.ExcludedTracks.UnionWith(ExcludedTracks);
         copy.ExcludedDevices.UnionWith(ExcludedDevices);

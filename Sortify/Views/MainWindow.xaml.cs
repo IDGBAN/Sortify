@@ -627,6 +627,15 @@ public partial class MainWindow : ThemedWindow
     private void OnExcludeArtistFromAlbums(object sender, RoutedEventArgs e) =>
         ViewModel?.ExcludeArtistsFromGrid(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
 
+    private void OnFocusArtistFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist));
+
+    private void OnFocusArtistFromArtists(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist));
+
+    private void OnFocusArtistFromAlbums(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
+
     private async void OnOpenMonthArtist(object sender, RoutedEventArgs e)
     {
         if (MonthsGrid.SelectedItem is MonthStat m)
@@ -738,7 +747,12 @@ public partial class MainWindow : ThemedWindow
             return;
         }
 
-        new DetailWindow(detail, vm.BuildDetailAsync) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
+        new DetailWindow(detail, vm.BuildDetailAsync)
+        {
+            Owner = this,
+            OpenYearReview = ShowYearReviewAsync,
+            FocusArtist = artist => vm.FocusOnArtistsFromGrid(new[] { artist }),
+        }.ShowDialog();
     }
 
     // ---- Copy to clipboard -------------------------------------------------------------------

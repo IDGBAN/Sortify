@@ -22,6 +22,9 @@ public sealed class FilterPreset
     /// <summary>Index 0=Sunday..6=Saturday, as in <see cref="FilterOptions.IncludedDaysOfWeek"/>.</summary>
     public bool[] IncludedDays { get; set; } = { true, true, true, true, true, true, true };
 
+    /// <summary>Artists the results are narrowed to; empty for every artist.</summary>
+    public List<string> IncludedArtists { get; set; } = new();
+
     public List<string> ExcludedArtists { get; set; } = new();
     public List<string> ExcludedTracks { get; set; } = new();
 
@@ -50,6 +53,7 @@ public sealed class FilterPreset
         EndHour = Math.Clamp(EndHour, 0, 23);
         if (IncludedDays is not { Length: 7 })
             IncludedDays = new[] { true, true, true, true, true, true, true };
+        IncludedArtists = Clean(IncludedArtists);
         ExcludedArtists = Clean(ExcludedArtists);
         ExcludedTracks = Clean(ExcludedTracks);
         ExcludedDevices = Clean(ExcludedDevices);
@@ -78,6 +82,7 @@ public sealed class FilterPreset
         StartHour == other.StartHour &&
         EndHour == other.EndHour &&
         IncludedDays.SequenceEqual(other.IncludedDays) &&
+        IncludedArtists.SequenceEqual(other.IncludedArtists) &&
         ExcludedArtists.SequenceEqual(other.ExcludedArtists) &&
         ExcludedTracks.SequenceEqual(other.ExcludedTracks) &&
         Shuffle == other.Shuffle &&

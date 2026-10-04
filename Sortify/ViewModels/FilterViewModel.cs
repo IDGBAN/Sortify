@@ -64,6 +64,22 @@ public sealed partial class FilterViewModel : ObservableObject
 
     [ObservableProperty] private string _newExcludedArtist = string.Empty;
     [ObservableProperty] private string _newExcludedTrack = string.Empty;
+    [ObservableProperty] private string _newIncludedArtist = string.Empty;
+
+    /// <summary>The artists every tab is narrowed to; empty means every artist.</summary>
+    public ObservableCollection<string> IncludedArtists { get; } = new();
+
+    /// <summary>Artists matching what is typed into the "only these artists" box.</summary>
+    [ObservableProperty] private IReadOnlyList<string> _includeSuggestions = Array.Empty<string>();
+
+    /// <summary>Why the typed name couldn't be added, or empty.</summary>
+    [ObservableProperty] private string _includeHint = string.Empty;
+
+    /// <summary>How many matches show under the "only these artists" box while typing.</summary>
+    public const int IncludeSuggestionCount = 5;
+
+    /// <summary>Every artist in the loaded history, most listened first; empty until one loads.</summary>
+    private IReadOnlyList<string> _knownArtists = Array.Empty<string>();
 
     public ObservableCollection<string> ExcludedArtists { get; } = new();
     public ObservableCollection<string> ExcludedTracks { get; } = new();
@@ -117,6 +133,11 @@ public sealed partial class FilterViewModel : ObservableObject
             new DayToggle("Thu", 4, this),
             new DayToggle("Fri", 5, this),
             new DayToggle("Sat", 6, this),
+        };
+        IncludedArtists.CollectionChanged += (_, _) =>
+        {
+            RefreshIncludeSuggestions();
+            Raise();
         };
         ExcludedArtists.CollectionChanged += (_, _) => Raise();
         ExcludedTracks.CollectionChanged += (_, _) => Raise();
@@ -214,6 +235,7 @@ public sealed partial class FilterViewModel : ObservableObject
         StartHour = StartHour,
         EndHour = EndHour,
         IncludedDays = Days.Select(d => d.IsSelected).ToArray(),
+        IncludedArtists = IncludedArtists.ToList(),
         ExcludedArtists = ExcludedArtists.ToList(),
         ExcludedTracks = ExcludedTracks.ToList(),
         Shuffle = ShuffleMode,
@@ -254,6 +276,9 @@ public sealed partial class FilterViewModel : ObservableObject
             StartHour = Math.Clamp(preset.StartHour, 0, 23);
             EndHour = Math.Clamp(preset.EndHour, 0, 23);
 
+            IncludedArtists.Clear();
+            foreach (var artist in preset.IncludedArtists ?? new List<string>())
+                IncludeArtist(artist);
             ExcludedArtists.Clear();
             foreach (var artist in preset.ExcludedArtists ?? new List<string>())
                 ExcludeArtist(artist);
@@ -440,6 +465,7 @@ public sealed partial class FilterViewModel : ObservableObject
             Offline = OfflineMode,
             Private = PrivateMode,
         };
+        foreach (var a in IncludedArtists) opts.IncludedArtists.Add(a);
         foreach (var a in ExcludedArtists) opts.ExcludedArtists.Add(a);
         foreach (var t in ExcludedTracks) opts.ExcludedTracks.Add(t);
         foreach (var d in Days) opts.IncludedDaysOfWeek[d.Index] = d.IsSelected;
@@ -487,6 +513,13 @@ public sealed partial class FilterViewModel : ObservableObject
 
         if (!string.IsNullOrWhiteSpace(SearchTerm))
             yield return new FilterChip($"Search “{SearchTerm.Trim()}”", "Clear the search", () => SearchTerm = string.Empty);
+
+        if (IncludedArtists.Count > 0)
+        {
+            yield return new FilterChip(
+                IncludedArtists.Count == 1 ? $"Only {IncludedArtists[0]}" : $"Only {IncludedArtists.Count} artists",
+                "Count every artist again, not just " + string.Join(", ", IncludedArtists), IncludedArtists.Clear);
+        }
 
         if (StartHour != 0 || EndHour != 23)
         {
@@ -612,6 +645,84 @@ public sealed partial class FilterViewModel : ObservableObject
         Raise();
     }
 
+    // ---- Only these artists ----------------------------------------------------------------
+
+    /// <summary>The artists of the loaded history, most listened first, to suggest while typing.</summary>
+    public void SetKnownArtists(IReadOnlyList<string> artists)
+    {
+        _knownArtists = artists;
+        RefreshIncludeSuggestions();
+    }
+
+    partial void OnNewIncludedArtistChanged(string value)
+    {
+        IncludeHint = string.Empty;
+        RefreshIncludeSuggestions();
+    }
+
+    private void RefreshIncludeSuggestions()
+    {
+        string query = NewIncludedArtist.Trim();
+        IncludeSuggestions = query.Length == 0
+            ? Array.Empty<string>()
+            : _knownArtists
+                .Where(a => !IncludedArtists.Contains(a, StringComparer.OrdinalIgnoreCase))
+                .Select((a, order) => (Name: a, Rank: MainViewModel.MatchRank(a, query), Order: order))
+                .Where(x => x.Rank >= 0)
+                .OrderBy(x => x.Rank)
+                .ThenBy(x => x.Order)
+                .Take(IncludeSuggestionCount)
+                .Select(x => x.Name)
+                .ToList();
+    }
+
+    /// <summary>
+    /// Adds <paramref name="picked"/>, or else what was typed: the artist of that name, or the
+    /// best match for it. A name nobody in the history goes by is refused, since it would
+    /// silently empty every tab. Before a history loads there is nothing to check against.
+    /// </summary>
+    [RelayCommand]
+    private void AddIncludedArtist(string? picked)
+    {
+        string typed = (picked ?? NewIncludedArtist).Trim();
+        if (typed.Length == 0)
+            return;
+
+        string? name = _knownArtists.Count == 0
+            ? typed
+            : _knownArtists.FirstOrDefault(a => string.Equals(a, typed, StringComparison.OrdinalIgnoreCase))
+              ?? IncludeSuggestions.FirstOrDefault();
+        if (name is null)
+        {
+            IncludeHint = $"No artist in this history is called “{typed}”.";
+            return;
+        }
+
+        IncludeArtist(name);
+        NewIncludedArtist = string.Empty;
+    }
+
+    [RelayCommand]
+    private void RemoveIncludedArtist(string? name)
+    {
+        if (name is not null) IncludedArtists.Remove(name);
+    }
+
+    public void IncludeArtist(string? name)
+    {
+        name = name?.Trim();
+        if (!string.IsNullOrEmpty(name) && !IncludedArtists.Contains(name, StringComparer.OrdinalIgnoreCase))
+            IncludedArtists.Add(name);
+    }
+
+    /// <summary>Narrows every tab to just these artists, replacing any already picked, as one change.</summary>
+    public void FocusOnArtists(IEnumerable<string> names) => Batch(() =>
+    {
+        IncludedArtists.Clear();
+        foreach (var name in names)
+            IncludeArtist(name);
+    });
+
     /// <summary>Adds an artist exclusion programmatically (e.g. from a grid context menu).</summary>
     public void ExcludeArtist(string? name)
     {
@@ -680,6 +791,8 @@ public sealed partial class FilterViewModel : ObservableObject
         EndHour = 23;
         NewExcludedArtist = string.Empty;
         NewExcludedTrack = string.Empty;
+        NewIncludedArtist = string.Empty;
+        IncludedArtists.Clear();
         ExcludedArtists.Clear();
         ExcludedTracks.Clear();
         foreach (var d in Days) d.IsSelected = true;
