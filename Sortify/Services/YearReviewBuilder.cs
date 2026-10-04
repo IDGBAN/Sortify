@@ -30,11 +30,10 @@ public static class YearReviewBuilder
         {
             if (record.Timestamp == DateTime.MinValue)
                 continue;
-            bool isMusic = record.Kind == ContentKind.Music;
-            if (!isMusic && !filter.IncludePodcasts)
+            if (record.Kind != ContentKind.Music && !filter.IncludePodcasts)
                 continue;
 
-            string artist = isMusic ? record.ArtistName : record.ShowName;
+            string artist = record.DisplayArtist;
             if (!firstHeard.TryGetValue(artist, out var first) || record.Timestamp < first)
                 firstHeard[artist] = record.Timestamp;
         }

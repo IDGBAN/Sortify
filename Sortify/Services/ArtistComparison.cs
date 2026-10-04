@@ -52,11 +52,9 @@ public static class ArtistComparison
             if (r.Timestamp == DateTime.MinValue)
                 continue;
 
-            // The names the artists are listed under, as AnalysisEngine ranks them.
-            bool isMusic = r.Kind == ContentKind.Music;
-            if (!isMusic && !filter.IncludePodcasts)
+            if (r.Kind != ContentKind.Music && !filter.IncludePodcasts)
                 continue;
-            if (!index.TryGetValue(isMusic ? r.ArtistName : r.ShowName, out int i))
+            if (!index.TryGetValue(r.DisplayArtist, out int i))
                 continue;
 
             var bucket = BucketOf(r.Timestamp, granularity);

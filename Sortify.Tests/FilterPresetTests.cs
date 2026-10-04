@@ -248,7 +248,7 @@ public class RememberedFilterTests
             var settings = new AppSettings();
             var vm = new MainViewModel(settings);
 
-            vm.ExcludeArtistFromGrid("White Noise");
+            vm.ExcludeArtistsFromGrid(new[] { "White Noise" });
 
             Assert.Equal(new[] { "White Noise" }, settings.Filters!.ExcludedArtists);
         });

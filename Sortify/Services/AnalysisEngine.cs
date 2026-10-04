@@ -144,11 +144,9 @@ public static class AnalysisEngine
             if (!isMusic && !filter.IncludePodcasts)
                 continue;
 
-            // When podcasts are folded in, the episode stands in for the track and the show
-            // for both the artist and the album, so every ranking stays populated.
-            string trackName = isMusic ? r.TrackName : r.EpisodeName;
-            string artistName = isMusic ? r.ArtistName : r.ShowName;
-            string albumName = isMusic ? r.AlbumName : r.ShowName;
+            string trackName = r.DisplayTrack;
+            string artistName = r.DisplayArtist;
+            string albumName = r.DisplayAlbum;
 
             var trackKey = (trackName, artistName);
 

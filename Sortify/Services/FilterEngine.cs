@@ -44,12 +44,10 @@ public static class FilterEngine
             // Podcasts show up in the grids under their show and episode names, so that is
             // what an exclusion picked from a grid row holds. Their ArtistName/TrackName are
             // placeholders that would never match it.
-            bool isMusic = r.Kind == ContentKind.Music;
-
-            if (hasExcludedArtists && filter.ExcludedArtists.Contains(isMusic ? r.ArtistName : r.ShowName))
+            if (hasExcludedArtists && filter.ExcludedArtists.Contains(r.DisplayArtist))
                 continue;
 
-            if (hasExcludedTracks && filter.ExcludedTracks.Contains(isMusic ? r.TrackName : r.EpisodeName))
+            if (hasExcludedTracks && filter.ExcludedTracks.Contains(r.DisplayTrack))
                 continue;
 
             if (checkFlags &&

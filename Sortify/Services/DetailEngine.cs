@@ -62,7 +62,7 @@ public static class DetailEngine
             if (r.Kind != ContentKind.Music && !filter.IncludePodcasts && !podcastScope)
                 continue;
 
-            var (trackName, artistName, albumName) = DisplayNames(r);
+            string trackName = r.DisplayTrack, artistName = r.DisplayArtist, albumName = r.DisplayAlbum;
 
             if (!IsMatch(r, trackName, artistName, albumName, scope, title, subtitle, scopeYear))
                 continue;
@@ -161,16 +161,6 @@ public static class DetailEngine
             Uri = uri,
         };
     }
-
-    /// <summary>
-    /// The names a record appears under in the grids. Podcasts and audiobooks stand in with
-    /// their episode and show titles exactly as <see cref="AnalysisEngine"/> folds them in,
-    /// so a row opened from a grid finds the plays it was built from.
-    /// </summary>
-    private static (string Track, string Artist, string Album) DisplayNames(PlayRecord r)
-        => r.Kind == ContentKind.Music
-            ? (r.TrackName, r.ArtistName, r.AlbumName)
-            : (r.EpisodeName, r.ShowName, r.ShowName);
 
     private static bool IsMatch(
         PlayRecord r, string track, string artist, string album,

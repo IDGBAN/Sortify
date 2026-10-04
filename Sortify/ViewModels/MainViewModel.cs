@@ -513,15 +513,6 @@ public sealed partial class MainViewModel : ObservableObject
     private void RefreshBusy() => IsBusy = _isLoading || _pendingAnalyses > 0;
 
     /// <summary>
-    /// Last dated play in the whole loaded history, whatever the filters say. The quick date
-    /// ranges count back from it.
-    /// </summary>
-    internal DateTime? LastListenInHistory { get; private set; }
-
-    /// <summary>Calendar years the loaded history has plays in, oldest first.</summary>
-    internal IReadOnlyList<int> YearsInHistory { get; private set; } = Array.Empty<int>();
-
-    /// <summary>
     /// Offers the quick date ranges, devices and countries that fit the history just loaded.
     /// Read off the raw records rather than the filtered results, so filtering to one year
     /// or one device doesn't take the other choices away. A different export from the one
@@ -547,10 +538,8 @@ public sealed partial class MainViewModel : ObservableObject
                 last = r.Timestamp;
         }
 
-        LastListenInHistory = last;
-        YearsInHistory = years.ToList();
         Filters.SetAvailableDates(last, years);
-        Compare.SetHistory(last, YearsInHistory, resetPeriods: newHistory);
+        Compare.SetHistory(last, years.ToList(), resetPeriods: newHistory);
 
         var devices = platformMs
             .GroupBy(kv => AnalysisEngine.PlatformFamily(kv.Key))
@@ -653,8 +642,6 @@ public sealed partial class MainViewModel : ObservableObject
 
     // ---- Grid-driven exclusions ----------------------------------------------------------
 
-    public void ExcludeArtistFromGrid(string artist) => Filters.ExcludeArtist(artist);
-    public void ExcludeTrackFromGrid(string track) => Filters.ExcludeTrack(track);
     public void ExcludeArtistsFromGrid(IEnumerable<string> artists) => Filters.ExcludeArtists(artists);
     public void ExcludeTracksFromGrid(IEnumerable<string> tracks) => Filters.ExcludeTracks(tracks);
 
