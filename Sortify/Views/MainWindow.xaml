@@ -2266,6 +2266,11 @@
                            VerticalAlignment="Center" Margin="12,0,0,0"
                            Foreground="{DynamicResource MutedBrush}"
                            Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}" />
+                <TextBlock DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0"
+                           Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                    <Hyperlink Click="OnShowLoadedFiles"
+                               ToolTip="The files your history was read from, what each held, and anything left out"><Run Text="{Binding LoadedFilesText, Mode=OneWay}" /></Hyperlink>
+                </TextBlock>
                 <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" ToolTip="{Binding StatusText}"
                            AutomationProperties.LiveSetting="Polite">

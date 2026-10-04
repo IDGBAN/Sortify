@@ -416,6 +416,12 @@ public partial class MainWindow : ThemedWindow
         menu.IsOpen = true;
     }
 
+    private void OnShowLoadedFiles(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.LoadedHistory is { } history)
+            new LoadedFilesWindow(history) { Owner = this }.ShowDialog();
+    }
+
     private async void OnOpenSettings(object sender, RoutedEventArgs e)
     {
         var dialog = new SettingsWindow(_settings) { Owner = this };

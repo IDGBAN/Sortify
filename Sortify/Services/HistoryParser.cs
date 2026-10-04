@@ -16,6 +16,9 @@ public sealed class ParseResult
 
     /// <summary>Plays left out because another loaded file already held them.</summary>
     public int DuplicatesRemoved { get; set; }
+
+    /// <summary>Every file offered, in the order given, with what each held or why it wasn't read.</summary>
+    public List<LoadedFile> Files { get; } = new();
 }
 
 /// <summary>How far a parse has got, for a determinate progress bar and a status line.</summary>
@@ -140,10 +143,12 @@ public sealed class HistoryParser
             }, cancellationToken))
             .ToList();
 
+        var outcomes = new List<FileOutcome>(tasks.Count);
         var sources = new List<OverlapFilter.SourceFile>(tasks.Count);
         foreach (var task in tasks)
         {
             var outcome = await task.ConfigureAwait(false);
+            outcomes.Add(outcome);
             if (outcome.Records is { } records)
                 sources.Add(new OverlapFilter.SourceFile(records, outcome.IsLegacy));
             if (outcome.SkippedFile is { } skipped)
@@ -158,17 +163,54 @@ public sealed class HistoryParser
 
         // Duplicates were matched on UTC above. Converting only now means a play held by both
         // export formats can't slip past the match by landing in two different zones: the
-        // older format records no country, so it can be converted differently.
-        foreach (var record in result.Records)
+        // older format records no country, so it can be converted differently. Every file's
+        // plays are converted, those left out included, so each file's own dates are local.
+        foreach (var source in sources)
         {
-            if (record.Timestamp != DateTime.MinValue)
-                record.SetLocalTime(_timeZones.ToLocal(record.Timestamp, record.Country));
+            foreach (var record in source.Records)
+            {
+                if (record.Timestamp != DateTime.MinValue)
+                    record.SetLocalTime(_timeZones.ToLocal(record.Timestamp, record.Country));
+            }
         }
+
+        for (int i = 0; i < paths.Count; i++)
+            result.Files.Add(Summarise(paths[i], outcomes[i]));
         return result;
     }
 
+    /// <summary>"Streaming_History_Audio_2019.json", or "... (in my_spotify_data.zip)" for a file inside a ZIP.</summary>
+    internal static string DisplayName(string path) =>
+        ArchivePath.TrySplit(path, out var archive, out var entry)
+            ? $"{Path.GetFileName(entry)} (in {Path.GetFileName(archive)})"
+            : Path.GetFileName(path);
+
+    private static LoadedFile Summarise(string path, FileOutcome outcome)
+    {
+        string name = DisplayName(path);
+        if (outcome.Records is not { Count: > 0 } records)
+        {
+            return new LoadedFile(path, name, LoadedFileFormat.Skipped, 0, null, null,
+                outcome.Problem ?? (outcome.Records is null ? "Empty" : "Holds no plays Sortify can read"));
+        }
+
+        DateTime? first = null, last = null;
+        foreach (var record in records)
+        {
+            if (record.Timestamp == DateTime.MinValue)
+                continue;
+            if (first is null || record.Timestamp < first)
+                first = record.Timestamp;
+            if (last is null || record.Timestamp > last)
+                last = record.Timestamp;
+        }
+        var format = outcome.IsLegacy ? LoadedFileFormat.AccountData : LoadedFileFormat.Extended;
+        return new LoadedFile(path, name, format, records.Count, first, last, null);
+    }
+
+    /// <summary>What reading one file came to. <paramref name="Problem"/> says briefly why a file wasn't read.</summary>
     private readonly record struct FileOutcome(
-        List<PlayRecord>? Records, string? SkippedFile, string? Warning, bool IsLegacy = false);
+        List<PlayRecord>? Records, string? SkippedFile, string? Warning, bool IsLegacy = false, string? Problem = null);
 
     private static async Task<FileOutcome> ParseFileAsync(string path, StringPool pool, CancellationToken cancellationToken)
     {
@@ -199,23 +241,29 @@ public sealed class HistoryParser
         }
         catch (JsonException ex)
         {
-            return new FileOutcome(null, null, $"Skipping invalid JSON file: {Path.GetFileName(path)} ({ex.Message})");
+            // Valid JSON of the wrong shape fails at the root; anything else is broken somewhere inside.
+            return new FileOutcome(null, null, $"Skipping invalid JSON file: {Path.GetFileName(path)} ({ex.Message})",
+                Problem: ex.Path is null or "$" ? "Not a listening history" : $"Broken or unexpected JSON near line {ex.LineNumber + 1}");
         }
         catch (InvalidDataException ex)
         {
-            return new FileOutcome(null, null, $"Could not unpack {Path.GetFileName(path)} from the ZIP ({ex.Message})");
+            return new FileOutcome(null, null, $"Could not unpack {Path.GetFileName(path)} from the ZIP ({ex.Message})",
+                Problem: $"Couldn't be unpacked from the ZIP ({ex.Message})");
         }
         catch (NotSupportedException ex)
         {
-            return new FileOutcome(null, null, $"Skipping unsupported JSON file: {Path.GetFileName(path)} ({ex.Message})");
+            return new FileOutcome(null, null, $"Skipping unsupported JSON file: {Path.GetFileName(path)} ({ex.Message})",
+                Problem: $"Not in a form Sortify reads ({ex.Message})");
         }
         catch (IOException ex)
         {
-            return new FileOutcome(null, null, $"Could not read {Path.GetFileName(path)} ({ex.Message})");
+            return new FileOutcome(null, null, $"Could not read {Path.GetFileName(path)} ({ex.Message})",
+                Problem: $"Couldn't be read ({ex.Message})");
         }
         catch (UnauthorizedAccessException ex)
         {
-            return new FileOutcome(null, null, $"Access denied to {Path.GetFileName(path)} ({ex.Message})");
+            return new FileOutcome(null, null, $"Access denied to {Path.GetFileName(path)} ({ex.Message})",
+                Problem: $"Access was denied ({ex.Message})");
         }
     }
 

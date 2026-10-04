@@ -142,6 +142,12 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uniqueTracksText = "-";
     [ObservableProperty] private string _dateRangeText = "-";
 
+    /// <summary>What the history on screen was read from, for the panel the status bar opens.</summary>
+    [ObservableProperty] private LoadedHistory? _loadedHistory;
+
+    /// <summary>The status bar's link to that panel: "12 files loaded, 1 skipped".</summary>
+    [ObservableProperty] private string _loadedFilesText = string.Empty;
+
     /// <summary>The Overview's card button, naming what the card would cover: "Summary card for March 2024".</summary>
     [ObservableProperty] private string _summaryCardText = "Summary card";
 
@@ -424,6 +430,7 @@ public sealed partial class MainViewModel : ObservableObject
             SetStatus("Making up a sample history...");
             var records = await Task.Run(() => SampleHistory.Generate());
             AdoptHistory(records, Array.Empty<string>(), folder: null, isSample: true);
+            DescribeLoad(Array.Empty<LoadedFile>(), 0, source: null, fromCache: false);
             SetStatus($"Opened a sample history of {records.Count:N0} made-up plays. Crunching numbers...");
             await RecomputeAsync();
         }
@@ -507,12 +514,13 @@ public sealed partial class MainViewModel : ObservableObject
             // reopening the same folder), and parsing it again costs seconds for nothing.
             var timeZones = PlayTimeZones.From(_settings);
             SetStatus("Checking for cached results...");
-            var cached = await Task.Run(() => RecordCache.TryLoad(filePaths, timeZones), token);
+            var cached = await Task.Run(() => RecordCache.TryLoadHistory(filePaths, timeZones), token);
             token.ThrowIfCancellationRequested();
-            if (cached is { Count: > 0 })
+            if (cached is { Records.Count: > 0 })
             {
-                AdoptHistory(cached.ToList(), filePaths, folder);
+                AdoptHistory(cached.Records.ToList(), filePaths, folder);
                 _loadedTimeZones = timeZones.CacheKey;
+                DescribeLoad(cached.Files, cached.DuplicatesRemoved, folder, fromCache: true);
                 SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
                 await RecomputeAsync();
                 return;
@@ -539,6 +547,7 @@ public sealed partial class MainViewModel : ObservableObject
 
             AdoptHistory(parsed.Records, filePaths, folder);
             _loadedTimeZones = timeZones.CacheKey;
+            DescribeLoad(parsed.Files, parsed.DuplicatesRemoved, folder, fromCache: false);
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
             IsProgressIndeterminate = true;
@@ -554,7 +563,8 @@ public sealed partial class MainViewModel : ObservableObject
 
             // Save after analysis so the user isn't waiting on disk I/O to see results.
             var toCache = _rawRecords;
-            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache, timeZones), CancellationToken.None);
+            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache, timeZones, parsed.Files, parsed.DuplicatesRemoved),
+                CancellationToken.None);
         }
         catch (OperationCanceledException)
         {
@@ -599,6 +609,28 @@ public sealed partial class MainViewModel : ObservableObject
     }
 
     private void RefreshBusy() => IsBusy = _isLoading || _pendingAnalyses > 0;
+
+    /// <summary>Records what the history just adopted was read from, and words the status bar's link to it.</summary>
+    private void DescribeLoad(IReadOnlyList<LoadedFile> files, int duplicatesRemoved, string? source, bool fromCache)
+    {
+        DateTime? first = null, last = null;
+        foreach (var record in _rawRecords)
+        {
+            if (record.Timestamp == DateTime.MinValue)
+                continue;
+            if (first is null || record.Timestamp < first)
+                first = record.Timestamp;
+            if (last is null || record.Timestamp > last)
+                last = record.Timestamp;
+        }
+
+        LoadedHistory = new LoadedHistory(files, duplicatesRemoved, source, fromCache, IsSample, _rawRecords.Count, first, last);
+        int read = files.Count(f => f.Format != LoadedFileFormat.Skipped);
+        int skipped = files.Count - read;
+        LoadedFilesText = IsSample
+            ? "About this sample"
+            : $"{read:N0} file{(read == 1 ? "" : "s")} loaded{(skipped > 0 ? $", {skipped:N0} skipped" : "")}";
+    }
 
     /// <summary>
     /// Offers the quick date ranges, devices and countries that fit the history just loaded.

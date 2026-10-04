@@ -4,6 +4,9 @@ using Sortify.Models;
 
 namespace Sortify.Services;
 
+/// <summary>A cached history: the plays, what each file held, and how many plays two files shared.</summary>
+public sealed record CachedHistory(IReadOnlyList<PlayRecord> Records, IReadOnlyList<LoadedFile> Files, int DuplicatesRemoved);
+
 /// <summary>
 /// Caches parsed <see cref="PlayRecord"/>s in a compact binary file so reopening the same
 /// export skips JSON parsing entirely. The cache is keyed by the exact set of source files
@@ -12,7 +15,7 @@ namespace Sortify.Services;
 public static class RecordCache
 {
     /// <summary>Bumped whenever the record layout changes, so stale caches are ignored.</summary>
-    private const int FormatVersion = 1;
+    private const int FormatVersion = 2;
 
     /// <summary>
     /// Upper bounds on the two counts read out of the file header, so a truncated or
@@ -22,6 +25,7 @@ public static class RecordCache
     /// </summary>
     private const int MaxRecords = 50_000_000;
     private const int MaxPoolEntries = 100_000;
+    private const int MaxFiles = 100_000;
 
     private static readonly byte[] Magic = "SRTFY\0"u8.ToArray();
 
@@ -65,7 +69,13 @@ public static class RecordCache
     /// Any failure - missing, truncated, stale or unreadable - is treated as a miss, since
     /// re-parsing is always a correct fallback.
     /// </summary>
-    public static IReadOnlyList<PlayRecord>? TryLoad(IEnumerable<string> filePaths, PlayTimeZones? timeZones = null)
+    public static IReadOnlyList<PlayRecord>? TryLoad(IEnumerable<string> filePaths, PlayTimeZones? timeZones = null) =>
+        TryLoadHistory(filePaths, timeZones)?.Records;
+
+    /// <summary>
+    /// The cached plays along with what each file held, or null when there is no usable cache.
+    /// </summary>
+    public static CachedHistory? TryLoadHistory(IEnumerable<string> filePaths, PlayTimeZones? timeZones = null)
     {
         timeZones ??= PlayTimeZones.ThisPc;
         try
@@ -123,7 +133,27 @@ public static class RecordCache
                     HasPlaybackFlags = reader.ReadBoolean(),
                 });
             }
-            return records;
+
+            int fileCount = reader.ReadInt32();
+            if (fileCount is < 0 or > MaxFiles)
+                return null;
+
+            var files = new List<LoadedFile>(fileCount);
+            for (int i = 0; i < fileCount; i++)
+            {
+                string path = reader.ReadString();
+                var format = (LoadedFileFormat)reader.ReadByte();
+                if (!Enum.IsDefined(format))
+                    throw new InvalidDataException($"Unknown file format {(int)format}.");
+                int plays = reader.ReadInt32();
+                var first = ReadTimestamp(reader, timeZones.Kind);
+                var last = ReadTimestamp(reader, timeZones.Kind);
+                string? problem = reader.ReadBoolean() ? reader.ReadString() : null;
+                files.Add(new LoadedFile(path, HistoryParser.DisplayName(path), format, plays,
+                    first == DateTime.MinValue ? null : first, last == DateTime.MinValue ? null : last, problem));
+            }
+
+            return new CachedHistory(records, files, reader.ReadInt32());
         }
         // FormatException is what BinaryReader.ReadString throws on a mangled length prefix.
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException
@@ -159,8 +189,11 @@ public static class RecordCache
     /// Writes the cache for these files. Best-effort: a failure here costs nothing but the
     /// speed-up next time, so it is swallowed.
     /// </summary>
-    public static void TrySave(IEnumerable<string> filePaths, IReadOnlyList<PlayRecord> records, PlayTimeZones? timeZones = null)
+    public static void TrySave(
+        IEnumerable<string> filePaths, IReadOnlyList<PlayRecord> records, PlayTimeZones? timeZones = null,
+        IReadOnlyList<LoadedFile>? files = null, int duplicatesRemoved = 0)
     {
+        files ??= Array.Empty<LoadedFile>();
         var temp = CacheFile + ".tmp";
         try
         {
@@ -211,6 +244,20 @@ public static class RecordCache
                     writer.Write(r.Incognito);
                     writer.Write(r.HasPlaybackFlags);
                 }
+
+                writer.Write(files.Count);
+                foreach (var f in files)
+                {
+                    writer.Write(f.Path);
+                    writer.Write((byte)f.Format);
+                    writer.Write(f.Plays);
+                    writer.Write((f.First ?? DateTime.MinValue).Ticks);
+                    writer.Write((f.Last ?? DateTime.MinValue).Ticks);
+                    writer.Write(f.Problem is not null);
+                    if (f.Problem is not null)
+                        writer.Write(f.Problem);
+                }
+                writer.Write(duplicatesRemoved);
 
                 void Intern(string value)
                 {
