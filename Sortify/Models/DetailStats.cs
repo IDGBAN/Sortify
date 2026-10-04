@@ -69,6 +69,45 @@ public sealed class DetailResult
     /// </summary>
     public string Uri { get; init; } = string.Empty;
 
+    /// <summary>
+    /// Position by listening time among everything of its kind (artists for an artist, years for
+    /// a year...) under the same filters. Null when it couldn't be ranked.
+    /// </summary>
+    public int? Rank { get; init; }
+
+    /// <summary>How many of its kind there are, for "#3 of 160".</summary>
+    public int RankOutOf { get; init; }
+
+    /// <summary>Share of all the listening of its kind (0-100): music, or podcasts for a show or episode.</summary>
+    public double SharePercent { get; init; }
+
+    /// <summary>Plays counted for the skip rate, short ones included as on the Insights tab.</summary>
+    public int SkipEligiblePlays { get; init; }
+
+    public int Skips { get; init; }
+
+    public double SkipRate => SkipEligiblePlays == 0 ? 0 : Skips * 100.0 / SkipEligiblePlays;
+
+    /// <summary>The first day of the month with the most listening.</summary>
+    public DateTime? BusiestMonth { get; init; }
+
+    public long BusiestMonthMs { get; init; }
+
+    /// <summary>Longest run of consecutive days with at least one play.</summary>
+    public int LongestStreakDays { get; init; }
+
+    public DateTime? LongestStreakStart { get; init; }
+    public DateTime? LongestStreakEnd { get; init; }
+
+    /// <summary>The device family with the most listening, or empty when the export doesn't say.</summary>
+    public string TopDevice { get; init; } = string.Empty;
+
+    /// <summary>The top device's share of the listening that names a device (0-100).</summary>
+    public double TopDevicePercent { get; init; }
+
+    /// <summary>Every counted play, oldest first.</summary>
+    public IReadOnlyList<PlayRecord> Plays { get; init; } = Array.Empty<PlayRecord>();
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
 
     /// <summary>

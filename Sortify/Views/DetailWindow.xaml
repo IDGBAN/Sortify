@@ -80,6 +80,52 @@
 
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
             <StackPanel>
+                <!-- Where it stands and how it was played. -->
+                <UniformGrid Columns="6">
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="RANK" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                            <TextBlock x:Name="RankText" Style="{StaticResource StatValueSmall}" FontSize="15" />
+                            <TextBlock x:Name="RankHint" Style="{StaticResource Hint}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="SHARE OF LISTENING" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                            <TextBlock x:Name="ShareText" Style="{StaticResource StatValueSmall}" FontSize="15" />
+                            <TextBlock x:Name="ShareHint" Style="{StaticResource Hint}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="SKIP RATE" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                            <TextBlock x:Name="SkipText" Style="{StaticResource StatValueSmall}" FontSize="15" />
+                            <TextBlock x:Name="SkipHint" Style="{StaticResource Hint}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="BUSIEST MONTH" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                            <TextBlock x:Name="BusiestText" Style="{StaticResource StatValueSmall}" FontSize="15" />
+                            <TextBlock x:Name="BusiestHint" Style="{StaticResource Hint}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="LONGEST STREAK" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                            <TextBlock x:Name="StreakText" Style="{StaticResource StatValueSmall}" FontSize="15" />
+                            <TextBlock x:Name="StreakHint" Style="{StaticResource Hint}" />
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource Card}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Text="MOSTLY ON" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                            <TextBlock x:Name="DeviceText" Style="{StaticResource StatValueSmall}" FontSize="15" />
+                            <TextBlock x:Name="DeviceHint" Style="{StaticResource Hint}" />
+                        </StackPanel>
+                    </Border>
+                </UniformGrid>
+
                 <Border Style="{StaticResource Card}" Height="280">
                     <DockPanel>
                         <TextBlock DockPanel.Dock="Top" Text="Listening Over Time (monthly)"
@@ -156,6 +202,28 @@
                                 <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
                                 <DataGridTextColumn Header="First Played"
                                                     Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </DockPanel>
+                </Border>
+
+                <Border x:Name="PlaysCard" Style="{StaticResource Card}" Height="340">
+                    <DockPanel>
+                        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                            <TextBlock x:Name="PlaysHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
+                            <TextBlock x:Name="PlaysHeader" Text="Plays" Style="{StaticResource SectionHeader}" Margin="0" />
+                        </DockPanel>
+                        <DataGrid x:Name="PlaysGrid" AutomationProperties.Name="Plays"
+                                  MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="When" Binding="{Binding When}" SortMemberPath="Record.Timestamp"
+                                                    Width="135" MinWidth="135" />
+                                <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="140" />
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" />
+                                <DataGridTextColumn Header="Played" Binding="{Binding Played, Converter={StaticResource HhMmSs}}"
+                                                    SortMemberPath="Record.MsPlayed" Width="80" MinWidth="80" />
+                                <DataGridTextColumn Header="Ended" Binding="{Binding Ended}" Width="130" MinWidth="130" />
+                                <DataGridTextColumn Header="Device" Binding="{Binding Device}" Width="115" MinWidth="115" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>

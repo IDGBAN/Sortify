@@ -146,6 +146,8 @@ public partial class DetailWindow : ThemedWindow
         TracksGrid.ItemsSource = detail.Tracks;
         AlbumsGrid.ItemsSource = detail.Albums;
         ArtistsGrid.ItemsSource = detail.Artists;
+        ShowStanding(detail);
+        ShowPlays(detail);
 
         // Opening a single track already shows that one track in the header; the one-row
         // grid underneath would just repeat it. A show's "albums" are only the show itself.
@@ -166,6 +168,72 @@ public partial class DetailWindow : ThemedWindow
         // Spotify has nothing to open for a whole year.
         if (detail.WebUrl.Length == 0)
             OpenButton.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Where it ranks, its share of the listening, and how it was played.</summary>
+    private void ShowStanding(DetailResult d)
+    {
+        RankText.Text = d.Rank is { } rank ? $"#{rank:N0}" : "-";
+        RankHint.Text = d.Rank is null ? string.Empty : $"of {RankedAmong(d)}";
+
+        ShareText.Text = d.Rank is null ? "-" : $"{d.SharePercent:0.#}%";
+        ShareHint.Text = d.Rank is null ? string.Empty
+            : d.Scope is DetailScope.Show or DetailScope.Episode ? "of your podcast and audiobook listening" : "of your listening";
+
+        SkipText.Text = d.SkipEligiblePlays > 0 ? $"{d.SkipRate:0.#}%" : "-";
+        SkipHint.Text = d.SkipEligiblePlays > 0 ? $"{d.Skips:N0} of {d.SkipEligiblePlays:N0} plays skipped" : string.Empty;
+
+        BusiestText.Text = d.BusiestMonth is { } month ? TimeFormat.Month(month) : "-";
+        BusiestHint.Text = d.BusiestMonth is null ? string.Empty : TimeFormat.Friendly(TimeSpan.FromMilliseconds(d.BusiestMonthMs));
+
+        StreakText.Text = d.LongestStreakDays > 0 ? $"{d.LongestStreakDays:N0} day{(d.LongestStreakDays == 1 ? "" : "s")}" : "-";
+        StreakHint.Text = (d.LongestStreakStart, d.LongestStreakEnd) switch
+        {
+            ({ } start, { } end) when start == end => TimeFormat.Day(start),
+            ({ } start, { } end) => $"{TimeFormat.Day(start)} to {TimeFormat.Day(end)}",
+            _ => string.Empty,
+        };
+
+        DeviceText.Text = d.TopDevice.Length > 0 ? d.TopDevice : "-";
+        DeviceHint.Text = d.TopDevice.Length > 0 ? $"{d.TopDevicePercent:0}% of the time" : string.Empty;
+    }
+
+    /// <summary>What a breakdown of this kind is ranked against: "160 artists", "1 year".</summary>
+    private static string RankedAmong(DetailResult d)
+    {
+        var (one, many) = d.Scope switch
+        {
+            DetailScope.Artist => ("artist", "artists"),
+            DetailScope.Track => ("track", "tracks"),
+            DetailScope.Album => ("album", "albums"),
+            DetailScope.Year => ("year", "years"),
+            DetailScope.Show => ("show", "shows and audiobooks"),
+            DetailScope.Episode => ("episode", "episodes and chapters"),
+            _ => (string.Empty, string.Empty),
+        };
+        return $"{d.RankOutOf:N0} {(d.RankOutOf == 1 ? one : many)}";
+    }
+
+    /// <summary>
+    /// Every play of it, newest first. The track and artist columns go when the header already
+    /// names them for every row.
+    /// </summary>
+    private void ShowPlays(DetailResult d)
+    {
+        PlaysGrid.ItemsSource = HistoryViewModel.Sorted(HistoryViewModel.RowsFor(d.Plays), nameof(PlayRow.When), descending: true);
+        PlaysHeader.Text = $"Plays ({d.Plays.Count:N0})";
+
+        bool oneTrack = d.Scope is DetailScope.Track or DetailScope.Episode;
+        PlaysGrid.Columns[1].Visibility = oneTrack ? Visibility.Collapsed : Visibility.Visible;
+        PlaysGrid.Columns[2].Visibility = d.Scope == DetailScope.Year ? Visibility.Visible : Visibility.Collapsed;
+        if (d.Scope is DetailScope.Show or DetailScope.Episode)
+            PlaysGrid.Columns[1].Header = d.Kind == ContentKind.Audiobook ? "Chapter" : "Episode";
+
+        PlaysHint.Text = oneTrack || _openDetail is null
+            ? "Newest first"
+            : "Newest first. Double-click a play, or press Enter, for its track's breakdown";
+        if (d.Plays.Count == 0)
+            PlaysCard.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>"Podcast", "Chapter" and so on: what the header says this breakdown is of.</summary>
@@ -199,10 +267,13 @@ public partial class DetailWindow : ThemedWindow
     /// What a row opens from inside this breakdown. A show lists its episodes in the tracks
     /// grid, and those open as episodes rather than as tracks.
     /// </summary>
-    private (DetailScope Scope, string Title, string Subtitle)? TargetFrom(object item) =>
-        _detail.Scope == DetailScope.Show && item is TrackStat t
-            ? (DetailScope.Episode, t.Track, t.Artist)
-            : TargetFor(item);
+    private (DetailScope Scope, string Title, string Subtitle)? TargetFrom(object item) => item switch
+    {
+        TrackStat t when _detail.Scope == DetailScope.Show => (DetailScope.Episode, t.Track, t.Artist),
+        // A play of the very track or episode on screen would only open this breakdown again.
+        PlayRow when _detail.Scope is DetailScope.Track or DetailScope.Episode => null,
+        _ => TargetFor(item),
+    };
 
     private async void OnRowDoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -324,6 +395,19 @@ public partial class DetailWindow : ThemedWindow
             sb.AppendLine($"First played: {TimeFormat.Timestamp(first)}");
         if (_detail.LastPlayed is { } last)
             sb.AppendLine($"Last played: {TimeFormat.Timestamp(last)}");
+        if (_detail.Rank is { } rank)
+        {
+            sb.AppendLine($"Rank: #{rank:N0} of {RankedAmong(_detail)}");
+            sb.AppendLine($"Share of listening: {_detail.SharePercent:0.#}%");
+        }
+        if (_detail.SkipEligiblePlays > 0)
+            sb.AppendLine($"Skip rate: {_detail.SkipRate:0.#}% ({_detail.Skips:N0} of {_detail.SkipEligiblePlays:N0} plays)");
+        if (_detail.BusiestMonth is { } month)
+            sb.AppendLine($"Busiest month: {TimeFormat.Month(month)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(_detail.BusiestMonthMs))})");
+        if (_detail.LongestStreakDays > 0)
+            sb.AppendLine($"Longest streak: {_detail.LongestStreakDays:N0} day{(_detail.LongestStreakDays == 1 ? "" : "s")} ({StreakHint.Text})");
+        if (_detail.TopDevice.Length > 0)
+            sb.AppendLine($"Mostly on: {_detail.TopDevice} ({_detail.TopDevicePercent:0}%)");
 
         bool copied;
         try

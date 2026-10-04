@@ -312,7 +312,7 @@ public static class AnalysisEngine
             .Select(kv => new DateTimePoint(kv.Key, kv.Value / 3_600_000d))
             .ToList();
 
-        var (streakDays, streakStart, streakEnd) = LongestStreak(dayPoints);
+        var (streakDays, streakStart, streakEnd) = LongestStreak(dayPoints.Select(p => p.Date).ToList());
         int currentStreak = CurrentStreak(dayPoints);
         var (breakDays, breakStart, breakEnd) = LongestBreak(dayPoints);
 
@@ -603,33 +603,33 @@ public static class AnalysisEngine
         };
     }
 
-    /// <summary>Finds the longest run of consecutive listening days in date-sorted day points.</summary>
-    private static (int days, DateTime? start, DateTime? end) LongestStreak(IReadOnlyList<DateTimePoint> dayPoints)
+    /// <summary>Finds the longest run of consecutive days in sorted, distinct calendar days.</summary>
+    internal static (int Days, DateTime? Start, DateTime? End) LongestStreak(IReadOnlyList<DateTime> days)
     {
-        if (dayPoints.Count == 0)
+        if (days.Count == 0)
             return (0, null, null);
 
         int best = 1, current = 1;
-        DateTime bestStart = dayPoints[0].Date, bestEnd = dayPoints[0].Date;
-        DateTime runStart = dayPoints[0].Date;
+        DateTime bestStart = days[0], bestEnd = days[0];
+        DateTime runStart = days[0];
 
-        for (int i = 1; i < dayPoints.Count; i++)
+        for (int i = 1; i < days.Count; i++)
         {
-            if (dayPoints[i].Date == dayPoints[i - 1].Date.AddDays(1))
+            if (days[i] == days[i - 1].AddDays(1))
             {
                 current++;
             }
             else
             {
                 current = 1;
-                runStart = dayPoints[i].Date;
+                runStart = days[i];
             }
 
             if (current > best)
             {
                 best = current;
                 bestStart = runStart;
-                bestEnd = dayPoints[i].Date;
+                bestEnd = days[i];
             }
         }
 

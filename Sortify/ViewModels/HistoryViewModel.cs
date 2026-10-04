@@ -145,7 +145,7 @@ public sealed partial class HistoryViewModel : ObservableObject
         }
     }
 
-    /// <summary>Every play under the filters, oldest first, each with its device family worked out.</summary>
+    /// <summary>Every play under the filters, oldest first.</summary>
     internal static List<PlayRow> Build(IReadOnlyList<PlayRecord> records, FilterOptions filter, CancellationToken cancellationToken = default)
     {
         var plays = new List<PlayRecord>();
@@ -158,14 +158,18 @@ public sealed partial class HistoryViewModel : ObservableObject
         }
 
         // Stable, so plays that share a timestamp keep the order their files gave them.
-        var ordered = plays.OrderBy(r => r.Timestamp).ToList();
+        return RowsFor(plays.OrderBy(r => r.Timestamp).ToList());
+    }
 
+    /// <summary>Rows for plays already in time order, oldest first, each with its device family worked out.</summary>
+    internal static List<PlayRow> RowsFor(IReadOnlyList<PlayRecord> inTimeOrder)
+    {
         // Only a few dozen distinct platform strings exist, so each is classified once.
         var families = new Dictionary<string, string>(StringComparer.Ordinal) { [string.Empty] = string.Empty };
-        var rows = new List<PlayRow>(ordered.Count);
-        for (int i = 0; i < ordered.Count; i++)
+        var rows = new List<PlayRow>(inTimeOrder.Count);
+        for (int i = 0; i < inTimeOrder.Count; i++)
         {
-            var r = ordered[i];
+            var r = inTimeOrder[i];
             if (!families.TryGetValue(r.Platform, out var family))
             {
                 family = AnalysisEngine.PlatformFamily(r.Platform);
