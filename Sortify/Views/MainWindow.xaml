@@ -189,39 +189,57 @@
         <!-- Rule under the title bar, which holds the toolbar. -->
         <Border Grid.Row="0" Height="1" Background="{DynamicResource BorderBrush}" />
 
-        <!-- ========================= Active filter chips ======================= -->
-        <Border Grid.Row="1" Background="{DynamicResource BgBrush}" Padding="14,8,14,2"
-                Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}">
-            <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Left" Text="Filtered by" VerticalAlignment="Center"
-                           Foreground="{DynamicResource MutedBrush}" FontSize="11"
-                           FontWeight="SemiBold" Margin="0,0,10,4" />
-                <Button DockPanel.Dock="Right" Content="Clear all" Padding="10,3" Margin="6,0,0,4"
-                        FontSize="11" VerticalAlignment="Center"
-                        Command="{Binding Filters.ResetCommand}"
-                        ToolTip="Reset every filter (Ctrl+R)" />
-                <ItemsControl ItemsSource="{Binding ActiveFilters}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Style="{StaticResource Chip}" Padding="10,1,3,1">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
-                                    <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
-                                            Command="{Binding ClearCommand}"
-                                            ToolTip="{Binding ClearHint}"
-                                            AutomationProperties.Name="{Binding ClearHint}" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </DockPanel>
-        </Border>
+        <StackPanel Grid.Row="1">
+            <!-- ======================== Sample history notice ====================== -->
+            <Border Background="{DynamicResource PanelBrush2}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1" Padding="14,7"
+                    Visibility="{Binding IsSample, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="Open your export" Style="{StaticResource AccentButton}"
+                            Padding="12,4" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
+                            Command="{Binding RunAnalysisCommand}"
+                            ToolTip="Pick the export ZIP Spotify sent, or its JSON files (Ctrl+O)" />
+                    <TextBlock DockPanel.Dock="Left" Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                               Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"
+                               Text="This is a made-up sample history: every artist, track and play in it is invented. Open your own export, or drop it on this window, to see yours." />
+                </DockPanel>
+            </Border>
+
+            <!-- ========================= Active filter chips ======================= -->
+            <Border Background="{DynamicResource BgBrush}" Padding="14,8,14,2"
+                    Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Left" Text="Filtered by" VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                               FontWeight="SemiBold" Margin="0,0,10,4" />
+                    <Button DockPanel.Dock="Right" Content="Clear all" Padding="10,3" Margin="6,0,0,4"
+                            FontSize="11" VerticalAlignment="Center"
+                            Command="{Binding Filters.ResetCommand}"
+                            ToolTip="Reset every filter (Ctrl+R)" />
+                    <ItemsControl ItemsSource="{Binding ActiveFilters}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Padding="10,1,3,1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
+                                        <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
+                                                Command="{Binding ClearCommand}"
+                                                ToolTip="{Binding ClearHint}"
+                                                AutomationProperties.Name="{Binding ClearHint}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Border>
+        </StackPanel>
 
         <!-- ============================ Main content =========================== -->
         <Grid Grid.Row="2">
@@ -262,6 +280,10 @@
                                    FontSize="11" TextWrapping="Wrap"
                                    Foreground="{DynamicResource MutedBrush}"
                                    Text="Don't have it yet? Request your extended streaming history from Spotify's privacy page; it usually arrives within a few days." />
+                        <TextBlock HorizontalAlignment="Center" TextAlignment="Center" Margin="0,10,0,0" FontSize="12">
+                            <Hyperlink Command="{Binding OpenSampleCommand}"
+                                       ToolTip="Open two years of invented listening to see what Sortify shows">Explore a sample history while you wait</Hyperlink>
+                        </TextBlock>
                     </StackPanel>
                 </Border>
 

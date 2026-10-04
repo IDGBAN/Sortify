@@ -84,6 +84,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _hasData;
 
+    /// <summary>True while the made-up sample history is open rather than a real export.</summary>
+    [ObservableProperty] private bool _isSample;
+
     [ObservableProperty] private double _progressValue;
     [ObservableProperty] private bool _isProgressIndeterminate = true;
 
@@ -353,8 +356,37 @@ public sealed partial class MainViewModel : ObservableObject
     private static bool IsExportContainer(string path) =>
         Directory.Exists(path) || (ArchivePath.IsArchive(path) && File.Exists(path));
 
+    /// <summary>
+    /// Opens a made-up history for someone still waiting on their export. It isn't remembered
+    /// in Recent or cached, and anything opened afterwards replaces it.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenSampleAsync()
+    {
+        if (_isLoading)
+            return;
+
+        _isLoading = true;
+        RefreshBusy();
+        try
+        {
+            SetStatus("Making up a sample history...");
+            var records = await Task.Run(() => SampleHistory.Generate());
+            AdoptHistory(records, Array.Empty<string>(), folder: null, isSample: true);
+            SetStatus($"Opened a sample history of {records.Count:N0} made-up plays. Crunching numbers...");
+            await RecomputeAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+            RefreshBusy();
+        }
+    }
+
+    private bool CanReload() => HasData && !IsSample;
+
     /// <summary>Re-reads the files behind the current results, bypassing the cache.</summary>
-    [RelayCommand(CanExecute = nameof(HasData))]
+    [RelayCommand(CanExecute = nameof(CanReload))]
     private async Task ReloadAsync()
     {
         if (_loadedFiles.Count == 0)
@@ -488,17 +520,18 @@ public sealed partial class MainViewModel : ObservableObject
     /// so a folder or ZIP is remembered in Recent (and reopened at the next launch) once it has
     /// actually loaded.
     /// </summary>
-    private void AdoptHistory(List<PlayRecord> records, IReadOnlyList<string> filePaths, string? folder)
+    private void AdoptHistory(List<PlayRecord> records, IReadOnlyList<string> filePaths, string? folder, bool isSample = false)
     {
         // Reloading the same export keeps the artists and periods being compared; a different
         // one starts again from its own.
-        bool newHistory = !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
+        bool newHistory = isSample != IsSample || !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
         if (newHistory)
             _comparisonSeeded = false;
 
         _rawRecords = records;
         _loadedFiles = filePaths;
         _loadedFolder = folder;
+        IsSample = isSample;
         if (folder is not null)
         {
             _settings.RememberFolder(folder);
@@ -1431,6 +1464,8 @@ public sealed partial class MainViewModel : ObservableObject
         NotifyExportsChanged();
         ReloadCommand.NotifyCanExecuteChanged();
     }
+
+    partial void OnIsSampleChanged(bool value) => ReloadCommand.NotifyCanExecuteChanged();
 
     partial void OnIsBusyChanged(bool value) => CancelLoadCommand.NotifyCanExecuteChanged();
 
