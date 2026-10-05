@@ -84,7 +84,7 @@ While you wait for the export, **Explore a sample history while you wait** on th
 Analysis is quick unless your history is unusually large.
 
 ## Building from Source
-You need the [.NET 8 SDK](https://dotnet.microsoft.com/download).
+You need the [.NET 8 SDK](https://dotnet.microsoft.com/download). With a newer SDK installed alongside it, `global.json` still has `dotnet` use the 8.0 one, as CI does.
 
 ```bash
 dotnet run --project Sortify/Sortify.csproj
