@@ -3,7 +3,6 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -38,7 +37,6 @@ public partial class MainWindow : ThemedWindow
         // read and write one instance.
         _settings = (Application.Current as App)?.Settings ?? AppSettings.Load();
         var vm = new MainViewModel(_settings);
-        vm.PropertyChanged += OnViewModelPropertyChanged;
         vm.History.ScrollRequested += OnHistoryScrollRequested;
         vm.History.PropertyChanged += (_, e) =>
         {
@@ -54,17 +52,6 @@ public partial class MainWindow : ThemedWindow
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        // The status line is where every load, filter and export reports back. Marking it a
-        // live region isn't enough on its own; WPF only announces when the event is raised.
-        if (e.PropertyName == nameof(MainViewModel.StatusText))
-        {
-            UIElementAutomationPeer.CreatePeerForElement(StatusLine)
-                ?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
-        }
-    }
 
     // Reopen last session's folder once the window is up, so the user sees the shell (and
     // the loading status) rather than a blank pause before it appears.
@@ -330,6 +317,10 @@ public partial class MainWindow : ThemedWindow
             vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
             vm.History.IsVisible = ReferenceEquals(tabs.SelectedItem, HistoryTab);
         }
+
+        // Windows' "Show animations in Windows" switch, which people turn off to cut down on motion.
+        if (!SystemParameters.ClientAreaAnimation)
+            return;
 
         var host = FindContentHost(tabs);
         if (host is null)

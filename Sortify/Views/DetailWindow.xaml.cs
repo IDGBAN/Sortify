@@ -445,6 +445,7 @@ public partial class DetailWindow : ThemedWindow
         // Held at its current width so the header doesn't shift under the shorter label.
         CopyButton.MinWidth = CopyButton.ActualWidth;
         CopyButton.Content = copied ? "Copied" : "Copy failed";
+        LiveRegion.Announce(CopyButton);
         _copyNotice ??= new DispatcherTimer(CopyNoticeTime, DispatcherPriority.Normal, (_, _) =>
         {
             _copyNotice!.Stop();

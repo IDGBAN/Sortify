@@ -28,6 +28,7 @@
                     Click="OnOpenInSpotify" Style="{StaticResource AccentButton}"
                     Padding="12,6" Margin="0" VerticalAlignment="Top" />
             <Button x:Name="CopyButton" DockPanel.Dock="Right" Content="Copy summary" Click="OnCopySummary"
+                    AutomationProperties.LiveSetting="Polite"
                     Padding="12,6" VerticalAlignment="Top"
                     ToolTip="Copy these figures as plain text" />
             <Button x:Name="FocusButton" DockPanel.Dock="Right" Content="Show only this artist"

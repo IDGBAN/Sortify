@@ -1863,7 +1863,7 @@
                                                 </StackPanel>
                                             </Grid>
                                             <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
-                                                       Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                       Foreground="{DynamicResource DangerBrush}" views:LiveRegion.Announce="Polite"
                                                        Visibility="{Binding Message, Converter={StaticResource TextToVis}}" />
                                             <TextBlock Text="Working out both periods..." Style="{StaticResource Hint}" FontSize="11"
                                                        Margin="0,8,0,0"
@@ -2010,7 +2010,7 @@
                                                         Padding="10,5" FontSize="11" Margin="0" VerticalAlignment="Center" />
                                                 <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
                                                     <TextBlock Text="{Binding OtherStatus}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                               AutomationProperties.LiveSetting="Polite" />
+                                                               views:LiveRegion.Announce="Polite" />
                                                     <ProgressBar Value="{Binding OtherProgress}" Maximum="100" Height="4" Margin="0,6,0,0"
                                                                  IsIndeterminate="{Binding IsOtherProgressUnknown}"
                                                                  AutomationProperties.Name="Reading their history" />
@@ -2020,7 +2020,7 @@
                                             <TextBlock Text="{Binding OtherSummary}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"
                                                        Visibility="{Binding HasOther, Converter={StaticResource BoolToVis}}" />
                                             <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
-                                                       Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                       Foreground="{DynamicResource DangerBrush}" views:LiveRegion.Announce="Polite"
                                                        Visibility="{Binding Message, Converter={StaticResource TextToVis}}" />
                                             <TextBlock Text="Comparing your listening with theirs..." Style="{StaticResource Hint}" FontSize="11"
                                                        Margin="0,8,0,0"
@@ -2206,7 +2206,7 @@
                                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,4,0,8" FontSize="11"
                                            Text="Every play that passes the sidebar filters, newest first. Click a column header to sort, and double-click a play, or select it and press Enter, for its track's breakdown." />
                                 <TextBlock DockPanel.Dock="Top" Text="{Binding JumpNote}" FontSize="12" Margin="0,0,0,8"
-                                           Foreground="{DynamicResource Accent2TextBrush}" AutomationProperties.LiveSetting="Polite"
+                                           Foreground="{DynamicResource Accent2TextBrush}" views:LiveRegion.Announce="Polite"
                                            Visibility="{Binding JumpNote, Converter={StaticResource TextToVis}}" />
                                 <Grid>
                                     <DataGrid x:Name="HistoryGrid" ItemsSource="{Binding Rows}"
@@ -2275,7 +2275,7 @@
                 </TextBlock>
                 <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" ToolTip="{Binding StatusText}"
-                           AutomationProperties.LiveSetting="Polite">
+                           views:LiveRegion.Announce="Polite">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
@@ -2306,7 +2306,7 @@
                              AutomationProperties.Name="Jump to a track, artist, album or podcast"
                              PreviewKeyDown="OnJumpBoxKeyDown" />
                     <TextBlock DockPanel.Dock="Top" Text="{Binding JumpHint}" Style="{StaticResource Hint}"
-                               FontSize="11" Margin="2,8,2,0" AutomationProperties.LiveSetting="Polite"
+                               FontSize="11" Margin="2,8,2,0" views:LiveRegion.Announce="Polite"
                                Visibility="{Binding JumpHint, Converter={StaticResource TextToVis}}" />
                     <ListBox x:Name="JumpList" ItemsSource="{Binding JumpResults}" SelectedItem="{Binding SelectedJump}"
                              MaxHeight="440" Margin="0,8,0,0" Focusable="False"

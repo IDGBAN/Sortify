@@ -2,6 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="clr-namespace:Sortify.ViewModels"
+             xmlns:views="clr-namespace:Sortify.Views"
              d:DataContext="{d:DesignInstance Type=vm:FilterViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -139,7 +140,7 @@
                 <DatePicker SelectedDate="{Binding EndDate}" AutomationProperties.Name="Filter to date" />
                 <TextBlock Style="{StaticResource Hint}" Foreground="{DynamicResource DangerBrush}"
                            Text="From is after To, so nothing can match. Swap the dates or clear one."
-                           AutomationProperties.LiveSetting="Assertive"
+                           views:LiveRegion.Announce="Assertive"
                            Visibility="{Binding HasInvalidDateRange, Converter={StaticResource BoolToVis}}" />
                 <ItemsControl ItemsSource="{Binding QuickRanges}" Margin="0,8,0,0" Focusable="False"
                               AutomationProperties.Name="Quick date ranges"
@@ -203,7 +204,7 @@
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
                 <TextBlock Text="{Binding IncludeHint}" Style="{StaticResource Hint}"
-                           Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Assertive"
+                           Foreground="{DynamicResource DangerBrush}" views:LiveRegion.Announce="Assertive"
                            Visibility="{Binding IncludeHint, Converter={StaticResource TextToVis}}" />
                 <ItemsControl ItemsSource="{Binding IncludedArtists}" Margin="0,6,0,0">
                     <ItemsControl.ItemTemplate>
