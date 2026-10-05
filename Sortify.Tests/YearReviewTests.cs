@@ -83,6 +83,17 @@ public class YearReviewBuilderTests
     }
 
     [Fact]
+    public void WritesHoursTheSameWayInAnyCulture()
+    {
+        // German writes half an hour as "0,5".
+        using var _ = CultureScope.Named("de-DE");
+
+        var review = Build();
+
+        Assert.Equal("0.5 h", review.TopArtists[1].Time);
+    }
+
+    [Fact]
     public void TheSidebarsOtherFiltersApply_ButNotItsDates()
     {
         var filter = new FilterOptions { StartDate = new DateTime(2025, 1, 1) };

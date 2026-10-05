@@ -154,7 +154,7 @@ public static class YearReviewBuilder
     private static string Hours(long ms)
     {
         double hours = ms / 3_600_000d;
-        return hours >= 10 ? $"{hours:N0} h" : $"{hours:0.#} h";
+        return hours.ToString(hours >= 10 ? "N0" : "0.#", En) + " h";
     }
 
     private static string HoursInWords(long ms)
