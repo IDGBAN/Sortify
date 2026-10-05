@@ -178,8 +178,7 @@ public class CombineReleasesViewTests
             Assert.Contains(vm.Tracks, t => t.Track.EndsWith(" Remaster", StringComparison.Ordinal));
 
             vm.Filters.CombineReleases = true;
-            for (int i = 0; i < 100 && vm.Albums.Count == albumsApart; i++)
-                await Task.Delay(50);
+            await Wait.UntilAsync(() => vm.Albums.Count < albumsApart);
 
             Assert.True(vm.Albums.Count < albumsApart);
             Assert.DoesNotContain(vm.Tracks, t => t.Track.EndsWith(" Remaster", StringComparison.Ordinal));

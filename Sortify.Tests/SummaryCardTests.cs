@@ -254,12 +254,6 @@ public class SummaryCardBuilderTests
 [Collection(WpfCollection.Name)]
 public class SummaryCardViewTests
 {
-    private static async Task WaitFor(Func<bool> done)
-    {
-        for (int i = 0; i < 100 && !done(); i++)
-            await Task.Delay(50);
-    }
-
     [Fact]
     public async Task TheButton_NamesTheRangeInTheSidebar()
     {
@@ -277,7 +271,7 @@ public class SummaryCardViewTests
             vm.PropertyChanged += (_, e) => raised.Add(e.PropertyName);
             int year = DateTime.Today.Year - 1;
             vm.Filters.SetRange(new DateTime(year, 3, 1), new DateTime(year, 3, 31));
-            await WaitFor(() => vm.SummaryCardText != "Summary card for all time");
+            await Wait.UntilAsync(() => vm.SummaryCardText != "Summary card for all time");
 
             Assert.Equal($"Summary card for March {year}", vm.SummaryCardText);
             Assert.Contains(nameof(MainViewModel.CanMakeSummaryCard), raised);

@@ -218,11 +218,12 @@ public class FilterHistoryWindowTests
             var vm = new MainViewModel(new AppSettings());
             await vm.OpenSampleCommand.ExecuteAsync(null);
             Assert.False(vm.ShowFilterBar);
+            string everyPlay = vm.TotalPlaysText;
 
             vm.Filters.SearchTerm = "a";
-            await Task.Delay(800);
+            await Wait.UntilAsync(() => vm.Filters.CanUndo);
             vm.Filters.ResetCommand.Execute(null);
-            await Task.Delay(800);
+            await Wait.UntilAsync(() => vm.TotalPlaysText == everyPlay);
 
             Assert.False(vm.HasActiveFilters);
             Assert.True(vm.ShowFilterBar);

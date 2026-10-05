@@ -9,7 +9,7 @@ namespace Sortify.Tests;
 /// The cache writes to a single per-user file, so these tests share it and must not run in
 /// parallel with each other.
 /// </summary>
-[Collection(nameof(RecordCacheTests))]
+[Collection(DataFolderCollection.Name)]
 public class RecordCacheTests : IDisposable
 {
     private readonly string _dir;

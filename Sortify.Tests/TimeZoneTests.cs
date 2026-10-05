@@ -95,7 +95,7 @@ public class PlayTimeZonesTests
 }
 
 /// <summary>Reading and caching an export with each play in its country's time zone.</summary>
-[Collection(nameof(RecordCacheTests))]
+[Collection(DataFolderCollection.Name)]
 public class TimeZoneParsingTests : IDisposable
 {
     // One play streamed from Japan, as the extended history records it with its country and

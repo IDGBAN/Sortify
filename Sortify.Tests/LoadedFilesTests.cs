@@ -92,7 +92,7 @@ public class LoadedFileSummaryTests : IDisposable
 }
 
 /// <summary>The cache keeps the file list, so a cached launch can show it too.</summary>
-[Collection(nameof(RecordCacheTests))]
+[Collection(DataFolderCollection.Name)]
 public class LoadedFileCacheTests : IDisposable
 {
     private readonly string _dir = Path.Combine(Path.GetTempPath(), "SortifyLoadedCache_" + Guid.NewGuid().ToString("N"));
@@ -193,8 +193,7 @@ public class LoadedFilesViewTests : IDisposable
             Assert.Equal(2, fresh.Files.Count);
 
             var files = HistoryParser.FindHistoryFiles(_dir);
-            for (int i = 0; i < 100 && RecordCache.TryLoadHistory(files) is null; i++)
-                await Task.Delay(50);
+            await Wait.UntilAsync(() => RecordCache.TryLoadHistory(files) is not null);
 
             await vm.OpenFolderPathAsync(_dir);
 

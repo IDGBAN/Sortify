@@ -127,6 +127,7 @@ public class PeopleComparisonTests
 }
 
 /// <summary>Opening someone else's export on the Compare tab.</summary>
+[Collection(DataFolderCollection.Name)]
 public class PeopleCompareViewModelTests : IDisposable
 {
     private const string TheirExport = """

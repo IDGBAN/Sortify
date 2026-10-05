@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Sortify.Tests;
 
+[Collection(DataFolderCollection.Name)]
 public class AppSettingsTests
 {
     [Fact]

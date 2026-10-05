@@ -277,7 +277,7 @@ public class ArtistFocusWindowTests
             string top = vm.Artists[0].Artist;
 
             vm.FocusOnArtistsFromGrid(new[] { top });
-            await Task.Delay(800);
+            await Wait.UntilAsync(() => vm.Artists.Count == 1);
 
             Assert.Equal(top, Assert.Single(vm.Artists).Artist);
             Assert.Contains(vm.ActiveFilters, c => c.Text == $"Only {top}");

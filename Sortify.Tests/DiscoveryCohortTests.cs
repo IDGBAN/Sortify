@@ -152,8 +152,7 @@ public class DiscoveryCohortChartTests
             Assert.Empty(vm.CohortChart.Series);
 
             vm.ShowCohorts = true;
-            for (int i = 0; i < 100 && vm.CohortChart.Series.Length == 0; i++)
-                await Task.Delay(50);
+            await Wait.UntilAsync(() => vm.CohortChart.Series.Length > 0);
 
             Assert.NotEmpty(vm.CohortChart.Series);
             Assert.Contains("first heard that year", vm.CohortText);

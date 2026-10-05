@@ -1,6 +1,7 @@
 using System.IO;
 using System.Runtime.CompilerServices;
 using Sortify.Services;
+using Xunit;
 
 namespace Sortify.Tests;
 
@@ -21,4 +22,14 @@ internal static class TestDataDirectory
             catch (UnauthorizedAccessException) { }
         };
     }
+}
+
+/// <summary>
+/// Tests that read or write the files in the data folder: the settings, the record cache and the
+/// error log. A test run has one of each, so these tests take turns.
+/// </summary>
+[CollectionDefinition(Name)]
+public class DataFolderCollection
+{
+    public const string Name = "Data folder";
 }

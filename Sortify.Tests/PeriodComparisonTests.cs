@@ -277,7 +277,7 @@ public class CompareViewModelTests
         Assert.Equal(0, asked);
 
         vm.IsVisible = true;
-        await Task.Delay(200);
+        await Wait.UntilAsync(() => vm.Message.Length > 0);
 
         Assert.Equal(1, asked);
         Assert.Equal("Neither period has any plays under the current filters.", vm.Message);

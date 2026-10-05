@@ -4,6 +4,7 @@ using Xunit;
 
 namespace Sortify.Tests;
 
+[Collection(DataFolderCollection.Name)]
 public class ErrorLogTests : IDisposable
 {
     public ErrorLogTests() => Dispose();
