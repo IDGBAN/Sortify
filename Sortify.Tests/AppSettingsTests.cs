@@ -138,6 +138,32 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void ASettingsFileThatCantBeRead_IsMovedAside_AndOutlastsTheNextSave()
+    {
+        string file = Path.Combine(AppPaths.DataDirectory, "settings.json");
+        Directory.CreateDirectory(AppPaths.DataDirectory);
+        File.WriteAllText(file, """{ "FilterPresets": [ { "Name": "Gym" """);
+        try
+        {
+            var settings = AppSettings.Load();
+
+            Assert.True(settings.WasUnreadable);
+            Assert.Empty(settings.FilterPresets);
+            Assert.Contains("Gym", File.ReadAllText(AppSettings.UnreadableFile));
+
+            settings.Save();
+
+            Assert.False(AppSettings.Load().WasUnreadable);
+            Assert.Contains("Gym", File.ReadAllText(AppSettings.UnreadableFile));
+        }
+        finally
+        {
+            File.Delete(file);
+            File.Delete(AppSettings.UnreadableFile);
+        }
+    }
+
+    [Fact]
     public void SessionGap_DefaultsToThirtyMinutes()
     {
         Assert.Equal(TimeSpan.FromMinutes(30), new AppSettings().SessionGap);

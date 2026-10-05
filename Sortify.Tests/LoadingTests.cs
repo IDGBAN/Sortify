@@ -69,6 +69,18 @@ public class LoadingTests : IDisposable
     }
 
     [Fact]
+    public void SettingsThatCouldntBeRead_AreMentionedInTheStatusBar()
+    {
+        WpfTestHost.Run(() =>
+        {
+            var vm = new MainViewModel(new AppSettings { WasUnreadable = true });
+
+            Assert.True(vm.StatusIsError);
+            Assert.Contains("settings.unreadable.json", vm.StatusText);
+        });
+    }
+
+    [Fact]
     public async Task AnAccountDataExport_BringsItsPodcastsAlong()
     {
         var folder = Path.Combine(_dir, "account");

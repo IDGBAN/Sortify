@@ -315,6 +315,11 @@ public sealed partial class MainViewModel : ObservableObject
         };
 
         RefreshActiveFilters();
+        if (_settings.WasUnreadable)
+        {
+            SetStatus("Sortify couldn't read its settings and started with the defaults. " +
+                      "The old file was kept as settings.unreadable.json in Sortify's data folder.", isError: true);
+        }
     }
 
     // ---- Loading ---------------------------------------------------------------------------

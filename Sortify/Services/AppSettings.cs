@@ -100,6 +100,20 @@ public sealed class AppSettings
 
     private static string SettingsFile => Path.Combine(AppPaths.DataDirectory, "settings.json");
 
+    /// <summary>Where a settings file that couldn't be read is moved, out of the way of the next save.</summary>
+    internal static string UnreadableFile => Path.Combine(AppPaths.DataDirectory, "settings.unreadable.json");
+
+    /// <summary>
+    /// True when there was a settings file that couldn't be read, so these are the defaults and
+    /// the file has been moved to <see cref="UnreadableFile"/>.
+    /// </summary>
+    [JsonIgnore]
+    public bool WasUnreadable { get; internal set; }
+
+    // Saves happen on nearly every change, so a folder that can't be written would fill the
+    // log with the same failure.
+    private static bool _saveFailureLogged;
+
     public static AppSettings Load()
     {
         try
@@ -112,9 +126,30 @@ public sealed class AppSettings
             settings.Normalize();
             return settings;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        catch (JsonException ex)
         {
+            // The defaults would otherwise be saved over it, saved filter sets and all.
+            ErrorLog.TryWrite(ex);
+            return new AppSettings { WasUnreadable = TryMoveAside() };
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ErrorLog.TryWrite(ex);
             return new AppSettings();
+        }
+    }
+
+    private static bool TryMoveAside()
+    {
+        try
+        {
+            File.Move(SettingsFile, UnreadableFile, overwrite: true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ErrorLog.TryWrite(ex);
+            return false;
         }
     }
 
@@ -137,6 +172,11 @@ public sealed class AppSettings
         {
             // Preferences are best-effort: losing them costs the user a re-pick, whereas
             // throwing here would interrupt whatever they were actually doing.
+            if (!_saveFailureLogged)
+            {
+                _saveFailureLogged = true;
+                ErrorLog.TryWrite(ex);
+            }
         }
     }
 

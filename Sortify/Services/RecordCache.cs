@@ -165,6 +165,7 @@ public static class RecordCache
                                      or FormatException or InvalidDataException)
         {
             // A corrupt or partially written cache must never break loading.
+            ErrorLog.TryWrite(ex);
             return null;
         }
     }
@@ -275,6 +276,7 @@ public static class RecordCache
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            ErrorLog.TryWrite(ex);
             TryDelete(temp);
         }
     }
