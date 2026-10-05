@@ -59,7 +59,7 @@ public static class SampleHistory
     private const string HomeCountry = "CA";
     private static readonly string[] TripCountries = { "JP", "PT", "MX", "IS" };
 
-    // Platform strings shaped like the ones Spotify writes, so AnalysisEngine.PlatformFamily
+    // Platform strings shaped like the ones Spotify writes, so Devices.FamilyOf
     // sorts them into the same device families a real export ends up in.
     private const string Desktop = "windows 10 (10.0.22631; x64)";
     private const string WebPlayer = "web_player windows 10;chrome 124.0.0.0;desktop";

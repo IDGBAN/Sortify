@@ -72,7 +72,7 @@ public class SampleHistoryTests
         Assert.Contains(plays, p => p.Shuffle);
         Assert.Contains(plays, p => p.Offline);
         Assert.Contains(plays, p => p.Incognito);
-        Assert.True(plays.Select(p => AnalysisEngine.PlatformFamily(p.Platform)).Distinct().Count() >= 4);
+        Assert.True(plays.Select(p => Devices.FamilyOf(p.Platform)).Distinct().Count() >= 4);
         Assert.True(plays.Select(p => p.Country).Distinct().Count() >= 2);
     }
 

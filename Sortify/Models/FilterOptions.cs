@@ -72,7 +72,7 @@ public sealed class FilterOptions
     public PlaybackMode Private { get; set; }
 
     /// <summary>
-    /// Device families to leave out, as <c>AnalysisEngine.PlatformFamily</c> names them
+    /// Device families to leave out, as <c>Devices.FamilyOf</c> names them
     /// ("Mobile", "Car"...). Plays that don't record a device are never left out by this.
     /// </summary>
     public HashSet<string> ExcludedDevices { get; } = new(StringComparer.OrdinalIgnoreCase);

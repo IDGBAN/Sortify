@@ -25,11 +25,7 @@ public static class FilterEngine
         bool checkFlags = filter.Shuffle != PlaybackMode.Any || filter.Offline != PlaybackMode.Any ||
                           filter.Private != PlaybackMode.Any;
         bool hasExcludedCountries = filter.ExcludedCountries.Count > 0;
-
-        // Only a few dozen distinct platform strings exist, so each is classified once.
-        Dictionary<string, string>? families = filter.ExcludedDevices.Count > 0
-            ? new Dictionary<string, string>(StringComparer.Ordinal)
-            : null;
+        bool hasExcludedDevices = filter.ExcludedDevices.Count > 0;
 
         foreach (var r in records)
         {
@@ -62,16 +58,8 @@ public static class FilterEngine
                 continue;
             }
 
-            if (families is not null && r.Platform.Length > 0)
-            {
-                if (!families.TryGetValue(r.Platform, out var family))
-                {
-                    family = AnalysisEngine.PlatformFamily(r.Platform);
-                    families[r.Platform] = family;
-                }
-                if (filter.ExcludedDevices.Contains(family))
-                    continue;
-            }
+            if (hasExcludedDevices && r.Platform.Length > 0 && filter.ExcludedDevices.Contains(Devices.FamilyOf(r.Platform)))
+                continue;
 
             if (hasExcludedCountries && r.Country.Length > 0 && filter.ExcludedCountries.Contains(r.Country))
                 continue;

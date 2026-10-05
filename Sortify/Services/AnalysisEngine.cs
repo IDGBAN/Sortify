@@ -97,7 +97,6 @@ public static class AnalysisEngine
         var episodes = new Dictionary<(string Episode, string Show), EpisodeStat>();
         var platforms = new Dictionary<string, ContextStat>(StringComparer.Ordinal);
         var countries = new Dictionary<string, ContextStat>(StringComparer.OrdinalIgnoreCase);
-        var families = new Dictionary<string, string>(StringComparer.Ordinal);
 
         int totalPlays = 0;
         long totalMs = 0;
@@ -139,15 +138,7 @@ public static class AnalysisEngine
             if (r.MsPlayed >= filter.MinMsPlayed)
             {
                 if (r.Platform.Length > 0)
-                {
-                    // Only a few dozen distinct platform strings exist, so classify each once.
-                    if (!families.TryGetValue(r.Platform, out var family))
-                    {
-                        family = PlatformFamily(r.Platform);
-                        families[r.Platform] = family;
-                    }
-                    Bump(platforms, family, r.MsPlayed);
-                }
+                    Bump(platforms, Devices.FamilyOf(r.Platform), r.MsPlayed);
                 if (r.Country.Length > 0)
                     Bump(countries, r.Country, r.MsPlayed);
 
@@ -486,65 +477,6 @@ public static class AnalysisEngine
         stat.TotalMsPlayed += ms;
         stat.PlayCount++;
     }
-
-    /// <summary>
-    /// Collapses Spotify's very granular platform strings (which embed OS builds, device
-    /// models and SDK versions) into a handful of families worth charting. Matches whole
-    /// tokens, so "tv" means a TV and not any word that happens to contain those letters.
-    /// </summary>
-    internal static string PlatformFamily(string platform)
-    {
-        string lower = platform.ToLowerInvariant();
-        var tokens = lower.Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries);
-
-        if (lower.Contains("web_player") || lower.Contains("webplayer"))
-            return "Web player";
-
-        // TVs, consoles and cars report as "Partner <device> ...", so they have to be matched
-        // before the catch-all partner token sends them to the speaker bucket.
-        if (lower.Contains("android_auto") || lower.Contains("android auto") || tokens.Any(CarTokens.Contains))
-            return "Car";
-        if (tokens.Any(TvTokens.Contains))
-            return "TV / console";
-        if (tokens.Any(SpeakerTokens.Contains))
-            return "Speaker / cast";
-        if (tokens.Any(MobileTokens.Contains))
-            return "Mobile";
-
-        // Spotify writes macOS as "OS X 10.15.7 [x86_64]", with a space.
-        if (tokens.Any(DesktopTokens.Contains) || lower.Contains("os x"))
-            return "Desktop";
-        return "Other";
-    }
-
-    private static readonly char[] TokenSeparators =
-        " _-;:,.()[]/\\".ToCharArray();
-
-    private static readonly HashSet<string> CarTokens = new(StringComparer.Ordinal)
-    {
-        "car", "carplay", "automotive", "androidauto",
-    };
-
-    private static readonly HashSet<string> TvTokens = new(StringComparer.Ordinal)
-    {
-        "tv", "smarttv", "androidtv", "appletv", "firetv", "googletv", "tizen", "webos", "roku", "bravia",
-        "xbox", "playstation", "ps3", "ps4", "ps5",
-    };
-
-    private static readonly HashSet<string> SpeakerTokens = new(StringComparer.Ordinal)
-    {
-        "cast", "chromecast", "sonos", "speaker", "echo", "alexa", "homepod", "bose", "partner",
-    };
-
-    private static readonly HashSet<string> MobileTokens = new(StringComparer.Ordinal)
-    {
-        "android", "ios", "iphone", "ipad", "ipod",
-    };
-
-    private static readonly HashSet<string> DesktopTokens = new(StringComparer.Ordinal)
-    {
-        "windows", "osx", "macos", "mac", "linux",
-    };
 
     /// <summary>
     /// Running totals for one year or one month, and who led it. Keyed by the artist and

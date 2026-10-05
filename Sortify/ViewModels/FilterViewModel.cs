@@ -687,7 +687,7 @@ public sealed partial class FilterViewModel : ObservableObject
             ? Array.Empty<string>()
             : _knownArtists
                 .Where(a => !IncludedArtists.Contains(a, StringComparer.OrdinalIgnoreCase))
-                .Select((a, order) => (Name: a, Rank: MainViewModel.MatchRank(a, query), Order: order))
+                .Select((a, order) => (Name: a, Rank: NameMatch.Rank(a, query), Order: order))
                 .Where(x => x.Rank >= 0)
                 .OrderBy(x => x.Rank)
                 .ThenBy(x => x.Order)

@@ -459,17 +459,7 @@ public sealed partial class CompareViewModel : ObservableObject
 
     private static string Summarise(List<PlayRecord> records, string name)
     {
-        DateTime? first = null, last = null;
-        foreach (var record in records)
-        {
-            if (record.Timestamp == DateTime.MinValue)
-                continue;
-            if (first is null || record.Timestamp < first)
-                first = record.Timestamp;
-            if (last is null || record.Timestamp > last)
-                last = record.Timestamp;
-        }
-
+        var (first, last) = PlayRecord.DateSpan(records);
         string plays = Plural.Of(records.Count, "play");
         return first is { } f && last is { } l
             ? $"Their history: {plays} from {TimeFormat.Day(f)} to {TimeFormat.Day(l)}, read from {name}."

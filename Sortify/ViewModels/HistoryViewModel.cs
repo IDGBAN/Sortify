@@ -164,19 +164,9 @@ public sealed partial class HistoryViewModel : ObservableObject
     /// <summary>Rows for plays already in time order, oldest first, each with its device family worked out.</summary>
     internal static List<PlayRow> RowsFor(IReadOnlyList<PlayRecord> inTimeOrder)
     {
-        // Only a few dozen distinct platform strings exist, so each is classified once.
-        var families = new Dictionary<string, string>(StringComparer.Ordinal) { [string.Empty] = string.Empty };
         var rows = new List<PlayRow>(inTimeOrder.Count);
         for (int i = 0; i < inTimeOrder.Count; i++)
-        {
-            var r = inTimeOrder[i];
-            if (!families.TryGetValue(r.Platform, out var family))
-            {
-                family = AnalysisEngine.PlatformFamily(r.Platform);
-                families[r.Platform] = family;
-            }
-            rows.Add(new PlayRow(r, family, i));
-        }
+            rows.Add(new PlayRow(inTimeOrder[i], Devices.FamilyOf(inTimeOrder[i].Platform), i));
         return rows;
     }
 

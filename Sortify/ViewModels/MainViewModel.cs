@@ -626,17 +626,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Records what the history just adopted was read from, and words the status bar's link to it.</summary>
     private void DescribeLoad(IReadOnlyList<LoadedFile> files, int duplicatesRemoved, string? source, bool fromCache)
     {
-        DateTime? first = null, last = null;
-        foreach (var record in _rawRecords)
-        {
-            if (record.Timestamp == DateTime.MinValue)
-                continue;
-            if (first is null || record.Timestamp < first)
-                first = record.Timestamp;
-            if (last is null || record.Timestamp > last)
-                last = record.Timestamp;
-        }
-
+        var (first, last) = PlayRecord.DateSpan(_rawRecords);
         LoadedHistory = new LoadedHistory(files, duplicatesRemoved, source, fromCache, IsSample, _rawRecords.Count, first, last);
         int read = files.Count(f => f.Format != LoadedFileFormat.Skipped);
         int skipped = files.Count - read;
@@ -677,7 +667,7 @@ public sealed partial class MainViewModel : ObservableObject
         Compare.SetHistory(last, years.ToList(), resetPeriods: newHistory);
 
         var devices = platformMs
-            .GroupBy(kv => AnalysisEngine.PlatformFamily(kv.Key))
+            .GroupBy(kv => Devices.FamilyOf(kv.Key))
             .OrderByDescending(g => g.Sum(kv => kv.Value))
             .Select(g => (g.Key, g.Key, g.Key));
         var countries = countryMs
@@ -1136,7 +1126,7 @@ public sealed partial class MainViewModel : ObservableObject
             ? Array.Empty<string>()
             : _result.Artists
                 .Where(a => !ComparedArtists.Contains(a.Artist))
-                .Select(a => (a.Artist, Rank: MatchRank(a.Artist, query), a.TotalMsPlayed))
+                .Select(a => (a.Artist, Rank: NameMatch.Rank(a.Artist, query), a.TotalMsPlayed))
                 .Where(x => x.Rank >= 0)
                 .OrderBy(x => x.Rank)
                 .ThenByDescending(x => x.TotalMsPlayed)
@@ -1315,29 +1305,12 @@ public sealed partial class MainViewModel : ObservableObject
         return results;
 
         IEnumerable<T> Best<T>(IReadOnlyList<T> items, Func<T, string> name, Func<T, long> ms) => items
-            .Select(item => (Item: item, Rank: MatchRank(name(item), query)))
+            .Select(item => (Item: item, Rank: NameMatch.Rank(name(item), query)))
             .Where(x => x.Rank >= 0)
             .OrderBy(x => x.Rank)
             .ThenByDescending(x => ms(x.Item))
             .Take(perKind)
             .Select(x => x.Item);
-    }
-
-    /// <summary>0 for the whole name, 1 for its start, 2 for the start of a later word, 3 for anywhere else, -1 for no match.</summary>
-    internal static int MatchRank(string name, string query)
-    {
-        int at = name.IndexOf(query, StringComparison.OrdinalIgnoreCase);
-        if (at < 0)
-            return -1;
-        if (at == 0)
-            return name.Length == query.Length ? 0 : 1;
-
-        for (; at > 0; at = name.IndexOf(query, at + 1, StringComparison.OrdinalIgnoreCase))
-        {
-            if (!char.IsLetterOrDigit(name[at - 1]))
-                return 2;
-        }
-        return 3;
     }
 
     // ---- Summary text -------------------------------------------------------------------------

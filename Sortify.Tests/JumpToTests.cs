@@ -17,7 +17,7 @@ public class JumpToTests
     [InlineData("Hate", "love", -1)]
     public void MatchRank_PrefersWholeNamesThenStartsThenWords(string name, string query, int expected)
     {
-        Assert.Equal(expected, MainViewModel.MatchRank(name, query));
+        Assert.Equal(expected, NameMatch.Rank(name, query));
     }
 
     private static AnalysisResult Result()

@@ -194,16 +194,7 @@ public sealed class HistoryParser
                 outcome.Problem ?? (outcome.Records is null ? "Empty" : "Holds no plays Sortify can read"));
         }
 
-        DateTime? first = null, last = null;
-        foreach (var record in records)
-        {
-            if (record.Timestamp == DateTime.MinValue)
-                continue;
-            if (first is null || record.Timestamp < first)
-                first = record.Timestamp;
-            if (last is null || record.Timestamp > last)
-                last = record.Timestamp;
-        }
+        var (first, last) = PlayRecord.DateSpan(records);
         var format = outcome.IsLegacy ? LoadedFileFormat.AccountData : LoadedFileFormat.Extended;
         return new LoadedFile(path, name, format, records.Count, first, last, null);
     }

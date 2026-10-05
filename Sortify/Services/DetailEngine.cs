@@ -48,7 +48,6 @@ public static class DetailEngine
         string uri = string.Empty;
         var plays = new List<PlayRecord>();
         var deviceMs = new Dictionary<string, long>(StringComparer.Ordinal);
-        var families = new Dictionary<string, string>(StringComparer.Ordinal);
 
         // A year scope carries its number in the title; parsing it per record would repeat
         // the same parse hundreds of thousands of times.
@@ -95,11 +94,7 @@ public static class DetailEngine
             plays.Add(r);
             if (r.Platform.Length > 0)
             {
-                if (!families.TryGetValue(r.Platform, out var family))
-                {
-                    family = AnalysisEngine.PlatformFamily(r.Platform);
-                    families[r.Platform] = family;
-                }
+                string family = Devices.FamilyOf(r.Platform);
                 deviceMs[family] = deviceMs.GetValueOrDefault(family) + r.MsPlayed;
             }
             anyAudiobook |= r.Kind == ContentKind.Audiobook;

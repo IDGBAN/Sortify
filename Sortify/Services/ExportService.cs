@@ -223,16 +223,9 @@ public static class ExportService
         using var writer = new StreamWriter(path, append: false, Encoding.UTF8, 64 * 1024);
         writer.WriteLine("Ended,Kind,Track,Artist,Album,Show,Episode,MsPlayed,ReasonEnd,Skipped,Device,Platform,Country,Shuffle,Offline,Private,SpotifyUri");
 
-        var families = new Dictionary<string, string>(StringComparer.Ordinal) { [string.Empty] = string.Empty };
         var line = new StringBuilder(256);
         foreach (var r in plays)
         {
-            if (!families.TryGetValue(r.Platform, out var family))
-            {
-                family = AnalysisEngine.PlatformFamily(r.Platform);
-                families[r.Platform] = family;
-            }
-
             bool music = r.Kind == ContentKind.Music;
             line.Clear()
                 .Append(r.Timestamp == DateTime.MinValue ? string.Empty : r.Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)).Append(',')
@@ -245,7 +238,7 @@ public static class ExportService
                 .Append(r.MsPlayed).Append(',')
                 .Append(Csv(r.ReasonEnd ?? string.Empty)).Append(',')
                 .Append(r.Skipped ? "true" : "false").Append(',')
-                .Append(Csv(family)).Append(',')
+                .Append(Csv(Devices.FamilyOf(r.Platform))).Append(',')
                 .Append(Csv(r.Platform)).Append(',')
                 .Append(r.Country).Append(',')
                 .Append(Flag(r.HasPlaybackFlags, r.Shuffle)).Append(',')

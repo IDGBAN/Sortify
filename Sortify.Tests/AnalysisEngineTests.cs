@@ -417,9 +417,9 @@ public class AnalysisEngineTests
     [InlineData("linux", "Desktop")]
     [InlineData("Scarlett", "Other")]
     [InlineData("something unknown", "Other")]
-    public void PlatformFamily_BucketsSpotifyPlatformStrings(string raw, string expected)
+    public void DeviceFamilies_GroupSpotifyPlatformStrings(string raw, string expected)
     {
-        Assert.Equal(expected, AnalysisEngine.PlatformFamily(raw));
+        Assert.Equal(expected, Devices.FamilyOf(raw));
     }
 
     [Fact]

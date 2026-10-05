@@ -108,6 +108,22 @@ public sealed class PlayRecord
     /// those rows in their denominator.
     /// </summary>
     public bool HasPlaybackFlags { get; init; }
+
+    /// <summary>When the first and the last of the plays ended, leaving out any without a time. Null when none has one.</summary>
+    public static (DateTime? First, DateTime? Last) DateSpan(IEnumerable<PlayRecord> plays)
+    {
+        DateTime? first = null, last = null;
+        foreach (var play in plays)
+        {
+            if (play.Timestamp == DateTime.MinValue)
+                continue;
+            if (first is null || play.Timestamp < first)
+                first = play.Timestamp;
+            if (last is null || play.Timestamp > last)
+                last = play.Timestamp;
+        }
+        return (first, last);
+    }
 }
 
 /// <summary>
