@@ -298,6 +298,18 @@ public partial class MainWindow : ThemedWindow
         OverlapCard.Width = narrow ? double.NaN : OverlapCardWidth;
     }
 
+    /// <summary>Below this width the Overview's five headline figures go three to a row.</summary>
+    private const double OverviewFiguresInOneRowMinWidth = 720;
+
+    /// <summary>Below this width the Overview's top-five lists go one above the other.</summary>
+    private const double OverviewListsSideBySideMinWidth = 840;
+
+    private void OnOverviewSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        OverviewFigures.Columns = e.NewSize.Width < OverviewFiguresInOneRowMinWidth ? 3 : 5;
+        OverviewLists.Columns = e.NewSize.Width < OverviewListsSideBySideMinWidth ? 1 : 3;
+    }
+
     // ---- Tabs --------------------------------------------------------------------------------
 
     // Fade + slide the tab body in whenever the user switches tabs. Filtered to the

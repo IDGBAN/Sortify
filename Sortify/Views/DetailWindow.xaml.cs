@@ -209,9 +209,21 @@ public partial class DetailWindow : ThemedWindow
         {
             BusiestCard.Visibility = Visibility.Collapsed;
             StreakCard.Visibility = Visibility.Collapsed;
-            StandingCards.Columns = 4;
             MonthCard.Visibility = Visibility.Collapsed;
         }
+    }
+
+    /// <summary>Below this width the five figures under the title go three to a row.</summary>
+    private const double SummaryInOneRowMinWidth = 760;
+
+    /// <summary>Below this width the figures on where it stands go two rows deep.</summary>
+    private const double StandingInOneRowMinWidth = 900;
+
+    private void OnContentSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        SummaryCards.Columns = e.NewSize.Width < SummaryInOneRowMinWidth ? 3 : 5;
+        int standing = StandingCards.Children.OfType<UIElement>().Count(c => c.Visibility == Visibility.Visible);
+        StandingCards.Columns = e.NewSize.Width < StandingInOneRowMinWidth ? (standing + 1) / 2 : standing;
     }
 
     /// <summary>What a breakdown of this kind is ranked against: "160 artists", "1 year".</summary>

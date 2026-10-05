@@ -887,6 +887,11 @@
         <Setter Property="RowHeight" Value="34" />
     </Style>
 
+    <!-- A table cell's text, ending in an ellipsis where its column is too narrow to show it all. -->
+    <Style x:Key="TrimmedCell" TargetType="TextBlock" BasedOn="{x:Static DataGridTextColumn.DefaultElementStyle}">
+        <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource PanelBrush2}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
@@ -1032,8 +1037,13 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TabPanel x:Name="HeaderPanel" Grid.Row="0" IsItemsHost="True"
-                                  Background="Transparent" Margin="2,0,2,0" />
+                        <!-- A TabPanel that runs out of width moves the selected tab's row to the
+                             bottom, so the tabs jump about as you pick them. These wrap in order and
+                             stay put; the keyboard settings are the ones TabPanel sets for itself. -->
+                        <WrapPanel x:Name="HeaderPanel" Grid.Row="0" IsItemsHost="True"
+                                   Background="Transparent" Margin="2,0,2,0"
+                                   KeyboardNavigation.TabNavigation="Once"
+                                   KeyboardNavigation.DirectionalNavigation="Cycle" />
                         <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1"
                                           ContentSource="SelectedContent"
                                           RenderTransformOrigin="0.5,0.5">

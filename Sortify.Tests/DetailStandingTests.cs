@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using Sortify.Models;
 using Sortify.Services;
 using Sortify.Views;
@@ -190,6 +191,43 @@ public class DetailStandingWindowTests
 
             var empty = new DetailWindow(new DetailResult { Scope = DetailScope.Artist, Title = "Nobody" });
             Assert.Equal(Visibility.Collapsed, empty.PlaysCard.Visibility);
+        });
+    }
+
+    [Fact]
+    public async Task ANarrowWindow_PutsTheFiguresInTwoRows()
+    {
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var records = Records();
+            var day = DetailEngine.Build(records, new FilterOptions(), DetailScope.Day, "2024-01-01", string.Empty,
+                AnalysisEngine.Analyze(records, new FilterOptions()));
+            var window = new DetailWindow(day)
+            {
+                Width = 1080,
+                Left = -10000,
+                Top = 0,
+                WindowStartupLocation = WindowStartupLocation.Manual,
+                ShowActivated = false,
+                ShowInTaskbar = false,
+            };
+            try
+            {
+                window.Show();
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                Assert.Equal(5, window.SummaryCards.Columns);
+                // A day has no busiest month or streak, so four figures.
+                Assert.Equal(4, window.StandingCards.Columns);
+
+                window.Width = 700;
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                Assert.Equal(3, window.SummaryCards.Columns);
+                Assert.Equal(2, window.StandingCards.Columns);
+            }
+            finally
+            {
+                window.Close();
+            }
         });
     }
 }

@@ -387,13 +387,13 @@
                     <!-- ============================ OVERVIEW ============================ -->
                     <TabItem Header="Overview">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel>
+                            <StackPanel SizeChanged="OnOverviewSizeChanged">
                                 <Button HorizontalAlignment="Right" Margin="0,8,6,0" Click="OnSummaryCard"
                                         Content="{Binding SummaryCardText}"
                                         IsEnabled="{Binding CanMakeSummaryCard}"
                                         AutomationProperties.Name="{Binding SummaryCardText}"
                                         ToolTip="A 1080 by 1350 image of your listening to save or share. It covers the dates set in the sidebar, or your whole history when none are set." />
-                                <UniformGrid Columns="5" Margin="0,6,0,0">
+                                <UniformGrid x:Name="OverviewFigures" Columns="5" Margin="0,6,0,0">
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="TOTAL TIME" Style="{StaticResource Caption}" />
@@ -428,7 +428,7 @@
                                 </UniformGrid>
 
                                 <!-- Top fives -->
-                                <UniformGrid Columns="3">
+                                <UniformGrid x:Name="OverviewLists" Columns="3">
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="Top Tracks" Style="{StaticResource SectionHeader}"
@@ -579,8 +579,8 @@
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="160" />
-                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" />
+                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="Time"
                                                                 Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                 Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
@@ -664,7 +664,7 @@
 
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
-                                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
+                                    <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,8">
                                         <TextBox x:Name="ArtistQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter artist rows"
                                                  Text="{Binding ArtistQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
@@ -673,7 +673,7 @@
                                                    Margin="0,0,8,0" FontSize="11"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                         <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown"
-                                                   VerticalAlignment="Center" FontSize="11"
+                                                   VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
@@ -691,7 +691,7 @@
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" MinWidth="160" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="Time"
                                                                 Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                 Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
@@ -709,7 +709,7 @@
                                                                ToolTip="Calendar months with at least one play: how long they've stayed in your rotation" />
                                                 </DataGridTextColumn.Header>
                                             </DataGridTextColumn>
-                                            <DataGridTextColumn Header="First Track" Binding="{Binding FirstTrack}" Width="*" MinWidth="110" />
+                                            <DataGridTextColumn Header="First Track" Binding="{Binding FirstTrack}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="First Played"
                                                                 Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd HH:mm}"
                                                                 Width="140" MinWidth="140" />
@@ -781,7 +781,7 @@
 
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
-                                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
+                                    <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,8">
                                         <TextBox x:Name="AlbumQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter album rows"
                                                  Text="{Binding AlbumQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
@@ -790,7 +790,7 @@
                                                    Margin="0,0,8,0" FontSize="11"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                         <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown"
-                                                   VerticalAlignment="Center" FontSize="11"
+                                                   VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
@@ -809,8 +809,8 @@
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" MinWidth="160" />
-                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" />
+                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="Time"
                                                                 Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                 Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
@@ -884,7 +884,7 @@
 
                                 <Border Style="{StaticResource Card}">
                                     <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
+                                        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11" TextWrapping="Wrap"
                                                    Foreground="{DynamicResource MutedBrush}"
                                                    Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
                                         <Grid>
@@ -903,17 +903,17 @@
                                                 </ContextMenu>
                                             </DataGrid.ContextMenu>
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="Auto" />
+                                                <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="70" MinWidth="70" />
                                                 <DataGridTextColumn Header="Time"
                                                                     Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
-                                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                                    Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N1}"
-                                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
-                                                <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists}" Width="Auto" />
-                                                <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks}" Width="Auto" />
-                                                <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
-                                                <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*" />
+                                                                    Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
+                                                <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists}" Width="120" MinWidth="120" />
+                                                <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks}" Width="120" MinWidth="120" />
+                                                <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" MinWidth="130" ElementStyle="{StaticResource TrimmedCell}" />
+                                                <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
                                         <TextBlock Style="{StaticResource EmptyRows}"
@@ -1034,7 +1034,7 @@
                                             <DataGrid x:Name="ShowsGrid" ItemsSource="{Binding Shows}" AutomationProperties.Name="Shows"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="2*" />
+                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="2*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="Auto" />
                                                     <DataGridTextColumn Header="Time"
                                                                         Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
@@ -1064,8 +1064,8 @@
                                             <DataGrid x:Name="EpisodesGrid" ItemsSource="{Binding Episodes}" AutomationProperties.Name="Episodes"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Episode" Binding="{Binding Episode}" Width="2*" />
-                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="*" />
+                                                    <DataGridTextColumn Header="Episode" Binding="{Binding Episode}" Width="2*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Time"
                                                                         Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                         Width="Auto" SortMemberPath="TotalMsPlayed" />
@@ -1356,11 +1356,11 @@
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Month" Binding="{Binding Month, StringFormat=yyyy-MM}"
                                                                         Width="Auto" SortMemberPath="Month" />
-                                                    <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
+                                                    <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Hours" Binding="{Binding TopArtistHours, StringFormat=N1}"
                                                                         Width="Auto" SortMemberPath="TopArtistMs" />
-                                                    <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="*" />
-                                                    <DataGridTextColumn Header="By" Binding="{Binding TopTrackArtist}" Width="0.7*" />
+                                                    <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="By" Binding="{Binding TopTrackArtist}" Width="0.7*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Hours" Binding="{Binding TopTrackHours, StringFormat=N1}"
                                                                         Width="Auto" SortMemberPath="TopTrackMs" />
                                                     <DataGridTextColumn Header="Month Total"
@@ -1590,11 +1590,11 @@
                                                       PreviewMouseWheel="OnPassWheelToPage"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Milestone" Binding="{Binding Label}" Width="1.4*" />
+                                                    <DataGridTextColumn Header="Milestone" Binding="{Binding Label}" Width="1.4*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="When" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}"
                                                                         Width="145" SortMemberPath="Date" />
-                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="1.2*" />
-                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="1.2*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                             <TextBlock Style="{StaticResource EmptyRows}"
@@ -1628,8 +1628,8 @@
                                                     </ContextMenu>
                                                 </DataGrid.ContextMenu>
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="2*" MinWidth="140" />
-                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" MinWidth="100" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Plays" Binding="{Binding Plays}" Width="75" MinWidth="75" />
                                                     <DataGridTextColumn Header="From" Binding="{Binding From, StringFormat=yyyy-MM-dd}"
                                                                         SortMemberPath="From" Width="110" MinWidth="110" />
@@ -1678,8 +1678,8 @@
                                                         </ContextMenu>
                                                     </DataGrid.ContextMenu>
                                                     <DataGrid.Columns>
-                                                        <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                                        <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
                                                         <DataGridTextColumn Header="Last Played"
                                                                             Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
@@ -1695,7 +1695,7 @@
                                                           AutomationProperties.Name="Forgotten artists"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                     <DataGrid.Columns>
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
                                                         <DataGridTextColumn Header="Last Played"
                                                                             Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
@@ -1878,9 +1878,9 @@
                                             <DataGrid ItemsSource="{Binding Metrics}" AutomationProperties.Name="Headline figures for both periods"
                                                       SelectionMode="Single" PreviewMouseWheel="OnPassWheelToPage">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" />
-                                                    <DataGridTextColumn Header="Period A" Binding="{Binding A}" Width="*" />
-                                                    <DataGridTextColumn Header="Period B" Binding="{Binding B}" Width="*" />
+                                                    <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" MinWidth="185" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Period A" Binding="{Binding A}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Period B" Binding="{Binding B}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Change" Binding="{Binding Change}" Width="*"
                                                                         ElementStyle="{StaticResource TrendText}" />
                                                 </DataGrid.Columns>
@@ -1899,7 +1899,7 @@
                                                     <DataGrid.Columns>
                                                         <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
                                                                             SortMemberPath="RankB" />
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
                                                                             SortMemberPath="MsB" />
                                                         <DataGridTextColumn Header="Hours A" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
@@ -1920,8 +1920,8 @@
                                                     <DataGrid.Columns>
                                                         <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
                                                                             SortMemberPath="RankB" />
-                                                        <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" />
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" />
+                                                        <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
                                                                             SortMemberPath="MsB" />
                                                         <DataGridTextColumn Header="Hours A" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
@@ -1944,7 +1944,7 @@
                                                     <DataGrid ItemsSource="{Binding NewInB}" AutomationProperties.Name="Artists new in period B"
                                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                         <DataGrid.Columns>
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Hours in B" Binding="{Binding HoursB, StringFormat=N1}"
                                                                                 Width="Auto" SortMemberPath="MsB" />
                                                         </DataGrid.Columns>
@@ -1964,7 +1964,7 @@
                                                     <DataGrid ItemsSource="{Binding GoneSinceA}" AutomationProperties.Name="Artists gone since period A"
                                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                         <DataGrid.Columns>
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Hours in A" Binding="{Binding HoursA, StringFormat=N1}"
                                                                                 Width="Auto" SortMemberPath="MsA" />
                                                         </DataGrid.Columns>
@@ -2047,10 +2047,10 @@
                                                     <DataGrid ItemsSource="{Binding Metrics}" AutomationProperties.Name="Headline figures for you and them"
                                                               SelectionMode="Single" PreviewMouseWheel="OnPassWheelToPage">
                                                         <DataGrid.Columns>
-                                                            <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" />
-                                                            <DataGridTextColumn Header="You" Binding="{Binding B}" Width="*" />
-                                                            <DataGridTextColumn Header="Them" Binding="{Binding A}" Width="*" />
-                                                            <DataGridTextColumn Header="You vs them" Binding="{Binding Change}" Width="*" />
+                                                            <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" MinWidth="185" ElementStyle="{StaticResource TrimmedCell}" />
+                                                            <DataGridTextColumn Header="You" Binding="{Binding B}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                            <DataGridTextColumn Header="Them" Binding="{Binding A}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                            <DataGridTextColumn Header="You vs them" Binding="{Binding Change}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                 </DockPanel>
@@ -2068,7 +2068,7 @@
                                                         <DataGrid.Columns>
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankB, TargetNullValue=-}" Width="70" MinWidth="70"
                                                                                 SortMemberPath="RankB" />
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="100" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Yours" Binding="{Binding HoursB, StringFormat=N1}" Width="65" MinWidth="65"
                                                                                 SortMemberPath="MsB" />
                                                             <DataGridTextColumn Header="Theirs" Binding="{Binding HoursA, StringFormat=N1}" Width="70" MinWidth="70"
@@ -2089,8 +2089,8 @@
                                                         <DataGrid.Columns>
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankB, TargetNullValue=-}" Width="70" MinWidth="70"
                                                                                 SortMemberPath="RankB" />
-                                                            <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" MinWidth="100" />
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" MinWidth="80" />
+                                                            <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" MinWidth="80" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Yours" Binding="{Binding HoursB, StringFormat=N1}" Width="65" MinWidth="65"
                                                                                 SortMemberPath="MsB" />
                                                             <DataGridTextColumn Header="Theirs" Binding="{Binding HoursA, StringFormat=N1}" Width="70" MinWidth="70"
@@ -2111,7 +2111,7 @@
                                                         <DataGrid ItemsSource="{Binding SharedArtists}" AutomationProperties.Name="Artists you both play"
                                                                   MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                             <DataGrid.Columns>
-                                                                <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="90" />
+                                                                <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="90" ElementStyle="{StaticResource TrimmedCell}" />
                                                                 <DataGridTextColumn Header="Yours" Binding="{Binding HoursB, StringFormat=N1}" Width="65" MinWidth="65"
                                                                                     SortMemberPath="MsB" />
                                                                 <DataGridTextColumn Header="Theirs" Binding="{Binding HoursA, StringFormat=N1}" Width="70" MinWidth="70"
@@ -2133,7 +2133,7 @@
                                                         <DataGrid ItemsSource="{Binding NewInB}" AutomationProperties.Name="Artists only you play"
                                                                   MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                             <DataGrid.Columns>
-                                                                <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="90" />
+                                                                <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="90" ElementStyle="{StaticResource TrimmedCell}" />
                                                                 <DataGridTextColumn Header="Yours" Binding="{Binding HoursB, StringFormat=N1}" Width="65" MinWidth="65"
                                                                                     SortMemberPath="MsB" />
                                                             </DataGrid.Columns>
@@ -2152,7 +2152,7 @@
                                                     <Grid>
                                                         <DataGrid ItemsSource="{Binding GoneSinceA}" AutomationProperties.Name="Artists only they play">
                                                             <DataGrid.Columns>
-                                                                <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="90" />
+                                                                <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" MinWidth="90" ElementStyle="{StaticResource TrimmedCell}" />
                                                                 <DataGridTextColumn Header="Theirs" Binding="{Binding HoursA, StringFormat=N1}" Width="70" MinWidth="70"
                                                                                     SortMemberPath="MsA" />
                                                             </DataGrid.Columns>
@@ -2229,15 +2229,15 @@
                                         <DataGrid.Columns>
                                             <DataGridTextColumn Header="When" Binding="{Binding When}" SortMemberPath="When"
                                                                 SortDirection="Descending" Width="135" MinWidth="135" />
-                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="160" />
-                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" />
-                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="*" MinWidth="110" />
+                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="Played" Binding="{Binding Played, Converter={StaticResource HhMmSs}}"
                                                                 SortMemberPath="Played" Width="80" MinWidth="80" />
                                             <DataGridTextColumn Header="Ended" Binding="{Binding Ended}" Width="130" MinWidth="130" />
                                             <DataGridTextColumn Header="Device" Binding="{Binding Device}" Width="115" MinWidth="115" />
                                             <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="75" MinWidth="75" />
-                                            <DataGridTextColumn Binding="{Binding Mode}" SortMemberPath="Mode" Width="0.8*" MinWidth="100">
+                                            <DataGridTextColumn Binding="{Binding Mode}" SortMemberPath="Mode" Width="0.8*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}">
                                                 <DataGridTextColumn.Header>
                                                     <TextBlock Text="Mode" ToolTip="Whether the play was shuffled, offline or in a private session" />
                                                 </DataGridTextColumn.Header>

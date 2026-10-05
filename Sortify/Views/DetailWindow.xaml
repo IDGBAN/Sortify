@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:Sortify.Views"
         xmlns:lvc="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
-        Title="Details" Height="760" Width="1080"
+        Title="Details" Height="760" Width="1080" MinHeight="480" MinWidth="640"
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource BgBrush}"
         Foreground="{DynamicResource TextBrush}">
@@ -15,7 +15,7 @@
             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
         </Style>
     </Window.Resources>
-    <Grid Margin="14">
+    <Grid Margin="14" SizeChanged="OnContentSizeChanged">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -46,7 +46,7 @@
         </DockPanel>
 
         <!-- Summary cards -->
-        <UniformGrid Grid.Row="1" Columns="5">
+        <UniformGrid x:Name="SummaryCards" Grid.Row="1" Columns="5">
             <Border Style="{StaticResource Card}">
                 <StackPanel>
                     <TextBlock Text="TIME LISTENED" Style="{StaticResource Caption}" />
@@ -163,12 +163,12 @@
                         <DataGrid x:Name="ArtistsGrid" AutomationProperties.Name="Artists"
                                   MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" />
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
-                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                    Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
                                 <DataGridTextColumn Header="First Played"
-                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="115" MinWidth="115" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
@@ -183,15 +183,15 @@
                         <DataGrid x:Name="TracksGrid" AutomationProperties.Name="Tracks"
                                   MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
-                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
-                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                    Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
                                 <DataGridTextColumn Header="First Played"
-                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="115" MinWidth="115" />
                                 <DataGridTextColumn Header="Last Played"
-                                                    Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                                                    Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}" Width="115" MinWidth="115" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
@@ -206,13 +206,13 @@
                         <DataGrid x:Name="AlbumsGrid" AutomationProperties.Name="Albums"
                                   MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" />
-                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
-                                                    Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                    Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
                                 <DataGridTextColumn Header="First Played"
-                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="Auto" />
+                                                    Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="115" MinWidth="115" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </DockPanel>
@@ -229,8 +229,8 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="When" Binding="{Binding When}" SortMemberPath="Record.Timestamp"
                                                     Width="135" MinWidth="135" />
-                                <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="140" />
-                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" />
+                                <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
+                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Played" Binding="{Binding Played, Converter={StaticResource HhMmSs}}"
                                                     SortMemberPath="Record.MsPlayed" Width="80" MinWidth="80" />
                                 <DataGridTextColumn Header="Ended" Binding="{Binding Ended}" Width="130" MinWidth="130" />
