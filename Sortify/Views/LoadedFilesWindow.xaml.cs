@@ -17,7 +17,7 @@ public partial class LoadedFilesWindow : ThemedWindow
         SummaryText.Text = Summary(history);
         SetLine(SourceText, SourceLine(history));
         SetLine(DuplicatesText, history.DuplicatesRemoved > 0
-            ? $"Left out {history.DuplicatesRemoved:N0} play{(history.DuplicatesRemoved == 1 ? "" : "s")} " +
+            ? $"Left out {Plural.Of(history.DuplicatesRemoved, "play")} " +
               "that more than one of the files held, so each counts once."
             : string.Empty);
         AccountDataNote.Visibility = OnlyAccountData(history) ? Visibility.Visible : Visibility.Collapsed;
@@ -34,7 +34,7 @@ public partial class LoadedFilesWindow : ThemedWindow
     /// <summary>"Read 377,466 plays from 12 files, covering 2014-03-02 to 2024-06-01."</summary>
     internal static string Summary(LoadedHistory history)
     {
-        string plays = $"{history.Plays:N0} play{(history.Plays == 1 ? "" : "s")}";
+        string plays = Plural.Of(history.Plays, "play");
         bool dated = history.First is not null && history.Last is not null;
         string from = dated ? TimeFormat.Day(history.First!.Value) : string.Empty;
         string to = dated ? TimeFormat.Day(history.Last!.Value) : string.Empty;
@@ -42,7 +42,7 @@ public partial class LoadedFilesWindow : ThemedWindow
             return dated ? $"A made-up sample history: {plays} from {from} to {to}." : $"A made-up sample history: {plays}.";
 
         int read = history.Files.Count(f => f.Format != LoadedFileFormat.Skipped);
-        string files = $"{read:N0} file{(read == 1 ? "" : "s")}";
+        string files = Plural.Of(read, "file");
         return dated ? $"Read {plays} from {files}, covering {from} to {to}." : $"Read {plays} from {files}.";
     }
 
@@ -70,7 +70,7 @@ public partial class LoadedFilesWindow : ThemedWindow
         if (file.Format == LoadedFileFormat.Skipped)
             return new FileRow(file.Name, file.Path, "Skipped", file.Problem ?? "Not read", true);
 
-        string plays = $"{file.Plays:N0} play{(file.Plays == 1 ? "" : "s")}";
+        string plays = Plural.Of(file.Plays, "play");
         string details = file.First is { } first && file.Last is { } last
             ? $"{plays}, {TimeFormat.Day(first)} to {TimeFormat.Day(last)}"
             : plays;

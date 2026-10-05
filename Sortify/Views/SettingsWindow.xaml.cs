@@ -180,7 +180,7 @@ public partial class SettingsWindow : ThemedWindow
         int count = _settings.RecentFolders.Count;
         RecentText.Text = count == 0
             ? "No exports are remembered."
-            : $"{count} export{(count == 1 ? "" : "s")} in the Recent menu.";
+            : $"{Plural.Of(count, "export")} in the Recent menu.";
         ClearRecentButton.IsEnabled = count > 0;
     }
 }

@@ -188,12 +188,12 @@ public partial class DetailWindow : ThemedWindow
             : d.Scope is DetailScope.Show or DetailScope.Episode ? "of your podcast and audiobook listening" : "of your listening";
 
         SkipText.Text = d.SkipEligiblePlays > 0 ? $"{d.SkipRate:0.#}%" : "-";
-        SkipHint.Text = d.SkipEligiblePlays > 0 ? $"{d.Skips:N0} of {d.SkipEligiblePlays:N0} plays skipped" : string.Empty;
+        SkipHint.Text = d.SkipEligiblePlays > 0 ? $"{d.Skips:N0} of {Plural.Of(d.SkipEligiblePlays, "play")} skipped" : string.Empty;
 
         BusiestText.Text = d.BusiestMonth is { } month ? TimeFormat.Month(month) : "-";
         BusiestHint.Text = d.BusiestMonth is null ? string.Empty : TimeFormat.Friendly(TimeSpan.FromMilliseconds(d.BusiestMonthMs));
 
-        StreakText.Text = d.LongestStreakDays > 0 ? $"{d.LongestStreakDays:N0} day{(d.LongestStreakDays == 1 ? "" : "s")}" : "-";
+        StreakText.Text = d.LongestStreakDays > 0 ? Plural.Of(d.LongestStreakDays, "day") : "-";
         StreakHint.Text = (d.LongestStreakStart, d.LongestStreakEnd) switch
         {
             ({ } start, { } end) when start == end => TimeFormat.Day(start),
@@ -434,11 +434,11 @@ public partial class DetailWindow : ThemedWindow
             sb.AppendLine($"Share of listening: {_detail.SharePercent:0.#}%");
         }
         if (_detail.SkipEligiblePlays > 0)
-            sb.AppendLine($"Skip rate: {_detail.SkipRate:0.#}% ({_detail.Skips:N0} of {_detail.SkipEligiblePlays:N0} plays)");
+            sb.AppendLine($"Skip rate: {_detail.SkipRate:0.#}% ({_detail.Skips:N0} of {Plural.Of(_detail.SkipEligiblePlays, "play")})");
         if (_detail.BusiestMonth is { } month)
             sb.AppendLine($"Busiest month: {TimeFormat.Month(month)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(_detail.BusiestMonthMs))})");
         if (_detail.LongestStreakDays > 0)
-            sb.AppendLine($"Longest streak: {_detail.LongestStreakDays:N0} day{(_detail.LongestStreakDays == 1 ? "" : "s")} ({StreakHint.Text})");
+            sb.AppendLine($"Longest streak: {Plural.Of(_detail.LongestStreakDays, "day")} ({StreakHint.Text})");
         if (_detail.TopDevice.Length > 0)
             sb.AppendLine($"Mostly on: {_detail.TopDevice} ({_detail.TopDevicePercent:0}%)");
 

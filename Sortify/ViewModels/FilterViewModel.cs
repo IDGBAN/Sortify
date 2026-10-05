@@ -560,14 +560,14 @@ public sealed partial class FilterViewModel : ObservableObject
         if (ExcludedArtists.Count > 0)
         {
             yield return new FilterChip(
-                $"{ExcludedArtists.Count} artist{(ExcludedArtists.Count == 1 ? "" : "s")} excluded",
+                $"{Plural.Of(ExcludedArtists.Count, "artist")} excluded",
                 "Stop excluding " + string.Join(", ", ExcludedArtists), ExcludedArtists.Clear);
         }
 
         if (ExcludedTracks.Count > 0)
         {
             yield return new FilterChip(
-                $"{ExcludedTracks.Count} track{(ExcludedTracks.Count == 1 ? "" : "s")} excluded",
+                $"{Plural.Of(ExcludedTracks.Count, "track")} excluded",
                 "Stop excluding " + string.Join(", ", ExcludedTracks), ExcludedTracks.Clear);
         }
 
@@ -584,7 +584,7 @@ public sealed partial class FilterViewModel : ObservableObject
         if (_excludedDevices.Count > 0)
         {
             yield return new FilterChip(
-                $"{_excludedDevices.Count} device{(_excludedDevices.Count == 1 ? "" : "s")} left out",
+                $"{Plural.Of(_excludedDevices.Count, "device")} left out",
                 "Count plays on " + string.Join(", ", _excludedDevices.Order()) + " again",
                 () => IncludeEvery(_excludedDevices));
         }
@@ -592,7 +592,7 @@ public sealed partial class FilterViewModel : ObservableObject
         if (_excludedCountries.Count > 0)
         {
             yield return new FilterChip(
-                $"{_excludedCountries.Count} countr{(_excludedCountries.Count == 1 ? "y" : "ies")} left out",
+                $"{Plural.Of(_excludedCountries.Count, "country", "countries")} left out",
                 "Count plays from " + string.Join(", ", _excludedCountries.Order()) + " again",
                 () => IncludeEvery(_excludedCountries));
         }

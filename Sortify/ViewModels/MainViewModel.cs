@@ -533,7 +533,7 @@ public sealed partial class MainViewModel : ObservableObject
                 AdoptHistory(cached.Records.ToList(), filePaths, folder);
                 _loadedTimeZones = timeZones.CacheKey;
                 DescribeLoad(cached.Files, cached.DuplicatesRemoved, folder, fromCache: true);
-                SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
+                SetStatus($"Loaded {Plural.Of(_rawRecords.Count, "play")} from cache. Crunching numbers...");
                 await RecomputeAsync();
                 return;
             }
@@ -561,16 +561,16 @@ public sealed partial class MainViewModel : ObservableObject
             _loadedTimeZones = timeZones.CacheKey;
             DescribeLoad(parsed.Files, parsed.DuplicatesRemoved, folder, fromCache: false);
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
-            string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
+            string warn = problems > 0 ? $" ({Plural.Of(problems, "file")} skipped)" : string.Empty;
             IsProgressIndeterminate = true;
-            SetStatus($"Loaded {_rawRecords.Count:N0} plays from {filePaths.Count} file(s){warn}. Crunching numbers...");
+            SetStatus($"Loaded {Plural.Of(_rawRecords.Count, "play")} from {Plural.Of(filePaths.Count, "file")}{warn}. Crunching numbers...");
             await RecomputeAsync();
 
             // Said after the analysis rather than before it, which would overwrite it at once.
             if (parsed.DuplicatesRemoved > 0 && !StatusIsError)
             {
-                SetStatus($"{StatusText} Left out {parsed.DuplicatesRemoved:N0} " +
-                          $"play{(parsed.DuplicatesRemoved == 1 ? "" : "s")} that more than one of the loaded files held.");
+                SetStatus($"{StatusText} Left out {Plural.Of(parsed.DuplicatesRemoved, "play")} " +
+                          "that more than one of the loaded files held.");
             }
 
             // Save after analysis so the user isn't waiting on disk I/O to see results.
@@ -642,7 +642,7 @@ public sealed partial class MainViewModel : ObservableObject
         int skipped = files.Count - read;
         LoadedFilesText = IsSample
             ? "About this sample"
-            : $"{read:N0} file{(read == 1 ? "" : "s")} loaded{(skipped > 0 ? $", {skipped:N0} skipped" : "")}";
+            : $"{Plural.Of(read, "file")} loaded{(skipped > 0 ? $", {skipped:N0} skipped" : "")}";
     }
 
     /// <summary>
@@ -819,8 +819,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         string missing = links.Missing == 0
             ? string.Empty
-            : $" {links.Missing:N0} track{(links.Missing == 1 ? " has" : "s have")} no link in the export and {(links.Missing == 1 ? "was" : "were")} left out.";
-        SetStatus($"Copied {links.Copied:N0} Spotify link{(links.Copied == 1 ? "" : "s")}. " +
+            : $" {Plural.Of(links.Missing, "track")} {(links.Missing == 1 ? "has" : "have")} no link in the export and {(links.Missing == 1 ? "was" : "were")} left out.";
+        SetStatus($"Copied {Plural.Of(links.Copied, "Spotify link")}. " +
                   $"Paste {(links.Copied == 1 ? "it" : "them")} into a playlist in the Spotify desktop app.{missing}");
     }
 
@@ -942,8 +942,8 @@ public sealed partial class MainViewModel : ObservableObject
                 ? Filters.HasInvalidDateRange
                     ? "No plays match: the From date is after the To date."
                     : "No plays match the current filters."
-                : $"Showing {_result.TotalPlays:N0} plays across {_result.UniqueTracks:N0} tracks, " +
-                  $"{_result.UniqueArtists:N0} artists and {_result.UniqueAlbums:N0} albums.");
+                : $"Showing {Plural.Of(_result.TotalPlays, "play")} across {Plural.Of(_result.UniqueTracks, "track")}, " +
+                  $"{Plural.Of(_result.UniqueArtists, "artist")} and {Plural.Of(_result.UniqueAlbums, "album")}.");
 
             SeedComparison();
             RefreshCompareSuggestions();
@@ -1302,14 +1302,14 @@ public sealed partial class MainViewModel : ObservableObject
 
         var results = new List<JumpResult>();
         results.AddRange(Best(r.Artists, a => a.Artist, a => a.TotalMsPlayed)
-            .Select(a => new JumpResult("Artist", a.Artist, $"{a.PlayCount:N0} plays", TimeFormat.Friendly(a.TotalTime), a)));
+            .Select(a => new JumpResult("Artist", a.Artist, Plural.Of(a.PlayCount, "play"), TimeFormat.Friendly(a.TotalTime), a)));
         results.AddRange(Best(r.Tracks, t => t.Track, t => t.TotalMsPlayed)
             .Select(t => new JumpResult("Track", t.Track, t.Artist, TimeFormat.Friendly(t.TotalTime), t)));
         results.AddRange(Best(r.Albums, a => a.Album, a => a.TotalMsPlayed)
             .Select(a => new JumpResult("Album", a.Album, a.Artist, TimeFormat.Friendly(a.TotalTime), a)));
         results.AddRange(Best(r.Shows, s => s.Show, s => s.TotalMsPlayed)
             .Select(s => new JumpResult(s.Kind == ContentKind.Audiobook ? "Audiobook" : "Podcast", s.Show,
-                $"{s.EpisodeCount:N0} episode{(s.EpisodeCount == 1 ? "" : "s")}", TimeFormat.Friendly(s.TotalTime), s)));
+                Plural.Of(s.EpisodeCount, "episode"), TimeFormat.Friendly(s.TotalTime), s)));
         results.AddRange(Best(r.Episodes, e => e.Episode, e => e.TotalMsPlayed)
             .Select(e => new JumpResult("Episode", e.Episode, e.Show, TimeFormat.Friendly(e.TotalTime), e)));
         return results;
@@ -1369,15 +1369,15 @@ public sealed partial class MainViewModel : ObservableObject
         var r = _result;
 
         LongestStreakText = r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se
-            ? $"{r.LongestStreakDays} day{(r.LongestStreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})"
+            ? $"{Plural.Of(r.LongestStreakDays, "day")}  ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})"
             : "-";
 
         CurrentStreakText = r.CurrentStreakDays > 0 && r.LastListen is { } lastListen
-            ? $"{r.CurrentStreakDays} day{(r.CurrentStreakDays == 1 ? "" : "s")}  (up to {TimeFormat.Day(lastListen)})"
+            ? $"{Plural.Of(r.CurrentStreakDays, "day")}  (up to {TimeFormat.Day(lastListen)})"
             : "-";
 
         LongestBreakText = r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be
-            ? $"{r.LongestBreakDays} day{(r.LongestBreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})"
+            ? $"{Plural.Of(r.LongestBreakDays, "day")}  ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})"
             : "-";
 
         BiggestDayText = r.BiggestDay is { } bd
@@ -1392,11 +1392,11 @@ public sealed partial class MainViewModel : ObservableObject
             : "-";
 
         SkipRateText = r.SkipEligiblePlays > 0
-            ? $"{r.TotalSkips * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.TotalSkips:N0} of {r.SkipEligiblePlays:N0} plays)"
+            ? $"{r.TotalSkips * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.TotalSkips:N0} of {Plural.Of(r.SkipEligiblePlays, "play")})"
             : "-";
 
         CompletionRateText = r.SkipEligiblePlays > 0
-            ? $"{r.CompletedPlays * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.CompletedPlays:N0} plays)"
+            ? $"{r.CompletedPlays * 100.0 / r.SkipEligiblePlays:0.#}%  ({Plural.Of(r.CompletedPlays, "play")})"
             : "-";
 
         RepeatRateText = r.UniqueTracks > 0
@@ -1428,15 +1428,15 @@ public sealed partial class MainViewModel : ObservableObject
 
         // Playback context. Older exports omit these flags, hence the eligibility check.
         ShuffleRateText = r.ShuffleEligiblePlays > 0
-            ? $"{r.ShufflePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.ShufflePlays:N0} of {r.ShuffleEligiblePlays:N0} plays)"
+            ? $"{r.ShufflePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.ShufflePlays:N0} of {Plural.Of(r.ShuffleEligiblePlays, "play")})"
             : "-";
 
         OfflineRateText = r.ShuffleEligiblePlays > 0
-            ? $"{r.OfflinePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.OfflinePlays:N0} plays)"
+            ? $"{r.OfflinePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({Plural.Of(r.OfflinePlays, "play")})"
             : "-";
 
         PrivateSessionText = r.ShuffleEligiblePlays > 0
-            ? $"{r.IncognitoPlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.IncognitoPlays:N0} plays)"
+            ? $"{r.IncognitoPlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({Plural.Of(r.IncognitoPlays, "play")})"
             : "-";
 
         TopDeviceText = r.Platforms.Count > 0
@@ -1485,7 +1485,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         int count = leader.Count();
-        string text = $"{leader.Key} was your #1 artist in {count} of {months.Count} month{(months.Count == 1 ? "" : "s")}";
+        string text = $"{leader.Key} was your #1 artist in {count} of {Plural.Of(months.Count, "month")}";
         return best > 1
             ? $"{text}, {best} of them in a row ({TimeFormat.Month(bestStart)} to {TimeFormat.Month(bestEnd)})."
             : text + ".";
@@ -1739,7 +1739,10 @@ public sealed partial class MainViewModel : ObservableObject
 }
 
 /// <summary>One row of an Overview top-five list.</summary>
-public sealed record RankedItem(int Rank, string Name, string Secondary, string Time, int Plays);
+public sealed record RankedItem(int Rank, string Name, string Secondary, string Time, int Plays)
+{
+    public string PlaysText => Plural.Of(Plays, "play");
+}
 
 /// <summary>
 /// One match in the jump box: what it is, how it reads, and the row it stands for, which is

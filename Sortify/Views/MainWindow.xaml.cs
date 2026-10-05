@@ -850,7 +850,7 @@ public partial class MainWindow : ThemedWindow
             return;
 
         if (TryCopy(string.Join(Environment.NewLine, distinct)))
-            ViewModel?.SetStatus($"Copied {distinct.Count:N0} {noun}{(distinct.Count == 1 ? "" : "s")} to the clipboard.");
+            ViewModel?.SetStatus($"Copied {Plural.Of(distinct.Count, noun)} to the clipboard.");
         else
             ViewModel?.SetStatus("Could not copy: another program is holding the clipboard. Try again.", isError: true);
     }

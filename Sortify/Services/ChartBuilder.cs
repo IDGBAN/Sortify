@@ -710,7 +710,7 @@ public static class ChartBuilder
             Name = $"{label}  ({pct:0.#}%)",
             Tag = new ChartSlice(label, kind, "Plays", pct),
             Fill = new SolidColorPaint(color),
-            ToolTipLabelFormatter = _ => $"{count:N0} plays  ({pct:0.#}%)",
+            ToolTipLabelFormatter = _ => $"{Plural.Of(count, "play")}  ({pct:0.#}%)",
             InnerRadius = ContextDonutInnerRadius,
         });
     }

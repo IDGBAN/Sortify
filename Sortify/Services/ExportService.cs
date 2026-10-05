@@ -105,7 +105,7 @@ public static class ExportService
         {
             sb.AppendLine("Listening by Year:");
             foreach (var y in result.Years)
-                sb.AppendLine($"{y.Year}: {TimeFormat.HhMmSs(y.TotalTime)} across {y.PlayCount:N0} plays - top artist: {y.TopArtist} - top track: {y.TopTrack}");
+                sb.AppendLine($"{y.Year}: {TimeFormat.HhMmSs(y.TotalTime)} across {Plural.Of(y.PlayCount, "play")} - top artist: {y.TopArtist} - top track: {y.TopTrack}");
             sb.AppendLine();
         }
 

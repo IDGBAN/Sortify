@@ -138,7 +138,7 @@ public sealed class HistoryParser
             {
                 var outcome = await ParseFileAsync(path, pool, cancellationToken).ConfigureAwait(false);
                 int n = Interlocked.Increment(ref completed);
-                progress?.Report(new ParseProgress(n, paths.Count, $"Read {n} of {paths.Count} file(s)..."));
+                progress?.Report(new ParseProgress(n, paths.Count, $"Read {n} of {Plural.Of(paths.Count, "file")}..."));
                 return outcome;
             }, cancellationToken))
             .ToList();

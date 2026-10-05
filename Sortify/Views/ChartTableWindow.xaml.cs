@@ -31,7 +31,7 @@ public partial class ChartTableWindow : ThemedWindow
         _table = table;
         Title = title;
         HeaderText.Text = title;
-        CountText.Text = $"{table.Rows.Count:N0} row{(table.Rows.Count == 1 ? "" : "s")}. Click a column's header to sort by it.";
+        CountText.Text = $"{Plural.Of(table.Rows.Count, "row")}. Click a column's header to sort by it.";
         AutomationProperties.SetName(Table, title);
 
         // Bound through a DataTable so every column sorts by its own type, numbers as numbers.
@@ -66,7 +66,7 @@ public partial class ChartTableWindow : ThemedWindow
         try
         {
             Clipboard.SetText(_table.ToCsv());
-            ResultText.Text = $"Copied {_table.Rows.Count:N0} row{(_table.Rows.Count == 1 ? "" : "s")} as CSV.";
+            ResultText.Text = $"Copied {Plural.Of(_table.Rows.Count, "row")} as CSV.";
         }
         catch (ExternalException ex)
         {

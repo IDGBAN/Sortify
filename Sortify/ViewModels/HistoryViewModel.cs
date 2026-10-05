@@ -272,8 +272,8 @@ public sealed partial class HistoryViewModel : ObservableObject
         Summary = _all.Count == 0
             ? string.Empty
             : term.Length == 0
-                ? $"{_all.Count:N0} play{(_all.Count == 1 ? "" : "s")}"
-                : $"{Rows.Count:N0} of {_all.Count:N0} plays";
+                ? Plural.Of(_all.Count, "play")
+                : $"{Rows.Count:N0} of {Plural.Of(_all.Count, "play")}";
         EmptyText = _all.Count == 0
             ? "No plays match the current filters."
             : $"No plays match “{term}”. The row filter looks at track, artist and album names.";

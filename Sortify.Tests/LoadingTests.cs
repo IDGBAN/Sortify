@@ -88,6 +88,7 @@ public class LoadingTests : IDisposable
             Assert.Equal("1", vm.TotalPlaysText);
             Assert.Equal("The Show", Assert.Single(vm.Shows).Show);
             Assert.Equal("2 files loaded", vm.LoadedFilesText);
+            Assert.Equal("Showing 1 play across 1 track, 1 artist and 1 album.", vm.StatusText);
         });
     }
 

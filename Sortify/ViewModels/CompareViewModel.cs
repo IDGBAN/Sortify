@@ -283,12 +283,9 @@ public sealed partial class CompareViewModel : ObservableObject
             GoneSinceA = result.GoneSinceA;
             SharedArtists = result.SharedArtists;
             OverlapText = Percent(result.OverlapPercent);
-            InCommonText = result.ArtistsInCommon switch
-            {
-                0 => "No artists in common",
-                1 => "1 artist in common",
-                var n => $"{n:N0} artists in common",
-            };
+            InCommonText = result.ArtistsInCommon == 0
+                ? "No artists in common"
+                : $"{Plural.Of(result.ArtistsInCommon, "artist")} in common";
             Message = (people, result.A.TotalPlays, result.B.TotalPlays) switch
             {
                 (true, 0, 0) => "Neither history has any plays under the current filters.",
@@ -473,7 +470,7 @@ public sealed partial class CompareViewModel : ObservableObject
                 last = record.Timestamp;
         }
 
-        string plays = $"{records.Count:N0} play{(records.Count == 1 ? "" : "s")}";
+        string plays = Plural.Of(records.Count, "play");
         return first is { } f && last is { } l
             ? $"Their history: {plays} from {TimeFormat.Day(f)} to {TimeFormat.Day(l)}, read from {name}."
             : $"Their history: {plays}, read from {name}.";
