@@ -36,7 +36,7 @@ public class InsightsTests
 
         var r = AnalysisEngine.Analyze(records, NoFilter);
 
-        Assert.Equal("21:00-22:00 on Mondays", MainViewModel.BuildPeakHourText(r));
+        Assert.Equal("21:00-22:00 on Mondays", InsightText.For(r).PeakHour);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public class InsightsTests
     {
         var r = AnalysisEngine.Analyze(new[] { Record(ts: DateTime.MinValue) }, NoFilter);
 
-        Assert.Equal("-", MainViewModel.BuildPeakHourText(r));
+        Assert.Equal("-", InsightText.For(r).PeakHour);
     }
 
     [Fact]

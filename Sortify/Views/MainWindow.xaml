@@ -961,25 +961,25 @@
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="TIME LISTENED" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding PodcastTimeText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.PodcastTime}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="PLAYS" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding PodcastPlaysText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.PodcastPlays}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="SHOWS" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding UniqueShowsText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.Shows}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="EPISODES" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding UniqueEpisodesText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.Episodes}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                     </UniformGrid>
@@ -1224,7 +1224,7 @@
                                         </Viewbox>
                                     </DockPanel>
                                 </Border>
-                                <Border Style="{StaticResource ChartCard}" Height="460">
+                                <Border Style="{StaticResource ChartCard}" Height="460" DataContext="{Binding CompareArtists}">
                                     <DockPanel>
                                         <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
                                             <TextBlock Text="Compare Artists" Style="{StaticResource SectionHeader}"
@@ -1244,14 +1244,14 @@
                                         </Grid>
                                         <DockPanel DockPanel.Dock="Top" Margin="0,2,0,4">
                                             <TextBox DockPanel.Dock="Left" Width="220" VerticalAlignment="Center"
-                                                     Text="{Binding CompareQuery, UpdateSourceTrigger=PropertyChanged}"
+                                                     Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
                                                      AutomationProperties.Name="Add an artist to compare"
                                                      ToolTip="Type an artist's name, then pick a match or press Enter for the first one">
                                                 <TextBox.InputBindings>
-                                                    <KeyBinding Key="Enter" Command="{Binding AddComparedArtistCommand}" />
+                                                    <KeyBinding Key="Enter" Command="{Binding AddCommand}" />
                                                 </TextBox.InputBindings>
                                             </TextBox>
-                                            <ItemsControl ItemsSource="{Binding ComparedArtists}" Margin="10,0,0,0"
+                                            <ItemsControl ItemsSource="{Binding Artists}" Margin="10,0,0,0"
                                                           VerticalAlignment="Center" Focusable="False"
                                                           AutomationProperties.Name="Artists being compared">
                                                 <ItemsControl.ItemsPanel>
@@ -1265,7 +1265,7 @@
                                                             <StackPanel Orientation="Horizontal">
                                                                 <TextBlock Text="{Binding}" FontSize="11" VerticalAlignment="Center" />
                                                                 <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
-                                                                        Command="{Binding DataContext.RemoveComparedArtistCommand,
+                                                                        Command="{Binding DataContext.RemoveCommand,
                                                                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                         CommandParameter="{Binding}"
                                                                         ToolTip="Take this artist off the chart"
@@ -1276,7 +1276,7 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </DockPanel>
-                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CompareSuggestions}"
+                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding Suggestions}"
                                                       Focusable="False" AutomationProperties.Name="Matching artists">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
@@ -1286,21 +1286,22 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Button Content="{Binding}" ContentStringFormat="+  {0}" Style="{StaticResource QuickRangeButton}"
-                                                            Command="{Binding DataContext.AddComparedArtistCommand,
+                                                            Command="{Binding DataContext.AddCommand,
                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding}"
                                                             AutomationProperties.Name="{Binding StringFormat='Compare {0}'}" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <TextBlock DockPanel.Dock="Top" Text="{Binding CompareHint}" Style="{StaticResource Hint}"
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding Hint}" Style="{StaticResource Hint}"
                                                    FontSize="11" Margin="0,0,0,4"
-                                                   Visibility="{Binding CompareHint, Converter={StaticResource TextToVis}}" />
-                                        <lvc:CartesianChart Series="{Binding ArtistTimelineChart.Series}"
+                                                   Visibility="{Binding Hint, Converter={StaticResource TextToVis}}" />
+                                        <lvc:CartesianChart Series="{Binding Chart.Series}"
                                                             Background="Transparent"
-                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                            XAxes="{Binding ArtistTimelineChart.XAxes}"
-                                                            YAxes="{Binding ArtistTimelineChart.YAxes}"
+                                                            AnimationsSpeed="{Binding DataContext.ChartAnimationSpeed,
+                                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            XAxes="{Binding Chart.XAxes}"
+                                                            YAxes="{Binding Chart.YAxes}"
                                                             LegendPosition="Bottom" LegendTextSize="12"
                                                             TooltipPosition="Top" />
                                     </DockPanel>
@@ -1403,7 +1404,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LONGEST STREAK" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding LongestStreakText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.LongestStreak}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Consecutive days with listening." />
                                         </StackPanel>
@@ -1411,7 +1412,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="CURRENT STREAK" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding CurrentStreakText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.CurrentStreak}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Consecutive days ending on your most recent listening day." />
                                         </StackPanel>
@@ -1419,7 +1420,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LONGEST BREAK" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding LongestBreakText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.LongestBreak}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Your longest stretch without playing anything." />
                                         </StackPanel>
@@ -1428,7 +1429,7 @@
                                         <StackPanel>
                                             <TextBlock Text="BIGGEST DAY" Style="{StaticResource Caption}" />
                                             <TextBlock Style="{StaticResource StatValueSmall}">
-                                                <Hyperlink Click="OnOpenBiggestDay" ToolTip="Open this day's breakdown"><Run Text="{Binding BiggestDayText, Mode=OneWay}" /></Hyperlink>
+                                                <Hyperlink Click="OnOpenBiggestDay" ToolTip="Open this day's breakdown"><Run Text="{Binding Insights.BiggestDay, Mode=OneWay}" /></Hyperlink>
                                             </TextBlock>
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="The single day with the most listening time. Click it for what you played." />
@@ -1437,7 +1438,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="PEAK LISTENING" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding PeakHourText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.PeakHour}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="The hour of the week you listen to most." />
                                         </StackPanel>
@@ -1445,7 +1446,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="ACTIVE DAYS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding ActiveDaysText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.ActiveDays}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Days with at least one counted play." />
                                         </StackPanel>
@@ -1453,7 +1454,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="AVERAGE PER ACTIVE DAY" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding AvgPerDayText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.AveragePerDay}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Listening time averaged over active days." />
                                         </StackPanel>
@@ -1461,7 +1462,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LISTENING SESSIONS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding SessionsText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.Sessions}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Runs of plays separated by a long enough break (set in Settings)." />
                                         </StackPanel>
@@ -1469,7 +1470,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="AVERAGE SESSION" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding AvgSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.AverageSession}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Listening time in a typical session." />
                                         </StackPanel>
@@ -1477,7 +1478,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LONGEST SESSION" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding LongestSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.LongestSession}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Your single biggest uninterrupted listening stretch." />
                                         </StackPanel>
@@ -1485,7 +1486,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="WEEKDAYS VS WEEKENDS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding WeekSplitText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.WeekSplit}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="How your listening splits across the week." />
                                         </StackPanel>
@@ -1493,7 +1494,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="FAVORITE TIME OF DAY" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding TimeOfDayText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.TimeOfDay}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="The six-hour window you listen in most." />
                                         </StackPanel>
@@ -1504,7 +1505,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="SKIP RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding SkipRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.SkipRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays Spotify flagged as skipped (short plays included)." />
                                         </StackPanel>
@@ -1512,7 +1513,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="COMPLETION RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding CompletionRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.CompletionRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays that ran all the way to the end of the track." />
                                         </StackPanel>
@@ -1520,7 +1521,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="REPEAT RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding RepeatRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.RepeatRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="How often you come back to the same track." />
                                         </StackPanel>
@@ -1528,7 +1529,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="DISCOVERY RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding DiscoveryRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.DiscoveryRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Artists you heard for the first time, per month." />
                                         </StackPanel>
@@ -1536,7 +1537,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="MOST LISTENED ARTIST" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding TopArtistShareText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.TopArtistShare}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Share of your listening time going to one artist." />
                                         </StackPanel>
@@ -1544,7 +1545,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="SHUFFLE RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding ShuffleRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.ShuffleRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays that started in shuffle mode." />
                                         </StackPanel>
@@ -1552,7 +1553,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="OFFLINE LISTENING" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding OfflineRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.OfflineRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays from downloads, with no connection." />
                                         </StackPanel>
@@ -1560,7 +1561,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="PRIVATE SESSIONS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding PrivateSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.PrivateSessions}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays from private sessions. The sidebar can leave them out." />
                                         </StackPanel>
@@ -1568,7 +1569,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="TOP DEVICE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding TopDeviceText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.TopDevice}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Where most of your listening happens." />
                                         </StackPanel>

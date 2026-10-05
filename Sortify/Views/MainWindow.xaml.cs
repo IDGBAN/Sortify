@@ -1013,7 +1013,7 @@ public partial class MainWindow : ThemedWindow
             return;
 
         if (Enum.TryParse<ChartBuilder.TimeGranularity>(tag, out var granularity))
-            await vm.SetCompareGranularityAsync(granularity);
+            await vm.CompareArtists.SetGranularityAsync(granularity);
     }
 
     private void OnGranularityChecked(object sender, RoutedEventArgs e)

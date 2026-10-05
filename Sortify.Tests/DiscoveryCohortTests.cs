@@ -92,7 +92,7 @@ public class DiscoveryCohortTests
         var c = DiscoveryCohorts.Build(TwoYears(), new FilterOptions());
 
         Assert.Equal("33% of 2024's listening was music you first heard that year, and 67% was music found in 2023. "
-            + "The first year of a history is all new by definition.", MainViewModel.DescribeCohorts(c));
+            + "The first year of a history is all new by definition.", InsightText.Cohorts(c));
     }
 
     [Fact]
@@ -100,8 +100,8 @@ public class DiscoveryCohortTests
     {
         var c = DiscoveryCohorts.Build(new[] { Play("Only", In2024) }, new FilterOptions());
 
-        Assert.Equal("With only 2024 in the history, all of it counts as music first heard that year.", MainViewModel.DescribeCohorts(c));
-        Assert.Equal(string.Empty, MainViewModel.DescribeCohorts(CohortBreakdown.Empty));
+        Assert.Equal("With only 2024 in the history, all of it counts as music first heard that year.", InsightText.Cohorts(c));
+        Assert.Equal(string.Empty, InsightText.Cohorts(CohortBreakdown.Empty));
     }
 }
 

@@ -66,6 +66,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The listening calendar on the Trends tab.</summary>
     public CalendarViewModel Calendar { get; } = new();
 
+    /// <summary>Compare Artists on the Trends tab.</summary>
+    public CompareArtistsViewModel CompareArtists { get; }
+
     /// <summary>The day with the most listening in the current results, for the Insights card's link.</summary>
     public DateTime? BiggestDay => _result.BiggestDay;
 
@@ -163,36 +166,9 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The Overview's card button, naming what the card would cover: "Summary card for March 2024".</summary>
     [ObservableProperty] private string _summaryCardText = "Summary card";
 
-    // Insights ------------------------------------------------------------------------------
-    [ObservableProperty] private string _longestStreakText = "-";
-    [ObservableProperty] private string _currentStreakText = "-";
-    [ObservableProperty] private string _longestBreakText = "-";
-    [ObservableProperty] private string _biggestDayText = "-";
-    [ObservableProperty] private string _activeDaysText = "-";
-    [ObservableProperty] private string _avgPerDayText = "-";
-    [ObservableProperty] private string _skipRateText = "-";
-    [ObservableProperty] private string _completionRateText = "-";
-    [ObservableProperty] private string _repeatRateText = "-";
-    [ObservableProperty] private string _discoveryRateText = "-";
-    [ObservableProperty] private string _topArtistShareText = "-";
-    [ObservableProperty] private string _peakHourText = "-";
-    [ObservableProperty] private string _sessionsText = "-";
-    [ObservableProperty] private string _avgSessionText = "-";
-    [ObservableProperty] private string _longestSessionText = "-";
-    [ObservableProperty] private string _weekSplitText = "-";
-    [ObservableProperty] private string _timeOfDayText = "-";
+    /// <summary>The Insights and Podcasts tabs' figures, in words.</summary>
+    [ObservableProperty] private InsightText _insights = InsightText.Empty;
 
-    // Playback context ---------------------------------------------------------------------
-    [ObservableProperty] private string _shuffleRateText = "-";
-    [ObservableProperty] private string _offlineRateText = "-";
-    [ObservableProperty] private string _privateSessionText = "-";
-    [ObservableProperty] private string _topDeviceText = "-";
-
-    // Podcasts -----------------------------------------------------------------------------
-    [ObservableProperty] private string _podcastTimeText = "-";
-    [ObservableProperty] private string _podcastPlaysText = "-";
-    [ObservableProperty] private string _uniqueShowsText = "-";
-    [ObservableProperty] private string _uniqueEpisodesText = "-";
     [ObservableProperty] private bool _hasPodcastData;
 
     // Charts ------------------------------------------------------------------------------
@@ -269,6 +245,10 @@ public sealed partial class MainViewModel : ObservableObject
             ? new CompareViewModel.Source(Records, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
                 PlayTimeZones.From(_settings))
             : null);
+        CompareArtists = new CompareArtistsViewModel(() => HasData
+            ? new CompareArtistsViewModel.Source(Records, Filters.ToOptions(), _settings.FirstDayOfWeek)
+            : null);
+        CompareArtists.Notice += (_, message) => SetStatus(message);
         SidebarVisible = _settings.SidebarVisible;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
         RefreshRecentFolders();
@@ -607,7 +587,7 @@ public sealed partial class MainViewModel : ObservableObject
         // one starts again from its own.
         bool newHistory = isSample != IsSample || !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
         if (newHistory)
-            _comparisonSeeded = false;
+            CompareArtists.StartOver();
 
         _rawRecords = records;
         _combinedRecords = null;
@@ -926,7 +906,8 @@ public sealed partial class MainViewModel : ObservableObject
 
             UpdateCollections();
             UpdateSummary();
-            UpdateInsights();
+            Insights = InsightText.For(_result);
+            OnPropertyChanged(nameof(BiggestDay));
             UpdateCharts();
             Calendar.Update(_result.PlaytimeByDay, _settings.FirstDayOfWeek);
             NotifyExportsChanged();
@@ -940,13 +921,11 @@ public sealed partial class MainViewModel : ObservableObject
                 : $"Showing {Plural.Of(_result.TotalPlays, "play")} across {Plural.Of(_result.UniqueTracks, "track")}, " +
                   $"{Plural.Of(_result.UniqueArtists, "artist")} and {Plural.Of(_result.UniqueAlbums, "album")}.");
 
-            SeedComparison();
-            RefreshCompareSuggestions();
             Compare.Invalidate();
             History.Invalidate();
             if (ShowCohorts)
                 _ = RefreshCohortsAsync();
-            await RefreshArtistTimelineAsync();
+            await CompareArtists.UpdateAsync(_result.Artists);
         }
         finally
         {
@@ -967,7 +946,7 @@ public sealed partial class MainViewModel : ObservableObject
         ForgottenTracks = _result.ForgottenTracks;
         ForgottenArtists = _result.ForgottenArtists;
         Months = _result.Months.Reverse().ToList();
-        MonthlyLeaderText = DescribeMonthlyLeader(_result.Months);
+        MonthlyLeaderText = InsightText.MonthlyLeader(_result.Months);
         Milestones = _result.Milestones;
         OnRepeat = _result.OnRepeat;
         HasPodcastData = _result.Shows.Count > 0;
@@ -1068,159 +1047,11 @@ public sealed partial class MainViewModel : ObservableObject
 
             _cohorts = cohorts;
             CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years);
-            CohortText = DescribeCohorts(_cohorts);
+            CohortText = InsightText.Cohorts(_cohorts);
         }
         catch (OperationCanceledException)
         {
             // A newer refresh took over.
-        }
-        finally
-        {
-            previous?.Dispose();
-        }
-    }
-
-    /// <summary>The latest year's share of new music, and of music from the year before it.</summary>
-    internal static string DescribeCohorts(CohortBreakdown c)
-    {
-        if (c.Years.Count == 0)
-            return string.Empty;
-        if (c.Years.Count == 1)
-            return $"With only {c.Years[0]} in the history, all of it counts as music first heard that year.";
-
-        int year = c.Years[^1];
-        string text = $"{c.NewSharePercent(year):0}% of {year}'s listening was music you first heard that year";
-        double before = c.SharePercent(year, year - 1);
-        return before > 0
-            ? $"{text}, and {before:0}% was music found in {year - 1}. The first year of a history is all new by definition."
-            : $"{text}. The first year of a history is all new by definition.";
-    }
-
-    // ---- Comparing artists over time ------------------------------------------------------------
-
-    /// <summary>How many of the top artists the comparison starts with after a history loads.</summary>
-    private const int ComparedArtistsToStartWith = 3;
-
-    /// <summary>How many name suggestions show under the box while typing.</summary>
-    private const int CompareSuggestionCount = 6;
-
-    /// <summary>Artists on the comparison chart, in the order their lines are coloured.</summary>
-    public ObservableCollection<string> ComparedArtists { get; } = new();
-
-    [ObservableProperty] private string _compareQuery = string.Empty;
-    [ObservableProperty] private IReadOnlyList<string> _compareSuggestions = Array.Empty<string>();
-    [ObservableProperty] private ChartData _artistTimelineChart = ChartData.Empty;
-    [ObservableProperty] private string _compareHint = string.Empty;
-
-    private ArtistTimeline _artistTimeline = ArtistTimeline.Empty;
-    private ChartBuilder.TimeGranularity _compareGranularity = ChartBuilder.TimeGranularity.Monthly;
-    private CancellationTokenSource? _timelineCts;
-
-    /// <summary>
-    /// The comparison starts out with the top few artists, once per loaded history, so the
-    /// chart isn't blank. After that it only changes when the user changes it.
-    /// </summary>
-    private bool _comparisonSeeded;
-
-    partial void OnCompareQueryChanged(string value) => RefreshCompareSuggestions();
-
-    private void RefreshCompareSuggestions()
-    {
-        string query = CompareQuery.Trim();
-        CompareSuggestions = query.Length == 0
-            ? Array.Empty<string>()
-            : _result.Artists
-                .Where(a => !ComparedArtists.Contains(a.Artist))
-                .Select(a => (a.Artist, Rank: NameMatch.Rank(a.Artist, query), a.TotalMsPlayed))
-                .Where(x => x.Rank >= 0)
-                .OrderBy(x => x.Rank)
-                .ThenByDescending(x => x.TotalMsPlayed)
-                .Take(CompareSuggestionCount)
-                .Select(x => x.Artist)
-                .ToList();
-        RefreshCompareHint();
-    }
-
-    private void RefreshCompareHint()
-    {
-        CompareHint = ComparedArtists.Count == 0
-            ? $"Type an artist's name and pick from the matches to add them. Up to {ArtistComparison.MaxArtists} at once."
-            : CompareQuery.Trim().Length > 0 && CompareSuggestions.Count == 0
-                ? ComparedArtists.Count >= ArtistComparison.MaxArtists
-                    ? $"The chart already has {ArtistComparison.MaxArtists} artists. Remove one to add another."
-                    : $"No artist in the current results matches “{CompareQuery.Trim()}”."
-                : string.Empty;
-    }
-
-    [RelayCommand]
-    private async Task AddComparedArtistAsync(string? artist)
-    {
-        artist ??= CompareSuggestions.FirstOrDefault();
-        if (string.IsNullOrEmpty(artist) || ComparedArtists.Contains(artist))
-            return;
-        if (ComparedArtists.Count >= ArtistComparison.MaxArtists)
-        {
-            RefreshCompareHint();
-            SetStatus($"The comparison chart holds {ArtistComparison.MaxArtists} artists at most. Remove one to add {artist}.");
-            return;
-        }
-
-        ComparedArtists.Add(artist);
-        CompareQuery = string.Empty;
-        await RefreshArtistTimelineAsync();
-    }
-
-    [RelayCommand]
-    private async Task RemoveComparedArtistAsync(string? artist)
-    {
-        if (artist is null || !ComparedArtists.Remove(artist))
-            return;
-        RefreshCompareSuggestions();
-        await RefreshArtistTimelineAsync();
-    }
-
-    /// <summary>Switches the comparison between monthly and weekly buckets.</summary>
-    public async Task SetCompareGranularityAsync(ChartBuilder.TimeGranularity granularity)
-    {
-        if (_compareGranularity == granularity)
-            return;
-        _compareGranularity = granularity;
-        await RefreshArtistTimelineAsync();
-    }
-
-    private void SeedComparison()
-    {
-        if (_comparisonSeeded)
-            return;
-        _comparisonSeeded = true;
-        ComparedArtists.Clear();
-        foreach (var artist in _result.Artists.Take(ComparedArtistsToStartWith))
-            ComparedArtists.Add(artist.Artist);
-    }
-
-    /// <summary>Rebuilds the comparison under the current filters; a newer call cancels an older one.</summary>
-    private async Task RefreshArtistTimelineAsync()
-    {
-        RefreshCompareHint();
-        var previous = _timelineCts;
-        _timelineCts = new CancellationTokenSource();
-        previous?.Cancel();
-        var token = _timelineCts.Token;
-
-        try
-        {
-            var timeline = HasData && ComparedArtists.Count > 0
-                ? await ArtistComparison.BuildAsync(Records, Filters.ToOptions(), ComparedArtists.ToList(),
-                    _compareGranularity, _settings.FirstDayOfWeek, token)
-                : ArtistTimeline.Empty;
-            if (token.IsCancellationRequested)
-                return;
-            _artistTimeline = timeline;
-            ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity);
-        }
-        catch (OperationCanceledException)
-        {
-            // A newer refresh took over; it sets the chart.
         }
         finally
         {
@@ -1342,185 +1173,6 @@ public sealed partial class MainViewModel : ObservableObject
         };
     }
 
-    private void UpdateInsights()
-    {
-        var r = _result;
-
-        LongestStreakText = r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se
-            ? $"{Plural.Of(r.LongestStreakDays, "day")}  ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})"
-            : "-";
-
-        CurrentStreakText = r.CurrentStreakDays > 0 && r.LastListen is { } lastListen
-            ? $"{Plural.Of(r.CurrentStreakDays, "day")}  (up to {TimeFormat.Day(lastListen)})"
-            : "-";
-
-        LongestBreakText = r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be
-            ? $"{Plural.Of(r.LongestBreakDays, "day")}  ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})"
-            : "-";
-
-        BiggestDayText = r.BiggestDay is { } bd
-            ? $"{TimeFormat.Day(bd)}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
-            : "-";
-        OnPropertyChanged(nameof(BiggestDay));
-
-        ActiveDaysText = r.ActiveDays > 0 ? r.ActiveDays.ToString("N0") : "-";
-
-        AvgPerDayText = r.ActiveDays > 0
-            ? TimeFormat.Friendly(TimeSpan.FromMilliseconds((double)r.TotalMsPlayed / r.ActiveDays))
-            : "-";
-
-        SkipRateText = r.SkipEligiblePlays > 0
-            ? $"{r.TotalSkips * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.TotalSkips:N0} of {Plural.Of(r.SkipEligiblePlays, "play")})"
-            : "-";
-
-        CompletionRateText = r.SkipEligiblePlays > 0
-            ? $"{r.CompletedPlays * 100.0 / r.SkipEligiblePlays:0.#}%  ({Plural.Of(r.CompletedPlays, "play")})"
-            : "-";
-
-        RepeatRateText = r.UniqueTracks > 0
-            ? $"{r.PlaysPerTrack:0.0} plays per track"
-            : "-";
-
-        DiscoveryRateText = r.NewArtistsByMonth.Count > 0
-            ? $"{r.NewArtistsPerMonth:0.#} new artists / month"
-            : "-";
-
-        TopArtistShareText = r.Artists.Count > 0
-            ? $"{r.Artists[0].Artist}  ({r.TopArtistSharePercent:0.#}% of your time)"
-            : "-";
-
-        PeakHourText = BuildPeakHourText(r);
-
-        SessionsText = r.SessionCount > 0 ? r.SessionCount.ToString("N0") : "-";
-
-        AvgSessionText = r.SessionCount > 0
-            ? TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.AvgSessionMs))
-            : "-";
-
-        LongestSessionText = r.LongestSessionMs > 0 && r.LongestSessionDate is { } sd
-            ? $"{TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.LongestSessionMs))}  ({TimeFormat.Day(sd)})"
-            : "-";
-
-        WeekSplitText = BuildWeekSplitText(r);
-        TimeOfDayText = BuildTimeOfDayText(r);
-
-        // Playback context. Older exports omit these flags, hence the eligibility check.
-        ShuffleRateText = r.ShuffleEligiblePlays > 0
-            ? $"{r.ShufflePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.ShufflePlays:N0} of {Plural.Of(r.ShuffleEligiblePlays, "play")})"
-            : "-";
-
-        OfflineRateText = r.ShuffleEligiblePlays > 0
-            ? $"{r.OfflinePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({Plural.Of(r.OfflinePlays, "play")})"
-            : "-";
-
-        PrivateSessionText = r.ShuffleEligiblePlays > 0
-            ? $"{r.IncognitoPlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({Plural.Of(r.IncognitoPlays, "play")})"
-            : "-";
-
-        TopDeviceText = r.Platforms.Count > 0
-            ? $"{r.Platforms[0].Name}  ({TimeFormat.Friendly(r.Platforms[0].TotalTime)})"
-            : "-";
-
-        // Podcasts.
-        PodcastTimeText = r.PodcastMsPlayed > 0
-            ? TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.PodcastMsPlayed))
-            : "-";
-        PodcastPlaysText = r.PodcastPlays > 0 ? r.PodcastPlays.ToString("N0") : "-";
-        UniqueShowsText = r.Shows.Count > 0 ? r.Shows.Count.ToString("N0") : "-";
-        UniqueEpisodesText = r.Episodes.Count > 0 ? r.Episodes.Count.ToString("N0") : "-";
-    }
-
-    /// <summary>
-    /// Who topped the most months, and their longest run of back-to-back months on top. Ties
-    /// go to the artist with more listening in the months they led.
-    /// </summary>
-    internal static string DescribeMonthlyLeader(IReadOnlyList<MonthStat> months)
-    {
-        if (months.Count == 0)
-            return string.Empty;
-
-        var leader = months
-            .GroupBy(m => m.TopArtist)
-            .OrderByDescending(g => g.Count())
-            .ThenByDescending(g => g.Sum(m => m.TopArtistMs))
-            .First();
-
-        int best = 0, run = 0;
-        DateTime? previous = null;
-        DateTime runStart = default, bestStart = default, bestEnd = default;
-        foreach (var month in months.Where(m => m.TopArtist == leader.Key))
-        {
-            run = previous is { } p && p.AddMonths(1) == month.Month ? run + 1 : 1;
-            if (run == 1)
-                runStart = month.Month;
-            if (run > best)
-            {
-                best = run;
-                bestStart = runStart;
-                bestEnd = month.Month;
-            }
-            previous = month.Month;
-        }
-
-        int count = leader.Count();
-        string text = $"{leader.Key} was your #1 artist in {count} of {Plural.Of(months.Count, "month")}";
-        return best > 1
-            ? $"{text}, {best} of them in a row ({TimeFormat.Month(bestStart)} to {TimeFormat.Month(bestEnd)})."
-            : text + ".";
-    }
-
-    /// <summary>The busiest hour of the week, read off the same day-by-hour grid as the heatmap.</summary>
-    internal static string BuildPeakHourText(AnalysisResult r)
-    {
-        int peakDow = 0, peakHour = 0;
-        for (int d = 0; d < 7; d++)
-        {
-            for (int h = 0; h < 24; h++)
-            {
-                if (r.PlaytimeByDowHour[d, h] > r.PlaytimeByDowHour[peakDow, peakHour])
-                    (peakDow, peakHour) = (d, h);
-            }
-        }
-
-        // Undated plays count toward the totals but never reach the grid.
-        if (r.PlaytimeByDowHour[peakDow, peakHour] == 0)
-            return "-";
-
-        string[] dayNames = { "Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays" };
-        return $"{peakHour:00}:00-{(peakHour + 1) % 24:00}:00 on {dayNames[peakDow]}";
-    }
-
-    private static string BuildWeekSplitText(AnalysisResult r)
-    {
-        long weekend = r.PlaytimeByDayOfWeek[0] + r.PlaytimeByDayOfWeek[6];
-        long total = 0;
-        foreach (var ms in r.PlaytimeByDayOfWeek) total += ms;
-        if (total == 0)
-            return "-";
-
-        double weekendPct = weekend * 100.0 / total;
-        return $"{100 - weekendPct:0}% weekdays  /  {weekendPct:0}% weekends";
-    }
-
-    private static string BuildTimeOfDayText(AnalysisResult r)
-    {
-        long total = 0;
-        foreach (var ms in r.PlaytimeByHour) total += ms;
-        if (total == 0)
-            return "-";
-
-        Span<long> segments = stackalloc long[4]; // night, morning, afternoon, evening
-        for (int h = 0; h < 24; h++)
-            segments[h / 6] += r.PlaytimeByHour[h];
-
-        string[] names = { "Night (00-06)", "Morning (06-12)", "Afternoon (12-18)", "Evening (18-24)" };
-        int best = 0;
-        for (int i = 1; i < 4; i++)
-            if (segments[i] > segments[best]) best = i;
-
-        return $"{names[best]}  ({segments[best] * 100.0 / total:0}% of listening)";
-    }
-
     // ---- Charts ------------------------------------------------------------------------------
 
     private void UpdateCharts()
@@ -1545,7 +1197,7 @@ public sealed partial class MainViewModel : ObservableObject
         EpisodesChart = ChartBuilder.TopEpisodes(_result);
         ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
         EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
-        ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity);
+        CompareArtists.Redraw();
         CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years);
 
         // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
