@@ -152,12 +152,29 @@ public class OverlappingExportsTests : IDisposable
             [ { "ts": "2023-05-01T10:30:10Z", "ms_played": 1800000,
                 "episode_name": "Episode 12", "episode_show_name": "The Show" } ]
             """);
-        var legacy = Write("StreamingHistory_podcast_0.json",
+        var legacy = Write("StreamingHistory0.json",
             Array(Legacy("2023-05-01 10:30", track: "Episode 12", artist: "The Show", ms: 1_800_000)));
 
         var result = await Parse(extended, legacy);
 
         Assert.Equal(ContentKind.Podcast, Assert.Single(result.Records).Kind);
+    }
+
+    [Fact]
+    public async Task TheAccountDataPodcastFile_MatchesTheEpisodeToo()
+    {
+        var extended = Write("Streaming_History_Audio_2023.json", """
+            [ { "ts": "2023-05-01T10:30:10Z", "ms_played": 1800000,
+                "episode_name": "Episode 12", "episode_show_name": "The Show" } ]
+            """);
+        var legacy = Write("StreamingHistory_podcast_0.json", """
+            [ { "endTime": "2023-05-01 10:30", "podcastName": "The Show", "episodeName": "Episode 12", "msPlayed": 1800000 } ]
+            """);
+
+        var result = await Parse(extended, legacy);
+
+        Assert.Equal(ContentKind.Podcast, Assert.Single(result.Records).Kind);
+        Assert.Equal(1, result.DuplicatesRemoved);
     }
 
     [Fact]

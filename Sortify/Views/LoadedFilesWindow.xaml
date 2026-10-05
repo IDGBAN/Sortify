@@ -21,7 +21,7 @@
                 <Border x:Name="AccountDataNote" Margin="0,10,0,0" Padding="10,8" CornerRadius="6"
                         Background="{DynamicResource PanelBrush2}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
                     <TextBlock TextWrapping="Wrap" FontSize="12"
-                               Text="Only the account-data export is loaded. It keeps about a year of plays and, for each, just the track, the artist and the minute it ended. Albums, Spotify links, devices, countries, skips and shuffle aren't in it, and podcasts are mixed in with the music, so the parts of Sortify built on those stay empty. Request your extended streaming history from Spotify's privacy page to fill them in." />
+                               Text="Only the account-data export is loaded. It keeps about a year of plays and, for each, just the track, the artist and the minute it ended (older copies also mix podcasts in with the music). Albums, Spotify links, devices, countries, skips and shuffle aren't in it, so the parts of Sortify built on those stay empty. Request your extended streaming history from Spotify's privacy page to fill them in." />
                 </Border>
             </StackPanel>
         </Border>

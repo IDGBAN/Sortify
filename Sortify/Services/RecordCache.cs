@@ -14,8 +14,11 @@ public sealed record CachedHistory(IReadOnlyList<PlayRecord> Records, IReadOnlyL
 /// </summary>
 public static class RecordCache
 {
-    /// <summary>Bumped whenever the record layout changes, so stale caches are ignored.</summary>
-    private const int FormatVersion = 2;
+    /// <summary>
+    /// Bumped whenever the record layout or what the parser reads out of an export changes,
+    /// so stale caches are ignored.
+    /// </summary>
+    private const int FormatVersion = 3;
 
     /// <summary>
     /// Upper bounds on the two counts read out of the file header, so a truncated or

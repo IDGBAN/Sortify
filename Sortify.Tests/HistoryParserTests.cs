@@ -123,6 +123,27 @@ public class HistoryParserTests : IDisposable
     }
 
     [Fact]
+    public async Task Parses_TheAccountDataPodcastFile_AsPodcasts()
+    {
+        var path = await WriteFileAsync("StreamingHistory_podcast_0.json", """
+        [
+            { "endTime": "2023-01-13 07:33", "podcastName": "Some Show",
+              "episodeName": "Ep 12: Deep Dive", "msPlayed": 1234567 }
+        ]
+        """);
+
+        var result = await new HistoryParser().ParseAsync(new[] { path });
+
+        var record = Assert.Single(result.Records);
+        Assert.Equal(ContentKind.Podcast, record.Kind);
+        Assert.Equal("Some Show", record.ShowName);
+        Assert.Equal("Ep 12: Deep Dive", record.EpisodeName);
+        Assert.Equal(1234567, record.MsPlayed);
+        Assert.NotEqual(DateTime.MinValue, record.Timestamp);
+        Assert.Equal(LoadedFileFormat.AccountData, Assert.Single(result.Files).Format);
+    }
+
+    [Fact]
     public async Task Parses_Audiobooks_AsAudiobookKind()
     {
         var path = await WriteFileAsync("Streaming_History_Audio.json", """

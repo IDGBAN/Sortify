@@ -142,8 +142,8 @@ internal static class OverlapFilter
     }
 
     /// <summary>
-    /// The account-data export files podcasts under the track and artist fields, so the
-    /// name compared is the episode title for anything that isn't music.
+    /// Older account-data exports file podcasts under the track and artist fields, and newer
+    /// ones as podcasts, so the name compared is the episode title for anything that isn't music.
     /// </summary>
     private readonly record struct MinuteKey(long Minute, string Name)
     {

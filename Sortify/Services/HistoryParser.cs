@@ -303,6 +303,8 @@ public sealed class HistoryParser
     {
         string? trackName = FirstNonEmpty(entry.TrackName, entry.LegacyTrackName);
         string? artistName = FirstNonEmpty(entry.ArtistName, entry.LegacyArtistName);
+        string? showName = FirstNonEmpty(entry.EpisodeShowName, entry.LegacyPodcastName);
+        string? episodeName = FirstNonEmpty(entry.EpisodeName, entry.LegacyEpisodeName);
 
         // Rows carry exactly one kind of content; music first, then podcast, then audiobook.
         ContentKind kind;
@@ -313,11 +315,11 @@ public sealed class HistoryParser
             kind = ContentKind.Music;
             uri = entry.TrackUri ?? string.Empty;
         }
-        else if (FirstNonEmpty(entry.EpisodeName, entry.EpisodeShowName) is not null)
+        else if (showName is not null || episodeName is not null)
         {
             kind = ContentKind.Podcast;
-            show = entry.EpisodeShowName ?? "Unknown Show";
-            episode = entry.EpisodeName ?? "Unknown Episode";
+            show = showName ?? "Unknown Show";
+            episode = episodeName ?? "Unknown Episode";
             uri = entry.EpisodeUri ?? string.Empty;
         }
         else if (FirstNonEmpty(entry.AudiobookTitle, entry.AudiobookChapterTitle) is not null)

@@ -194,4 +194,13 @@ public sealed class SpotifyHistoryEntry
 
     [JsonPropertyName("trackName")]
     public string? LegacyTrackName { get; set; }
+
+    // Newer account-data exports keep podcasts in a file of their own
+    // ("StreamingHistory_podcast_0.json") under these names.
+
+    [JsonPropertyName("podcastName")]
+    public string? LegacyPodcastName { get; set; }
+
+    [JsonPropertyName("episodeName")]
+    public string? LegacyEpisodeName { get; set; }
 }
