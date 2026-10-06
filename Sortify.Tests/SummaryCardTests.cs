@@ -161,6 +161,15 @@ public class SummaryCardBuilderTests
     }
 
     [Fact]
+    public void ARangeRunningToTheEndOfTheCalendar_StillMakesACard()
+    {
+        var review = Build(new DateTime(2024, 3, 1), DateTime.MaxValue.Date);
+
+        Assert.Equal(6, review.Plays);
+        Assert.Equal("Mar 1, 2024 to Dec 31, 9999", review.Range.Title);
+    }
+
+    [Fact]
     public void ABiggestWeek_IsCutToTheRange()
     {
         // Weeks starting Sunday put March 1 in the week of February 25.

@@ -110,8 +110,8 @@ public static class PeriodComparison
         DateTime? startA, DateTime? endA, DateTime? startB, DateTime? endB,
         TimeSpan? sessionGap = null, CancellationToken cancellationToken = default)
     {
-        var a = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startA, EndOfDay(endA)), sessionGap, cancellationToken);
-        var b = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startB, EndOfDay(endB)), sessionGap, cancellationToken);
+        var a = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startA, FilterOptions.EndOfDay(endA)), sessionGap, cancellationToken);
+        var b = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startB, FilterOptions.EndOfDay(endB)), sessionGap, cancellationToken);
         await Task.WhenAll(a, b).ConfigureAwait(false);
         return Build(a.Result, b.Result);
     }
@@ -130,9 +130,6 @@ public static class PeriodComparison
         await Task.WhenAll(a, b).ConfigureAwait(false);
         return Build(a.Result, b.Result, ComparisonKind.People);
     }
-
-    /// <summary>A period's last day is included in full, as the sidebar's To date is.</summary>
-    private static DateTime? EndOfDay(DateTime? end) => end?.Date.AddDays(1).AddTicks(-1);
 
     public static PeriodComparisonResult Build(AnalysisResult a, AnalysisResult b, ComparisonKind kind = ComparisonKind.Periods)
     {

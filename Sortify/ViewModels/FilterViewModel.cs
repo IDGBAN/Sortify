@@ -470,7 +470,7 @@ public sealed partial class FilterViewModel : ObservableObject
             MinMsPlayed = (int)Math.Clamp(MinSeconds * 1000L, 0L, int.MaxValue),
             IncludePodcasts = IncludePodcasts,
             StartDate = StartDate?.Date,
-            EndDate = EndDate?.Date.AddDays(1).AddTicks(-1),
+            EndDate = FilterOptions.EndOfDay(EndDate),
             SearchTerm = SearchTerm ?? string.Empty,
             StartHour = Math.Clamp(StartHour, 0, 23),
             EndHour = Math.Clamp(EndHour, 0, 23),

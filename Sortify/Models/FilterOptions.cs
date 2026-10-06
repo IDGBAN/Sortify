@@ -82,6 +82,15 @@ public sealed class FilterOptions
 
     public bool HasAllDaysSelected => IncludedDaysOfWeek.All(d => d);
 
+    /// <summary>
+    /// The last tick of <paramref name="day"/>, for an end date that takes in the whole day.
+    /// Counted on from midnight rather than back from the next day, which 31 December 9999
+    /// doesn't have; people type that date to mean "no end".
+    /// </summary>
+    public static DateTime EndOfDay(DateTime day) => day.Date.AddTicks(TimeSpan.TicksPerDay - 1);
+
+    public static DateTime? EndOfDay(DateTime? day) => day is { } d ? EndOfDay(d) : null;
+
     /// <summary>A copy with a different date range and every other filter the same.</summary>
     public FilterOptions WithDateRange(DateTime? start, DateTime? end)
     {

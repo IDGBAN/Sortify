@@ -241,6 +241,21 @@ public class HistoryTests
     }
 
     [Fact]
+    public async Task GoingToTheLastDayOfTheCalendar_LandsOnTheNewestPlay()
+    {
+        var vm = ViewModelFor(ThreeDays());
+        await vm.UpdateAsync();
+        PlayRow? landed = null;
+        vm.ScrollRequested += (_, row) => landed = row;
+
+        vm.GoToDate = DateTime.MaxValue.Date;
+        await vm.GoToAsync(DateTime.MaxValue.Date);
+
+        Assert.Equal("Friday Song", landed?.Track);
+        Assert.Contains("9999-12-31", vm.JumpNote);
+    }
+
+    [Fact]
     public async Task GoingToADay_PutsTheRowsBackInTimeOrder()
     {
         var vm = ViewModelFor(ThreeDays());

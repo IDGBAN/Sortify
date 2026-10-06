@@ -48,7 +48,7 @@ public static class YearReviewBuilder
         TimeSpan? sessionGap = null, DayOfWeek firstDayOfWeek = DayOfWeek.Sunday, CancellationToken cancellationToken = default)
     {
         var r = AnalysisEngine.Analyze(
-            records, filter.WithDateRange(from?.Date, to?.Date.AddDays(1).AddTicks(-1)), sessionGap, cancellationToken);
+            records, filter.WithDateRange(from?.Date, FilterOptions.EndOfDay(to)), sessionGap, cancellationToken);
         var range = CardRange.For(from, to, r.FirstListen, r.LastListen)
             ?? new CardRange(DateTime.Today, DateTime.Today, allTime: true);
 

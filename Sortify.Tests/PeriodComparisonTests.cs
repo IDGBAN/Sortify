@@ -55,6 +55,15 @@ public class PeriodComparisonTests
     }
 
     [Fact]
+    public async Task APeriodEndingOnTheLastDayOfTheCalendar_StillCompares()
+    {
+        var result = await PeriodComparison.CompareAsync(Records, new FilterOptions(),
+            new DateTime(2023, 1, 1), new DateTime(2023, 12, 31), new DateTime(2024, 1, 1), DateTime.MaxValue.Date);
+
+        Assert.Equal(4, result.B.TotalPlays);
+    }
+
+    [Fact]
     public async Task Artists_AreOrderedByPeriodBWithDropoutsLast()
     {
         var result = await Compare();
@@ -238,6 +247,22 @@ public class CompareViewModelTests
 
         Assert.Equal(DateTime.Parse(startA, System.Globalization.CultureInfo.InvariantCulture), vm.StartA);
         Assert.Equal(DateTime.Parse(endA, System.Globalization.CultureInfo.InvariantCulture), vm.EndA);
+    }
+
+    [Theory]
+    [InlineData("2024-01-01")]
+    [InlineData("2024-01-02")]
+    public void MatchAToB_SaysSoWhenBRunsToTheEndOfTheCalendar(string startB)
+    {
+        var vm = Model();
+        var before = (vm.StartA, vm.EndA);
+        vm.StartB = DateTime.Parse(startB, System.Globalization.CultureInfo.InvariantCulture);
+        vm.EndB = DateTime.MaxValue.Date;
+
+        vm.MatchAToBCommand.Execute(null);
+
+        Assert.Equal(before, (vm.StartA, vm.EndA));
+        Assert.Contains("no room before period B", vm.Message);
     }
 
     [Fact]

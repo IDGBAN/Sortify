@@ -295,14 +295,14 @@ public sealed partial class HistoryViewModel : ObservableObject
             return;
         }
 
-        // Newest first, so the first row that ended before the next day starts is the last play
-        // of the day asked for, or of the closest day before it.
-        var next = day.AddDays(1);
+        // Newest first, so the first row that ended by the end of the day is the last play of
+        // the day asked for, or of the closest day before it.
+        var end = FilterOptions.EndOfDay(day);
         int lo = 0, hi = Rows.Count;
         while (lo < hi)
         {
             int mid = (lo + hi) / 2;
-            if (Rows[mid].Record.Timestamp < next)
+            if (Rows[mid].Record.Timestamp <= end)
                 hi = mid;
             else
                 lo = mid + 1;

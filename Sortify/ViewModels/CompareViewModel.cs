@@ -226,17 +226,22 @@ public sealed partial class CompareViewModel : ObservableObject
 
         start = start.Date;
         end = end.Date;
-        var endA = start.AddDays(-1);
-        bool wholeMonths = start.Day == 1 && end.AddDays(1).Day == 1;
-        if (wholeMonths)
+        bool wholeMonths = start.Day == 1 && end.Day == DateTime.DaysInMonth(end.Year, end.Month);
+        int months = (end.Year - start.Year) * 12 + end.Month - start.Month + 1;
+        int days = (end - start).Days + 1;
+
+        // A B that runs to 9999 to mean "no end" leaves no room for as long a stretch before it.
+        bool fits = wholeMonths
+            ? (start.Year - 1) * 12 + start.Month - 1 >= months
+            : (start - DateTime.MinValue).Days >= days;
+        if (!fits)
         {
-            int months = (end.Year - start.Year) * 12 + end.Month - start.Month + 1;
-            SetPeriods(start.AddMonths(-months), endA, StartB, EndB);
+            Message = "There's no room before period B for a stretch as long as it. Set period A by hand instead.";
+            return;
         }
-        else
-        {
-            SetPeriods(endA.AddDays(-(end - start).Days), endA, StartB, EndB);
-        }
+
+        var startA = wholeMonths ? start.AddMonths(-months) : start.AddDays(-days);
+        SetPeriods(startA, start.AddDays(-1), StartB, EndB);
     }
 
     public async Task RefreshAsync()
