@@ -55,6 +55,28 @@ public class PeriodComparisonTests
     }
 
     [Fact]
+    public void AChange_IsColouredAsItReads()
+    {
+        var a = new AnalysisResult { TotalPlays = 1000, TotalMsPlayed = 1000, ActiveDays = 200, SkipEligiblePlays = 1000, TotalSkips = 250 };
+        var b = new AnalysisResult { TotalPlays = 997, TotalMsPlayed = 995, ActiveDays = 200, SkipEligiblePlays = 1000, TotalSkips = 251 };
+
+        var metrics = PeriodComparison.Build(a, b).Metrics.ToDictionary(m => m.Metric);
+
+        Assert.Equal(("0%", Trend.Same), (metrics["Plays"].Change, metrics["Plays"].Trend));
+        Assert.Equal(("-1%", Trend.Down), (metrics["Listening time"].Change, metrics["Listening time"].Trend));
+        Assert.Equal(("+0.1 points", Trend.Up), (metrics["Skip rate"].Change, metrics["Skip rate"].Trend));
+    }
+
+    [Fact]
+    public void ASkipRateUpOnePoint_SaysPoint()
+    {
+        var a = new AnalysisResult { SkipEligiblePlays = 100, TotalSkips = 20 };
+        var b = new AnalysisResult { SkipEligiblePlays = 100, TotalSkips = 21 };
+
+        Assert.Equal("+1 point", PeriodComparison.Build(a, b).Metrics.Single(m => m.Metric == "Skip rate").Change);
+    }
+
+    [Fact]
     public async Task APeriodEndingOnTheLastDayOfTheCalendar_StillCompares()
     {
         var result = await PeriodComparison.CompareAsync(Records, new FilterOptions(),
