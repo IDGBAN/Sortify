@@ -50,9 +50,9 @@ public static class ExportService
         if (result.ActiveDays > 0)
             sb.AppendLine($"Active days: {result.ActiveDays:N0}");
         if (result.LongestStreakDays > 0 && result.LongestStreakStart is { } ss && result.LongestStreakEnd is { } se)
-            sb.AppendLine($"Longest streak: {result.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
+            sb.AppendLine($"Longest streak: {Plural.Of(result.LongestStreakDays, "day")} ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (result.LongestBreakDays > 0 && result.LongestBreakStart is { } bs && result.LongestBreakEnd is { } be)
-            sb.AppendLine($"Longest break: {result.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
+            sb.AppendLine($"Longest break: {Plural.Of(result.LongestBreakDays, "day")} ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (result.BiggestDay is { } bd)
             sb.AppendLine($"Biggest day: {TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.BiggestDayMs))})");
         if (result.SessionCount > 0)
@@ -78,7 +78,7 @@ public static class ExportService
         sb.AppendLine("Tracks Ranked by Counts Listened:");
         rank = 1;
         foreach (var t in result.TracksByPlayCount)
-            sb.AppendLine($"{rank++}. {t.PlayCount} times - {t.Track} - {t.Artist}");
+            sb.AppendLine($"{rank++}. {Plural.Of(t.PlayCount, "time")} - {t.Track} - {t.Artist}");
         sb.AppendLine();
 
         sb.AppendLine("Tracks Ranked by First Time Listened:");
@@ -262,7 +262,7 @@ public static class ExportService
         var sb = new StringBuilder();
         sb.AppendLine("# Sortify report").AppendLine();
         sb.AppendLine($"*Generated {TimeFormat.Timestamp(DateTime.Now)}*").AppendLine();
-        sb.AppendLine(MdText(FiltersLine(filters))).AppendLine();
+        sb.AppendLine(Md(FiltersLine(filters))).AppendLine();
 
         sb.AppendLine("## Summary").AppendLine();
         sb.AppendLine("| Metric | Value |");
@@ -282,11 +282,11 @@ public static class ExportService
         sb.AppendLine("| Metric | Value |");
         sb.AppendLine("| --- | --- |");
         if (r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se)
-            Row("Longest streak", $"{r.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
+            Row("Longest streak", $"{Plural.Of(r.LongestStreakDays, "day")} ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (r.CurrentStreakDays > 0)
-            Row("Current streak", $"{r.CurrentStreakDays} days");
+            Row("Current streak", Plural.Of(r.CurrentStreakDays, "day"));
         if (r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be)
-            Row("Longest break", $"{r.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
+            Row("Longest break", $"{Plural.Of(r.LongestBreakDays, "day")} ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (r.BiggestDay is { } bd)
             Row("Biggest day", $"{TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})");
         if (r.SessionCount > 0)
@@ -303,7 +303,7 @@ public static class ExportService
         if (r.UniqueTracks > 0)
             Row("Plays per track", r.PlaysPerTrack.ToString("0.0"));
         if (r.Artists.Count > 0)
-            Row("Top artist share", $"{r.Artists[0].Artist} ({r.TopArtistSharePercent:0.#}%)");
+            Row("Top artist share", $"{Md(r.Artists[0].Artist)} ({r.TopArtistSharePercent:0.#}%)");
         if (r.ShuffleEligiblePlays > 0)
             Row("Shuffle rate", $"{r.ShufflePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%");
         sb.AppendLine();
@@ -354,14 +354,11 @@ public static class ExportService
         }
     }
 
-    /// <summary>Escapes the pipe that would otherwise split a Markdown table cell.</summary>
-    internal static string Md(string value) => value.Replace("|", "\\|");
-
     /// <summary>
-    /// Escapes what Markdown would read as formatting in running text. A search term or an
-    /// excluded artist's name can contain anything.
+    /// Escapes what Markdown would read as formatting, the pipe that would split a table cell
+    /// included. A track, an artist or a search term can contain anything.
     /// </summary>
-    internal static string MdText(string value)
+    internal static string Md(string value)
     {
         var sb = new StringBuilder(value.Length);
         foreach (char c in value)

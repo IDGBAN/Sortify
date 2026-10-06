@@ -118,6 +118,26 @@ public class ExportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Txt_UsesTheSingularForACountOfOne()
+    {
+        var result = AnalysisEngine.Analyze(new[]
+        {
+            new PlayRecord { TrackName = "Song", ArtistName = "Artist", MsPlayed = 60_000, Timestamp = new DateTime(2023, 5, 10, 14, 0, 0) },
+            new PlayRecord { TrackName = "Song", ArtistName = "Artist", MsPlayed = 60_000, Timestamp = new DateTime(2023, 5, 12, 14, 0, 0) },
+            new PlayRecord { TrackName = "Other", ArtistName = "Artist", MsPlayed = 60_000, Timestamp = new DateTime(2023, 5, 12, 15, 0, 0) },
+        }, new FilterOptions { MinMsPlayed = 0 });
+
+        var path = Path.Combine(_dir, "singular.txt");
+        await ExportService.SaveTxtAsync(path, result);
+
+        var text = await File.ReadAllTextAsync(path);
+        Assert.Contains("Longest streak: 1 day (", text);
+        Assert.Contains("Longest break: 1 day (", text);
+        Assert.Contains("1. 2 times - Song - Artist", text);
+        Assert.Contains("2. 1 time - Other - Artist", text);
+    }
+
+    [Fact]
     public async Task YearsCsv_WritesOneRowPerYear()
     {
         var result = AnalysisEngine.Analyze(new[]

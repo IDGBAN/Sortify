@@ -46,9 +46,32 @@ public class ExportFormatsTests : IDisposable
     [Theory]
     [InlineData("plain", "plain")]
     [InlineData("a|b", "a\\|b")]
-    public void Md_EscapesTableSeparators(string input, string expected)
+    [InlineData("*NSYNC", "\\*NSYNC")]
+    [InlineData("Song [Live] <3", "Song \\[Live\\] \\<3")]
+    public void Md_EscapesWhatMarkdownWouldFormat(string input, string expected)
     {
         Assert.Equal(expected, ExportService.Md(input));
+    }
+
+    [Fact]
+    public async Task Markdown_EscapesTheTopArtistAndCountsOneDayAsOne()
+    {
+        var path = PathFor("top-artist.md");
+        var result = AnalysisEngine.Analyze(new[]
+        {
+            new PlayRecord
+            {
+                TrackName = "Song", ArtistName = "Me | You", AlbumName = "Album",
+                MsPlayed = 60_000, Timestamp = new DateTime(2023, 1, 1, 12, 0, 0),
+            },
+        }, new FilterOptions { MinMsPlayed = 0 });
+
+        await ExportService.SaveMarkdownAsync(path, result);
+        var text = await File.ReadAllTextAsync(path);
+
+        Assert.Contains("| Top artist share | Me \\| You (100%) |", text);
+        Assert.Contains("| Current streak | 1 day |", text);
+        Assert.Contains("| Longest streak | 1 day (2023-01-01 to 2023-01-01) |", text);
     }
 
     [Fact]
