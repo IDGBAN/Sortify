@@ -54,6 +54,10 @@ public sealed class TrackStat
     /// </summary>
     internal AlbumStat? CountedAlbum;
 
+    // What the analysis works SkipRate out from: the plays, short ones included, and the skips among them.
+    internal int SkipEligiblePlays;
+    internal int Skips;
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }

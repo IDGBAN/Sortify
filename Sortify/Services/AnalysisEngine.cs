@@ -75,13 +75,21 @@ public static class AnalysisEngine
         // Tracks and albums are keyed by (name, artist) so the same title by two artists stays
         // two rows. A tuple rather than a joined string: joining allocates a fresh key for
         // every play, which on a large history is most of what a pass allocates.
+        // Each play costs a handful of dictionary lookups, and on a large history those lookups
+        // are most of a pass, so the loop avoids every one it can: a track's skips are counted
+        // on its own stat, its album is remembered from its last play, plays in the same month
+        // as the one before reuse its totals, and years are summed from their months at the end.
         var artists = new Dictionary<string, ArtistStat>(StringComparer.Ordinal);
         var tracks = new Dictionary<(string Track, string Artist), TrackStat>();
         var albums = new Dictionary<(string Album, string Artist), AlbumStat>();
-        var skips = new Dictionary<(string Track, string Artist), (int Plays, int Skips)>();
         var reasons = new Dictionary<string, ReasonEndStat>(StringComparer.OrdinalIgnoreCase);
-        var years = new Dictionary<int, PeriodAccumulator>();
         var months = new Dictionary<DateTime, PeriodAccumulator>();
+        PeriodAccumulator? monthAcc = null;
+        var month = DateTime.MinValue;
+
+        // Tracks in the order their first counted play came. Short plays put a track in
+        // tracks for its skips, so this is what keeps the rankings to tracks actually counted.
+        var countedTracks = new List<TrackStat>();
         var byDay = new Dictionary<DateTime, long>();
         var byHour = new long[24];
         var byDow = new long[7];
@@ -161,20 +169,19 @@ public static class AnalysisEngine
             string artistName = r.DisplayArtist;
             string albumName = r.DisplayAlbum;
 
-            var trackKey = (trackName, artistName);
+            ref var trackSlot = ref CollectionsMarshal.GetValueRefOrAddDefault(tracks, (trackName, artistName), out _);
+            var track = trackSlot ??= new TrackStat { Track = trackName, Artist = artistName };
 
             // ---- Relaxed-duration statistics: skips and end reasons -------------------------
             skipEligiblePlays++;
+            track.SkipEligiblePlays++;
             if (r.Skipped)
+            {
                 totalSkips++;
+                track.Skips++;
+            }
             if (string.Equals(r.ReasonEnd, "trackdone", StringComparison.OrdinalIgnoreCase))
                 completedPlays++;
-
-            // Counted as a plain value tuple: allocating a SkippedTrackStat per unique track
-            // wastes one object for every track that was never skipped, which is most of them.
-            ref var counts = ref CollectionsMarshal.GetValueRefOrAddDefault(skips, trackKey, out _);
-            counts.Plays++;
-            if (r.Skipped) counts.Skips++;
 
             var reasonKey = string.IsNullOrWhiteSpace(r.ReasonEnd) ? "unknown" : r.ReasonEnd;
             if (!reasons.TryGetValue(reasonKey, out var reason))
@@ -200,30 +207,30 @@ public static class AnalysisEngine
             artist.TotalMsPlayed += r.MsPlayed;
             artist.PlayCount++;
 
-            if (!tracks.TryGetValue(trackKey, out var track))
-            {
-                track = new TrackStat { Track = trackName, Artist = artistName };
-                tracks[trackKey] = track;
-            }
+            if (track.PlayCount == 0)
+                countedTracks.Add(track);
             track.TotalMsPlayed += r.MsPlayed;
             track.PlayCount++;
             if (track.Uri.Length == 0)
                 track.Uri = r.Uri;
 
-            var albumKey = (albumName, artistName);
-            if (!albums.TryGetValue(albumKey, out var album))
+            // The track and the album share the play's artist, so the album the track was last
+            // counted toward is this one whenever the names match.
+            var album = track.CountedAlbum;
+            if (album is null || !string.Equals(album.Album, albumName, StringComparison.Ordinal))
             {
-                album = new AlbumStat { Album = albumName, Artist = artistName };
-                albums[albumKey] = album;
-            }
-            album.TotalMsPlayed += r.MsPlayed;
-            album.PlayCount++;
-            if (!ReferenceEquals(track.CountedAlbum, album))
-            {
+                var albumKey = (albumName, artistName);
+                if (!albums.TryGetValue(albumKey, out album))
+                {
+                    album = new AlbumStat { Album = albumName, Artist = artistName };
+                    albums[albumKey] = album;
+                }
                 track.CountedAlbum = album;
                 if (albumTracks.Add((album, track)))
                     album.TrackCount++;
             }
+            album.TotalMsPlayed += r.MsPlayed;
+            album.PlayCount++;
 
             var ts = r.Timestamp;
             if (ts != DateTime.MinValue)
@@ -253,19 +260,11 @@ public static class AnalysisEngine
 
                 timedPlays.Add(new TimedPlay(ts, r.MsPlayed, track));
 
-                int year = ts.Year;
-                if (!years.TryGetValue(year, out var acc))
+                if (monthAcc is null || ts.Year != month.Year || ts.Month != month.Month)
                 {
-                    acc = new PeriodAccumulator();
-                    years[year] = acc;
-                }
-                acc.Add(artist, track, r.MsPlayed);
-
-                var month = new DateTime(ts.Year, ts.Month, 1);
-                if (!months.TryGetValue(month, out var monthAcc))
-                {
-                    monthAcc = new PeriodAccumulator();
-                    months[month] = monthAcc;
+                    month = new DateTime(ts.Year, ts.Month, 1);
+                    ref var monthSlot = ref CollectionsMarshal.GetValueRefOrAddDefault(months, month, out _);
+                    monthAcc = monthSlot ??= new PeriodAccumulator();
                 }
                 monthAcc.Add(artist, track, r.MsPlayed);
             }
@@ -274,37 +273,43 @@ public static class AnalysisEngine
         cancellationToken.ThrowIfCancellationRequested();
 
         // The per-row figures the tables show beyond time and plays.
-        foreach (var track in tracks.Values)
+        foreach (var track in countedTracks)
         {
-            var counts = skips[(track.Track, track.Artist)];
-            track.SkipRate = counts.Plays == 0 ? 0 : counts.Skips * 100.0 / counts.Plays;
+            track.SkipRate = track.SkipEligiblePlays == 0 ? 0 : track.Skips * 100.0 / track.SkipEligiblePlays;
             artists[track.Artist].TrackCount++;
         }
-        foreach (var month in months.Values)
+        foreach (var monthTotals in months.Values)
         {
-            foreach (var artist in month.ArtistMs.Keys)
+            foreach (var artist in monthTotals.ArtistMs.Keys)
                 artist.MonthCount++;
         }
 
+        // In month order, so each year meets its artists and tracks in the order they were
+        // first played, as the months do.
+        var years = new Dictionary<int, PeriodAccumulator>();
+        foreach (var (start, monthTotals) in months.OrderBy(kv => kv.Key))
+        {
+            ref var yearSlot = ref CollectionsMarshal.GetValueRefOrAddDefault(years, start.Year, out _);
+            (yearSlot ??= new PeriodAccumulator()).Add(monthTotals);
+        }
+
         var artistList = artists.Values.OrderByDescending(a => a.TotalMsPlayed).ToList();
-        var trackList = tracks.Values.OrderByDescending(t => t.TotalMsPlayed).ToList();
+        var trackList = countedTracks.OrderByDescending(t => t.TotalMsPlayed).ToList();
         var albumList = albums.Values.OrderByDescending(a => a.TotalMsPlayed).ToList();
         var artistsByCount = artists.Values.OrderByDescending(a => a.PlayCount).ToList();
-        var tracksByCount = tracks.Values.OrderByDescending(t => t.PlayCount).ToList();
+        var tracksByCount = countedTracks.OrderByDescending(t => t.PlayCount).ToList();
         var albumsByCount = albums.Values.OrderByDescending(a => a.PlayCount).ToList();
-        // Only tracks that were actually skipped become objects; the rest never leave the
-        // counting dictionary.
         var skippedList = new List<SkippedTrackStat>();
-        foreach (var (key, counts) in skips)
+        foreach (var track in tracks.Values)
         {
-            if (counts.Skips == 0)
+            if (track.Skips == 0)
                 continue;
             skippedList.Add(new SkippedTrackStat
             {
-                Track = key.Track,
-                Artist = key.Artist,
-                SkipCount = counts.Skips,
-                PlayCount = counts.Plays,
+                Track = track.Track,
+                Artist = track.Artist,
+                SkipCount = track.Skips,
+                PlayCount = track.SkipEligiblePlays,
             });
         }
         skippedList.Sort(static (a, b) => b.SkipCount.CompareTo(a.SkipCount));
@@ -496,6 +501,16 @@ public static class AnalysisEngine
             Plays++;
             CollectionsMarshal.GetValueRefOrAddDefault(ArtistMs, artist, out _) += ms;
             CollectionsMarshal.GetValueRefOrAddDefault(TrackMs, track, out _) += ms;
+        }
+
+        public void Add(PeriodAccumulator other)
+        {
+            Ms += other.Ms;
+            Plays += other.Plays;
+            foreach (var (artist, ms) in other.ArtistMs)
+                CollectionsMarshal.GetValueRefOrAddDefault(ArtistMs, artist, out _) += ms;
+            foreach (var (track, ms) in other.TrackMs)
+                CollectionsMarshal.GetValueRefOrAddDefault(TrackMs, track, out _) += ms;
         }
 
         public (string Artist, long Ms) TopArtist()
