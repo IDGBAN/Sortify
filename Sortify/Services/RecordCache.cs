@@ -18,16 +18,16 @@ public static class RecordCache
     /// Bumped whenever the record layout or what the parser reads out of an export changes,
     /// so stale caches are ignored.
     /// </summary>
-    private const int FormatVersion = 3;
+    private const int FormatVersion = 4;
 
     /// <summary>
-    /// Upper bounds on the two counts read out of the file header, so a truncated or
-    /// corrupt cache asks for a plausible allocation rather than an enormous one. Both are
-    /// far past any real export: Spotify's own limit is a few hundred thousand plays, and
-    /// the pool only ever holds device and country strings.
+    /// Upper bounds on the counts read out of the file, so a truncated or corrupt cache asks
+    /// for a plausible allocation rather than an enormous one. All are far past any real
+    /// export: Spotify's own limit is a few hundred thousand plays, and most plays bring no
+    /// string the ones before them didn't already have.
     /// </summary>
     private const int MaxRecords = 50_000_000;
-    private const int MaxPoolEntries = 100_000;
+    private const int MaxStrings = 10_000_000;
     private const int MaxFiles = 100_000;
 
     private static readonly byte[] Magic = "SRTFY\0"u8.ToArray();
@@ -102,34 +102,35 @@ public static class RecordCache
             if (count is < 0 or > MaxRecords)
                 return null;
 
-            // Platform and country repeat constantly, so they are written once into a table
-            // and referenced by index; this keeps the file small and restores the sharing.
-            int poolSize = reader.ReadInt32();
-            if (poolSize is < 0 or > MaxPoolEntries)
+            // Names, links, devices and countries repeat across thousands of plays, so each
+            // distinct one is written once into a table that the plays point into. That keeps
+            // the file small, and every play of a track shares one copy of its names again.
+            int stringCount = reader.ReadInt32();
+            if (stringCount is < 0 or > MaxStrings)
                 return null;
 
-            var pool = new string[poolSize];
-            for (int i = 0; i < pool.Length; i++)
-                pool[i] = reader.ReadString();
+            var strings = new string[stringCount];
+            for (int i = 0; i < strings.Length; i++)
+                strings[i] = reader.ReadString();
 
             var records = new List<PlayRecord>(count);
             for (int i = 0; i < count; i++)
             {
                 records.Add(new PlayRecord
                 {
-                    TrackName = reader.ReadString(),
-                    ArtistName = reader.ReadString(),
-                    AlbumName = reader.ReadString(),
+                    TrackName = strings[reader.Read7BitEncodedInt()],
+                    ArtistName = strings[reader.Read7BitEncodedInt()],
+                    AlbumName = strings[reader.Read7BitEncodedInt()],
                     MsPlayed = reader.ReadInt32(),
                     Timestamp = ReadTimestamp(reader, timeZones.Kind),
-                    ReasonEnd = reader.ReadBoolean() ? reader.ReadString() : null,
+                    ReasonEnd = ReadOptional(reader, strings),
                     Skipped = reader.ReadBoolean(),
                     Kind = ReadKind(reader),
-                    ShowName = reader.ReadString(),
-                    EpisodeName = reader.ReadString(),
-                    Uri = reader.ReadString(),
-                    Platform = pool[reader.ReadInt32()],
-                    Country = pool[reader.ReadInt32()],
+                    ShowName = strings[reader.Read7BitEncodedInt()],
+                    EpisodeName = strings[reader.Read7BitEncodedInt()],
+                    Uri = strings[reader.Read7BitEncodedInt()],
+                    Platform = strings[reader.Read7BitEncodedInt()],
+                    Country = strings[reader.Read7BitEncodedInt()],
                     Shuffle = reader.ReadBoolean(),
                     Offline = reader.ReadBoolean(),
                     Incognito = reader.ReadBoolean(),
@@ -183,6 +184,13 @@ public static class RecordCache
             : new DateTime(ticks, kind);
     }
 
+    /// <summary>A string that may be missing, written as its index plus one, or zero for none.</summary>
+    private static string? ReadOptional(BinaryReader reader, string[] strings)
+    {
+        int index = reader.Read7BitEncodedInt();
+        return index == 0 ? null : strings[index - 1];
+    }
+
     private static ContentKind ReadKind(BinaryReader reader)
     {
         var kind = (ContentKind)reader.ReadByte();
@@ -215,34 +223,40 @@ public static class RecordCache
                 writer.Write(records.Count);
 
                 var indexOf = new Dictionary<string, int>(StringComparer.Ordinal);
-                var pool = new List<string>();
+                var strings = new List<string>();
                 foreach (var r in records)
                 {
+                    Intern(r.TrackName);
+                    Intern(r.ArtistName);
+                    Intern(r.AlbumName);
+                    if (r.ReasonEnd is not null)
+                        Intern(r.ReasonEnd);
+                    Intern(r.ShowName);
+                    Intern(r.EpisodeName);
+                    Intern(r.Uri);
                     Intern(r.Platform);
                     Intern(r.Country);
                 }
 
-                writer.Write(pool.Count);
-                foreach (var value in pool)
+                writer.Write(strings.Count);
+                foreach (var value in strings)
                     writer.Write(value);
 
                 foreach (var r in records)
                 {
-                    writer.Write(r.TrackName);
-                    writer.Write(r.ArtistName);
-                    writer.Write(r.AlbumName);
+                    writer.Write7BitEncodedInt(indexOf[r.TrackName]);
+                    writer.Write7BitEncodedInt(indexOf[r.ArtistName]);
+                    writer.Write7BitEncodedInt(indexOf[r.AlbumName]);
                     writer.Write(r.MsPlayed);
                     writer.Write(r.Timestamp.Ticks);
-                    writer.Write(r.ReasonEnd is not null);
-                    if (r.ReasonEnd is not null)
-                        writer.Write(r.ReasonEnd);
+                    writer.Write7BitEncodedInt(r.ReasonEnd is null ? 0 : indexOf[r.ReasonEnd] + 1);
                     writer.Write(r.Skipped);
                     writer.Write((byte)r.Kind);
-                    writer.Write(r.ShowName);
-                    writer.Write(r.EpisodeName);
-                    writer.Write(r.Uri);
-                    writer.Write(indexOf[r.Platform]);
-                    writer.Write(indexOf[r.Country]);
+                    writer.Write7BitEncodedInt(indexOf[r.ShowName]);
+                    writer.Write7BitEncodedInt(indexOf[r.EpisodeName]);
+                    writer.Write7BitEncodedInt(indexOf[r.Uri]);
+                    writer.Write7BitEncodedInt(indexOf[r.Platform]);
+                    writer.Write7BitEncodedInt(indexOf[r.Country]);
                     writer.Write(r.Shuffle);
                     writer.Write(r.Offline);
                     writer.Write(r.Incognito);
@@ -265,10 +279,8 @@ public static class RecordCache
 
                 void Intern(string value)
                 {
-                    if (indexOf.ContainsKey(value))
-                        return;
-                    indexOf[value] = pool.Count;
-                    pool.Add(value);
+                    if (indexOf.TryAdd(value, strings.Count))
+                        strings.Add(value);
                 }
             }
 

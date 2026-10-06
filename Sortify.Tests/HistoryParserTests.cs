@@ -237,6 +237,27 @@ public class HistoryParserTests : IDisposable
     }
 
     [Fact]
+    public async Task HoldsOneCopyOfEachName_AcrossFiles()
+    {
+        const string play = """
+            { "ts": "2023-05-01T10:00:00Z", "ms_played": 1000, "master_metadata_track_name": "Song",
+              "master_metadata_album_artist_name": "Artist", "master_metadata_album_album_name": "Album",
+              "spotify_track_uri": "spotify:track:abc", "reason_end": "trackdone" }
+            """;
+        var first = await WriteFileAsync("Streaming_History_Audio_2023.json", $"[{play}]");
+        var second = await WriteFileAsync("Streaming_History_Audio_2024.json", $"[{play.Replace("2023-", "2024-")}]");
+
+        var result = await new HistoryParser().ParseAsync(new[] { first, second });
+
+        var (a, b) = (result.Records[0], result.Records[1]);
+        Assert.Same(a.TrackName, b.TrackName);
+        Assert.Same(a.ArtistName, b.ArtistName);
+        Assert.Same(a.AlbumName, b.AlbumName);
+        Assert.Same(a.Uri, b.Uri);
+        Assert.Same(a.ReasonEnd, b.ReasonEnd);
+    }
+
+    [Fact]
     public async Task ClampsNegativeAndMissingValues()
     {
         var path = await WriteFileAsync("Streaming_History_Audio.json", """

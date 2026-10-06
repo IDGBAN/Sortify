@@ -345,21 +345,21 @@ public sealed class HistoryParser
             timestamp = legacyParsed;
         }
 
+        // Every play of a track repeats its names and link, and devices and countries repeat
+        // across nearly every row, so each string is held once rather than once per play.
         return new PlayRecord
         {
-            TrackName = trackName ?? "Unknown Track",
-            ArtistName = artistName ?? "Unknown Artist",
-            AlbumName = string.IsNullOrWhiteSpace(entry.AlbumName) ? "Unknown Album" : entry.AlbumName!,
+            TrackName = pool.Get(trackName ?? "Unknown Track"),
+            ArtistName = pool.Get(artistName ?? "Unknown Artist"),
+            AlbumName = pool.Get(string.IsNullOrWhiteSpace(entry.AlbumName) ? "Unknown Album" : entry.AlbumName),
             MsPlayed = ms < 0 ? 0 : (int)Math.Min(ms, int.MaxValue),
             Timestamp = timestamp,
-            ReasonEnd = entry.ReasonEnd,
+            ReasonEnd = entry.ReasonEnd is { } reason ? pool.Get(reason) : null,
             Skipped = entry.Skipped ?? IsSkipReason(entry.ReasonEnd),
             Kind = kind,
-            ShowName = show,
-            EpisodeName = episode,
-            Uri = uri,
-            // Platform and country repeat across nearly every row, so pool them instead of
-            // holding one string instance per play.
+            ShowName = pool.Get(show),
+            EpisodeName = pool.Get(episode),
+            Uri = pool.Get(uri),
             Platform = pool.Get(entry.Platform),
             Country = pool.Get(entry.ConnCountry),
             Shuffle = entry.Shuffle ?? false,
@@ -373,9 +373,9 @@ public sealed class HistoryParser
         => !string.IsNullOrWhiteSpace(a) ? a : !string.IsNullOrWhiteSpace(b) ? b : null;
 
     /// <summary>
-    /// Deduplicates the handful of distinct platform/country strings that repeat across
-    /// every record. Shared across the concurrent per-file parse tasks, so it must be
-    /// thread-safe.
+    /// One copy of each distinct string the plays hold. Shared across the concurrent per-file
+    /// parse tasks, so a track played in several years' files is held once too, and so it must
+    /// be thread-safe.
     /// </summary>
     private sealed class StringPool
     {
