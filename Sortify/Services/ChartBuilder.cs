@@ -424,6 +424,8 @@ public static class ChartBuilder
                 Fill = new SolidColorPaint(ChartPalette.Accent.WithAlpha(40)),
                 Stroke = new SolidColorPaint(ChartPalette.Accent) { StrokeThickness = 2 },
                 GeometrySize = 0,
+                // Straight, as in the artist timelines: a curve through the zeros would dip below the floor.
+                LineSmoothness = 0,
             },
         };
         return new ChartData
@@ -450,6 +452,7 @@ public static class ChartBuilder
                 Fill = new SolidColorPaint(ChartPalette.Accent2.WithAlpha(40)),
                 Stroke = new SolidColorPaint(ChartPalette.Accent2) { StrokeThickness = 2 },
                 GeometrySize = 0,
+                LineSmoothness = 0,
             },
         };
         return new ChartData
