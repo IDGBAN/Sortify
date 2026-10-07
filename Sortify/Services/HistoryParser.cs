@@ -261,17 +261,18 @@ public sealed class HistoryParser
     private static async Task<FileOutcome> ReadAsync(
         string path, Stream stream, StringPool pool, CancellationToken cancellationToken)
     {
-        var entries = await JsonSerializer
-            .DeserializeAsync<List<SpotifyHistoryEntry>>(stream, JsonOptions, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (entries is null)
-            return new FileOutcome(null, path, null);
-
-        var records = new List<PlayRecord>(entries.Count);
+        // Row by row rather than into one list first, so a file's raw rows don't all stay in
+        // memory until the last of them is read.
+        var records = new List<PlayRecord>();
         bool anyExtended = false, anyLegacy = false;
-        foreach (var entry in entries)
+        await foreach (var entry in JsonSerializer
+                           .DeserializeAsyncEnumerable<SpotifyHistoryEntry>(stream, JsonOptions, cancellationToken)
+                           .ConfigureAwait(false))
         {
+            // Some tools that re-save an export leave nulls in the list.
+            if (entry is null)
+                continue;
+
             anyExtended |= entry.Ts is not null;
             anyLegacy |= entry.LegacyEndTime is not null;
 

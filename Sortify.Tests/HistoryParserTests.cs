@@ -102,6 +102,34 @@ public class HistoryParserTests : IDisposable
     }
 
     [Fact]
+    public async Task Skips_NullRows_AndReadsTheRest()
+    {
+        var path = await WriteFileAsync("Streaming_History_Audio_2023.json", """
+        [
+            null,
+            { "ts": "2023-05-01T10:00:00Z", "ms_played": 1000, "master_metadata_track_name": "Song" },
+            null
+        ]
+        """);
+
+        var result = await new HistoryParser().ParseAsync(new[] { path });
+
+        Assert.Equal("Song", Assert.Single(result.Records).TrackName);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task AFileOfJustNull_HoldsNoPlays()
+    {
+        var path = await WriteFileAsync("Streaming_History_Audio_2023.json", "null");
+
+        var result = await new HistoryParser().ParseAsync(new[] { path });
+
+        Assert.Empty(result.Records);
+        Assert.Equal("Holds no plays Sortify can read", Assert.Single(result.Files).Problem);
+    }
+
+    [Fact]
     public async Task Parses_PodcastEpisodes_AsPodcastKind()
     {
         var path = await WriteFileAsync("Streaming_History_Audio.json", """
