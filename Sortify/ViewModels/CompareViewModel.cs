@@ -249,10 +249,19 @@ public sealed partial class CompareViewModel : ObservableObject
         if (_source() is not { } source)
             return;
 
+        // Cancelled before the checks below, so a comparison of the old periods can't finish
+        // after them and fill the tables they just cleared.
+        var previous = _cts;
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+        previous?.Cancel();
+        var token = cts.Token;
+
         var other = _other;
         if (IsPeopleMode && other is null)
         {
             ClearResults();
+            IsWorking = false;
             _stale = false;
             return;
         }
@@ -261,14 +270,10 @@ public sealed partial class CompareViewModel : ObservableObject
         {
             Message = "A period starts after it ends. Swap its dates, or clear one of them.";
             ClearResults();
+            IsWorking = false;
             _stale = false;
             return;
         }
-
-        var previous = _cts;
-        _cts = new CancellationTokenSource();
-        previous?.Cancel();
-        var token = _cts.Token;
 
         IsWorking = true;
         try
@@ -309,7 +314,9 @@ public sealed partial class CompareViewModel : ObservableObject
         }
         finally
         {
-            if (!token.IsCancellationRequested)
+            // Closing their history or switching modes cancels without starting another
+            // comparison, so whichever ran last says it has stopped.
+            if (ReferenceEquals(_cts, cts))
                 IsWorking = false;
             previous?.Dispose();
         }

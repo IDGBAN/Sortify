@@ -311,6 +311,29 @@ public class CompareViewModelTests
     }
 
     [Fact]
+    public async Task ABackwardsPeriod_StopsTheComparisonAlreadyRunning()
+    {
+        // On the UI thread, so the first comparison can't finish until the second refresh is done.
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var plays = new List<PlayRecord>
+            {
+                new() { TrackName = "T", ArtistName = "A", AlbumName = "L", MsPlayed = 600_000, Timestamp = new DateTime(2026, 1, 5, 12, 0, 0) },
+            };
+            var vm = Model(() => new CompareViewModel.Source(plays, new FilterOptions(), TimeSpan.FromMinutes(30)));
+
+            var comparing = vm.RefreshAsync();
+            vm.EndA = new DateTime(2020, 1, 1);
+            await vm.RefreshAsync();
+            await comparing;
+
+            Assert.Contains("starts after it ends", vm.Message);
+            Assert.Empty(vm.Metrics);
+            Assert.False(vm.IsWorking);
+        });
+    }
+
+    [Fact]
     public async Task NothingIsWorkedOutWhileTheTabIsHidden()
     {
         int asked = 0;

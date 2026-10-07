@@ -255,6 +255,42 @@ public class PeopleCompareViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task ClosingTheirHistory_MidComparison_StopsSayingItIsWorking()
+    {
+        // On the UI thread, so the comparison can't finish before the close lands.
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var vm = Model();
+            await Load(vm, Export());
+
+            var comparing = vm.RefreshAsync();
+            Assert.True(vm.IsWorking);
+            vm.CloseOtherCommand.Execute(null);
+            await comparing;
+
+            Assert.False(vm.IsWorking);
+        });
+    }
+
+    [Fact]
+    public async Task SwitchingToPeople_MidComparison_StopsSayingItIsWorking()
+    {
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var vm = Model();
+            vm.IsPeriodsMode = true;
+            vm.IsVisible = true;
+
+            var comparing = vm.RefreshAsync();
+            Assert.True(vm.IsWorking);
+            vm.IsPeopleMode = true;
+            await comparing;
+
+            Assert.False(vm.IsWorking);
+        });
+    }
+
+    [Fact]
     public async Task SwitchingModes_StartsTheResultsAfresh()
     {
         var vm = Model();
