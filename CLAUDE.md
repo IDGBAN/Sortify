@@ -50,13 +50,18 @@ tests can reach internal members). MVVM via CommunityToolkit.Mvvm (`[ObservableP
 
 1. **`Services/HistoryParser.cs`** — finds and parses the Spotify export JSON files (both the
    modern extended-history format and the older legacy `StreamingHistory*.json` format) into
-   normalized `Models/PlayRecord.cs` objects.
+   normalized `Models/PlayRecord.cs` objects. It reads the ZIP Spotify sends without unpacking it
+   (an entry inside is addressed as `archive.zip|entry`, see `Services/ArchivePath.cs`), drops plays
+   that two loaded files both hold (`Services/OverlapFilter.cs`), and only then converts the UTC
+   times to local ones (`Services/PlayTimeZones.cs`: this PC's zone, or each play's country's).
 2. **`Services/RecordCache.cs`** — a binary cache of parsed records, keyed by the exact set of
    source file paths + sizes + write times (`%LOCALAPPDATA%\Sortify\records.cache`). Reopening an
    unchanged export skips JSON parsing entirely; any change to the file set invalidates the key.
 3. **`Services/FilterEngine.cs`** — applies the current `Models/FilterOptions` (date range, min
    play duration, search text, excluded artists/tracks, time-of-day/day-of-week windows, whether
-   podcasts count) as a streaming filter over raw records.
+   podcasts count) as a streaming filter over raw records. With "Combine remasters and deluxe
+   editions" on, `MainViewModel` hands every view a copy of the plays with re-release names folded
+   into the original (`Services/ReleaseNames.cs`).
 4. **`Services/AnalysisEngine.cs`** — the aggregation core. Consumes filtered records and produces
    one `AnalysisResult` (`Models/Stats.cs`): per-track/artist/album/year stats, skip/completion
    rates, sessions, streaks, hour/day-of-week breakdowns, podcast stats, playback-context
@@ -72,16 +77,32 @@ tests can reach internal members). MVVM via CommunityToolkit.Mvvm (`[ObservableP
    is double-clicked; reruns aggregation scoped to one entity under the current filters.
 7. **`Services/ExportService.cs`** — writes the current `AnalysisResult` out as txt/Markdown/JSON/CSV.
 
+Some views run their own pass over the filtered plays instead of reading `AnalysisResult`:
+`Services/PeriodComparison.cs` (the Compare tab: two date ranges, or someone else's export, which is
+held in memory and never cached), `Services/ArtistComparison.cs` (Compare Artists on Trends),
+`Services/DiscoveryCohorts.cs` (the Years chart split by year found) and
+`Services/YearReviewBuilder.cs` (the year-in-review and summary card images). The charts over time
+share `Services/TimeBuckets.cs`, which gives a day, week or month with no listening a zero so the
+line drops to the floor instead of sloping across a break.
+
 Supporting services: `Services/AppSettings.cs` (JSON-persisted preferences — recent folders, theme,
 session-gap minutes, chart animation toggle — failures degrade to defaults rather than surfacing
 errors), `Services/ThemeService.cs` (swaps the palette `ResourceDictionary` at a fixed slot in
 `App.xaml`'s merged dictionaries so every DynamicResource-bound style repaints; raises `Changed`),
-`Services/ImageExporter.cs` (copy/save a chart as PNG, wired to chart right-click), `Views/Converters.cs`.
+`Services/ImageExporter.cs` (copy/save a chart as PNG, wired to chart right-click),
+`Services/ChartTables.cs` (the "Show the numbers" table behind any chart, shown by
+`Views/ChartTableWindow.xaml`), `Services/SampleHistory.cs` (the made-up two-year history the start
+screen offers), `Views/Converters.cs`.
 
 **UI structure**: `Views/MainWindow.xaml(.cs)` is the main shell (tabs: Overview, Tracks, Artists,
-Albums, Years, Podcasts, Trends, Insights) bound to `MainViewModel`. `Views/FilterPanel.xaml(.cs)`
-+ `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises `FiltersChanged` on any
-change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before re-running analysis.
+Albums, Years, Podcasts, Trends, Insights, Compare, History) bound to `MainViewModel`.
+`Views/FilterPanel.xaml(.cs)` + `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises
+`FiltersChanged` on any change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before
+re-running analysis. The Compare and History tabs, the listening calendar and Compare Artists have
+view models of their own (`CompareViewModel`, `HistoryViewModel`, `CalendarViewModel`,
+`CompareArtistsViewModel`) that `MainViewModel` creates and refreshes after each analysis pass;
+Compare and History only do any work while their tab is on screen. `ViewModels/InsightText.cs`
+words the Insights and Podcasts figures.
 `Views/DetailWindow.xaml(.cs)` is the per-row drill-down. `Views/SettingsWindow.xaml(.cs)` covers
 theme/animation/session-gap/cache-clearing preferences. Every window derives from
 `Views/ThemedWindow.cs`, which swaps the native title bar for a palette-coloured one via `WindowChrome`
