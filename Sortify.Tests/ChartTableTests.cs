@@ -114,6 +114,22 @@ public class ChartTableTests
     }
 
     [Fact]
+    public void TimeCharts_ShowAQuietStretchAsZeros_RatherThanSkippingIt()
+    {
+        var daily = Table(OnUiThread(() => ChartBuilder.OverTime(Result)));
+        Assert.Equal(new object?[] { "2023-03-02", 0.0 }, daily.Rows[1]);
+        Assert.Equal(new object?[] { "2024-03-02", 0.5 }, daily.Rows[^1]);
+        Assert.Equal(368, daily.Rows.Count);
+
+        var weekly = Table(OnUiThread(() => ChartBuilder.OverTime(Result, ChartBuilder.TimeGranularity.Weekly)));
+        Assert.Equal(new object?[] { "2023-03-05", 0.0 }, weekly.Rows[1]);
+
+        var monthly = Table(OnUiThread(() => ChartBuilder.OverTime(Result, ChartBuilder.TimeGranularity.Monthly)));
+        Assert.Equal(13, monthly.Rows.Count);
+        Assert.Equal(new object?[] { "2023-04", 0.0 }, monthly.Rows[1]);
+    }
+
+    [Fact]
     public void TheHeatmap_ListsEveryHourOfEveryDay()
     {
         var table = Table(OnUiThread(() => ChartBuilder.DowHourHeat(Result)));

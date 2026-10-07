@@ -42,7 +42,7 @@ public class WeekStartTests
     [Fact]
     public void TheArtistComparison_BucketsWeeksFromTheChosenDay()
     {
-        var bucket = ArtistComparison.BucketOf(Wednesday, ChartBuilder.TimeGranularity.Weekly, DayOfWeek.Monday);
+        var bucket = TimeBuckets.Of(Wednesday, ChartBuilder.TimeGranularity.Weekly, DayOfWeek.Monday);
 
         Assert.Equal(new DateTime(2024, 3, 11), bucket);
     }

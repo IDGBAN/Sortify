@@ -5,8 +5,7 @@ using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 using Sortify.Models;
-// Both namespaces define a DateTimePoint; alias each so neither is referred to unqualified.
-using DateTimePoint = Sortify.Models.DateTimePoint;
+// Sortify.Models has a DateTimePoint too, so LiveCharts' goes by another name.
 using LcDateTimePoint = LiveChartsCore.Defaults.DateTimePoint;
 
 namespace Sortify.Services;
@@ -382,25 +381,26 @@ public static class ChartBuilder
     /// <summary>Bucket size for the listening-over-time chart.</summary>
     public enum TimeGranularity { Daily, Weekly, Monthly }
 
+    /// <summary>
+    /// Listening per day, week or month from the first play to the last. A stretch with nothing
+    /// played is a run of zeros, so the line drops to the floor across a break.
+    /// </summary>
     /// <param name="firstDay">The day a weekly bucket starts on.</param>
     public static ChartData OverTime(
         AnalysisResult r, TimeGranularity granularity = TimeGranularity.Daily, DayOfWeek firstDay = DayOfWeek.Sunday)
     {
-        IEnumerable<DateTimePoint> source = granularity switch
+        var hours = new Dictionary<DateTime, double>();
+        foreach (var day in r.PlaytimeByDay)
         {
-            TimeGranularity.Weekly => r.PlaytimeByDay
-                .GroupBy(p => Weeks.Start(p.Date, firstDay))
-                .Select(g => new DateTimePoint(g.Key, g.Sum(p => p.Value))),
-            TimeGranularity.Monthly => r.PlaytimeByDay
-                .GroupBy(p => new DateTime(p.Date.Year, p.Date.Month, 1))
-                .Select(g => new DateTimePoint(g.Key, g.Sum(p => p.Value))),
-            _ => r.PlaytimeByDay,
-        };
+            var bucket = TimeBuckets.Of(day.Date, granularity, firstDay);
+            hours[bucket] = hours.GetValueOrDefault(bucket) + day.Value;
+        }
 
-        var points = source
-            .OrderBy(p => p.Date)
-            .Select(p => new LcDateTimePoint(p.Date, Math.Round(p.Value, 2)))
-            .ToArray();
+        var points = r.PlaytimeByDay.Count == 0
+            ? Array.Empty<LcDateTimePoint>()
+            : TimeBuckets.Between(r.PlaytimeByDay.Min(p => p.Date), r.PlaytimeByDay.Max(p => p.Date), granularity, firstDay)
+                .Select(bucket => new LcDateTimePoint(bucket, Math.Round(hours.GetValueOrDefault(bucket), 2)))
+                .ToArray();
 
         string unitName = granularity switch
         {
