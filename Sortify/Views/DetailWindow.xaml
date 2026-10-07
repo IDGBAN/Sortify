@@ -166,7 +166,7 @@
                                 <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                     Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
-                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
                                 <DataGridTextColumn Header="First Played"
                                                     Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="115" MinWidth="115" />
                             </DataGrid.Columns>
@@ -187,7 +187,7 @@
                                 <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                     Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
-                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
                                 <DataGridTextColumn Header="First Played"
                                                     Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="115" MinWidth="115" />
                                 <DataGridTextColumn Header="Last Played"
@@ -210,7 +210,7 @@
                                 <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                     Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
-                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
+                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
                                 <DataGridTextColumn Header="First Played"
                                                     Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}" Width="115" MinWidth="115" />
                             </DataGrid.Columns>

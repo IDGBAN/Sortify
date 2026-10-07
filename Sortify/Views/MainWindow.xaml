@@ -583,7 +583,7 @@
                                                                 Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                             <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                                 Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
                                             <DataGridTextColumn Binding="{Binding SkipRate, StringFormat={}{0:0.#}%}" Width="80" MinWidth="80">
                                                 <DataGridTextColumn.Header>
                                                     <TextBlock Text="Skip %"
@@ -694,13 +694,13 @@
                                                                 Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                             <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                                 Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
-                                            <DataGridTextColumn Binding="{Binding TrackCount}" Width="80" MinWidth="80">
+                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Binding="{Binding TrackCount, StringFormat=N0}" Width="80" MinWidth="80">
                                                 <DataGridTextColumn.Header>
                                                     <TextBlock Text="Tracks" ToolTip="How many different tracks of theirs you played" />
                                                 </DataGridTextColumn.Header>
                                             </DataGridTextColumn>
-                                            <DataGridTextColumn Binding="{Binding MonthCount}" Width="85" MinWidth="85">
+                                            <DataGridTextColumn Binding="{Binding MonthCount, StringFormat=N0}" Width="85" MinWidth="85">
                                                 <DataGridTextColumn.Header>
                                                     <TextBlock Text="Months"
                                                                ToolTip="Calendar months with at least one play: how long they've stayed in your rotation" />
@@ -813,8 +813,8 @@
                                                                 Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                             <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                                 Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
-                                            <DataGridTextColumn Binding="{Binding TrackCount}" Width="80" MinWidth="80">
+                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Binding="{Binding TrackCount, StringFormat=N0}" Width="80" MinWidth="80">
                                                 <DataGridTextColumn.Header>
                                                     <TextBlock Text="Tracks" ToolTip="How many different tracks of this album you played" />
                                                 </DataGridTextColumn.Header>
@@ -906,9 +906,9 @@
                                                                     Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N1}"
                                                                     Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
-                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="75" MinWidth="75" />
-                                                <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists}" Width="120" MinWidth="120" />
-                                                <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks}" Width="120" MinWidth="120" />
+                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
+                                                <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists, StringFormat=N0}" Width="120" MinWidth="120" />
+                                                <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks, StringFormat=N0}" Width="120" MinWidth="120" />
                                                 <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" MinWidth="130" ElementStyle="{StaticResource TrimmedCell}" />
                                                 <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
                                             </DataGrid.Columns>
@@ -1036,8 +1036,8 @@
                                                     <DataGridTextColumn Header="Time"
                                                                         Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                         Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
-                                                    <DataGridTextColumn Header="Episodes" Binding="{Binding EpisodeCount}" Width="Auto" />
+                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
+                                                    <DataGridTextColumn Header="Episodes" Binding="{Binding EpisodeCount, StringFormat=N0}" Width="Auto" />
                                                     <DataGridTextColumn Header="First Played"
                                                                         Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}"
                                                                         Width="Auto" />
@@ -1066,7 +1066,7 @@
                                                     <DataGridTextColumn Header="Time"
                                                                         Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                         Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
                                                     <DataGridTextColumn Header="First Played"
                                                                         Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}"
                                                                         Width="Auto" />
@@ -1628,7 +1628,7 @@
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
-                                                    <DataGridTextColumn Header="Plays" Binding="{Binding Plays}" Width="75" MinWidth="75" />
+                                                    <DataGridTextColumn Header="Plays" Binding="{Binding Plays, StringFormat=N0}" Width="75" MinWidth="75" />
                                                     <DataGridTextColumn Header="From" Binding="{Binding From, StringFormat=yyyy-MM-dd}"
                                                                         SortMemberPath="From" Width="110" MinWidth="110" />
                                                     <DataGridTextColumn Header="To" Binding="{Binding To, StringFormat=yyyy-MM-dd}"
@@ -1678,7 +1678,7 @@
                                                     <DataGrid.Columns>
                                                         <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
-                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
                                                         <DataGridTextColumn Header="Last Played"
                                                                             Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
                                                                             Width="108" />
@@ -1694,7 +1694,7 @@
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                     <DataGrid.Columns>
                                                         <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
-                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
                                                         <DataGridTextColumn Header="Last Played"
                                                                             Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
                                                                             Width="108" />
