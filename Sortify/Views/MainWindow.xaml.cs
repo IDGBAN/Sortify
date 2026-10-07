@@ -310,6 +310,31 @@ public partial class MainWindow : ThemedWindow
         OverviewLists.Columns = e.NewSize.Width < OverviewListsSideBySideMinWidth ? 1 : 3;
     }
 
+    /// <summary>Below this width the forgotten tracks and artists go one above the other.</summary>
+    private const double ForgottenSideBySideMinWidth = 760;
+
+    /// <summary>The Forgotten Favorites card's height with its tables side by side, as the XAML starts it, and stacked.</summary>
+    private const double ForgottenSideBySideHeight = 400;
+    private const double ForgottenStackedHeight = 720;
+
+    private void OnForgottenSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Setting the height below raises this again; only a new width can change the layout.
+        if (!e.WidthChanged)
+            return;
+
+        bool narrow = e.NewSize.Width < ForgottenSideBySideMinWidth;
+        var columns = ForgottenTables.ColumnDefinitions;
+        var rows = ForgottenTables.RowDefinitions;
+        columns[1].Width = new GridLength(narrow ? 0 : 12);
+        columns[2].Width = new GridLength(narrow ? 0 : 2, GridUnitType.Star);
+        rows[1].Height = new GridLength(narrow ? 12 : 0);
+        rows[2].Height = new GridLength(narrow ? 1 : 0, GridUnitType.Star);
+        Grid.SetRow(ForgottenArtistsTable, narrow ? 2 : 0);
+        Grid.SetColumn(ForgottenArtistsTable, narrow ? 0 : 2);
+        ForgottenCard.Height = narrow ? ForgottenStackedHeight : ForgottenSideBySideHeight;
+    }
+
     // ---- Tabs --------------------------------------------------------------------------------
 
     // Fade + slide the tab body in whenever the user switches tabs. Filtered to the

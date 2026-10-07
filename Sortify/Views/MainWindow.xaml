@@ -1646,7 +1646,8 @@
                                     </DockPanel>
                                 </Border>
 
-                                <Border Style="{StaticResource Card}" Height="400">
+                                <Border x:Name="ForgottenCard" Style="{StaticResource Card}" Height="400"
+                                        SizeChanged="OnForgottenSizeChanged">
                                     <DockPanel>
                                         <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">
                                             <Button DockPanel.Dock="Right" Content="Copy tracks as links" Click="OnCopyForgottenLinks"
@@ -1658,12 +1659,17 @@
                                         </DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
                                                    Text="{Binding ForgottenHint}" />
-                                        <Grid>
+                                        <Grid x:Name="ForgottenTables">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="3*" />
                                                 <ColumnDefinition Width="12" />
                                                 <ColumnDefinition Width="2*" />
                                             </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*" />
+                                                <RowDefinition Height="0" />
+                                                <RowDefinition Height="0" />
+                                            </Grid.RowDefinitions>
                                             <Grid Grid.Column="0">
                                                 <DataGrid x:Name="ForgottenTracksGrid" ItemsSource="{Binding ForgottenTracks}"
                                                           AutomationProperties.Name="Forgotten tracks"
@@ -1688,7 +1694,7 @@
                                                            Visibility="{Binding ForgottenTracks, Converter={StaticResource EmptyToVis}}"
                                                            Text="No forgotten tracks: everything you played that often is still in rotation." />
                                             </Grid>
-                                            <Grid Grid.Column="2">
+                                            <Grid x:Name="ForgottenArtistsTable" Grid.Column="2">
                                                 <DataGrid ItemsSource="{Binding ForgottenArtists}"
                                                           AutomationProperties.Name="Forgotten artists"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
