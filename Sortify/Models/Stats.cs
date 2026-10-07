@@ -295,7 +295,10 @@ public sealed class AnalysisResult
     /// <summary>ms played bucketed by [day of week 0=Sunday..6, hour of day 0-23] for the heatmap.</summary>
     public long[,] PlaytimeByDowHour { get; init; } = new long[7, 24];
 
-    /// <summary>Count of artists first heard in each calendar month (local time).</summary>
+    /// <summary>
+    /// Count of artists first heard in each calendar month (local time), every month from the
+    /// first play to the last, so a month with no new artists is a zero rather than missing.
+    /// </summary>
     public IReadOnlyList<DateTimePoint> NewArtistsByMonth { get; init; } = Array.Empty<DateTimePoint>();
 
     // ---- Skip statistics (computed with the min-duration filter relaxed) ----------------
@@ -348,10 +351,13 @@ public sealed class AnalysisResult
     /// <summary>Average number of plays per distinct track: how repetitive the listening is.</summary>
     public double PlaysPerTrack => UniqueTracks == 0 ? 0 : (double)TotalPlays / UniqueTracks;
 
-    /// <summary>Average number of artists heard for the first time in a month.</summary>
-    public double NewArtistsPerMonth => NewArtistsByMonth.Count == 0
+    /// <summary>
+    /// Average number of artists heard for the first time in a month, over the months with any
+    /// listening: a month without a new artist counts as none, and a month away doesn't count.
+    /// </summary>
+    public double NewArtistsPerMonth => Months.Count == 0
         ? 0
-        : NewArtistsByMonth.Sum(p => p.Value) / NewArtistsByMonth.Count;
+        : NewArtistsByMonth.Sum(p => p.Value) / Months.Count;
 
     /// <summary>Share of all listening time that went to the single most-played artist (0-100).</summary>
     public double TopArtistSharePercent => TotalMsPlayed <= 0 || Artists.Count == 0

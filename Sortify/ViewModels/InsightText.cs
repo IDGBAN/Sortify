@@ -63,7 +63,7 @@ public sealed class InsightText
             ? $"{Percent(r.CompletedPlays, r.SkipEligiblePlays)}  ({Plural.Of(r.CompletedPlays, "play")})"
             : "-",
         RepeatRate = r.UniqueTracks > 0 ? $"{r.PlaysPerTrack:0.0} plays per track" : "-",
-        DiscoveryRate = r.NewArtistsByMonth.Count > 0 ? $"{r.NewArtistsPerMonth:0.#} new artists / month" : "-",
+        DiscoveryRate = r.Months.Count > 0 ? NewArtistsPerMonth(r.NewArtistsPerMonth) : "-",
         TopArtistShare = r.Artists.Count > 0
             ? $"{r.Artists[0].Artist}  ({r.TopArtistSharePercent:0.#}% of your time)"
             : "-",
@@ -93,6 +93,12 @@ public sealed class InsightText
     private static string Duration(double ms) => TimeFormat.Friendly(TimeSpan.FromMilliseconds(ms));
 
     private static string Percent(int part, int whole) => $"{part * 100.0 / whole:0.#}%";
+
+    private static string NewArtistsPerMonth(double rate)
+    {
+        string shown = rate.ToString("0.#");
+        return $"{shown} new {(shown == "1" ? "artist" : "artists")} / month";
+    }
 
     private static string DaysFromTo(int days, DateTime? from, DateTime? to) =>
         days > 0 && from is { } start && to is { } end

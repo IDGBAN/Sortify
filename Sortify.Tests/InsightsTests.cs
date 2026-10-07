@@ -165,20 +165,35 @@ public class InsightsTests
     }
 
     [Fact]
-    public void NewArtistsPerMonth_AveragesOverTheMonthsThatHadDiscoveries()
+    public void NewArtistsPerMonth_AveragesOverTheMonthsWithListening()
     {
         var records = new[]
         {
             Record(artist: "A", ts: new DateTime(2023, 1, 5, 12, 0, 0)),
             Record(artist: "B", ts: new DateTime(2023, 1, 6, 12, 0, 0)),
             Record(artist: "C", ts: new DateTime(2023, 2, 5, 12, 0, 0)),
+            Record(artist: "A", ts: new DateTime(2023, 3, 5, 12, 0, 0)),
+            Record(artist: "B", ts: new DateTime(2023, 6, 5, 12, 0, 0)),
         };
 
         var r = AnalysisEngine.Analyze(records, NoFilter);
 
-        // Two artists discovered in January, one in February.
-        Assert.Equal(2, r.NewArtistsByMonth.Count);
-        Assert.Equal(1.5, r.NewArtistsPerMonth, 3);
+        // Three artists over four months of listening. March found nobody new and counts;
+        // April and May had no listening at all and don't.
+        Assert.Equal(0.75, r.NewArtistsPerMonth, 3);
+        Assert.Equal("0.8 new artists / month", InsightText.For(r).DiscoveryRate);
+    }
+
+    [Fact]
+    public void NewArtistsPerMonth_OfOne_IsWordedInTheSingular()
+    {
+        var records = new[]
+        {
+            Record(artist: "A", ts: new DateTime(2023, 1, 5, 12, 0, 0)),
+            Record(artist: "B", ts: new DateTime(2023, 2, 5, 12, 0, 0)),
+        };
+
+        Assert.Equal("1 new artist / month", InsightText.For(AnalysisEngine.Analyze(records, NoFilter)).DiscoveryRate);
     }
 
     [Fact]

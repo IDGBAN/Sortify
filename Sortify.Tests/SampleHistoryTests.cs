@@ -88,7 +88,7 @@ public class SampleHistoryTests
         Assert.NotEmpty(r.ForgottenArtists);
         Assert.Contains(r.Milestones, m => m.Label.Contains("hours"));
         Assert.True(r.Years.Count >= 2);
-        Assert.True(r.NewArtistsByMonth.Count > 12, "artists should keep being discovered");
+        Assert.True(r.NewArtistsByMonth.Count(p => p.Value > 0) > 12, "artists should keep being discovered");
         Assert.True(r.Shows.Count >= 3);
 
         // No single artist should take over the history, as one rarely does in a real one.

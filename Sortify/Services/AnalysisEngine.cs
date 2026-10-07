@@ -347,12 +347,7 @@ public static class AnalysisEngine
         var milestones = ComputeMilestones(timedPlays, artistList, tracks);
         var onRepeat = ComputeRepeats(timedPlays);
 
-        var newArtistsByMonth = artistList
-            .Where(a => a.FirstPlayed is not null)
-            .GroupBy(a => new DateTime(a.FirstPlayed!.Value.Year, a.FirstPlayed.Value.Month, 1))
-            .OrderBy(g => g.Key)
-            .Select(g => new DateTimePoint(g.Key, g.Count()))
-            .ToList();
+        var newArtistsByMonth = NewArtistsByMonth(artistList, firstListen, lastListen);
 
         var yearList = years
             .OrderBy(kv => kv.Key)
@@ -542,6 +537,35 @@ public static class AnalysisEngine
             }
             return top;
         }
+    }
+
+    /// <summary>
+    /// Artists heard for the first time in each calendar month from the first play to the
+    /// last, with a zero for a month that brought none, so the chart's line doesn't slope
+    /// across it as if it had.
+    /// </summary>
+    private static List<DateTimePoint> NewArtistsByMonth(IReadOnlyList<ArtistStat> artists, DateTime? first, DateTime? last)
+    {
+        var points = new List<DateTimePoint>();
+        if (first is not { } from || last is not { } to)
+            return points;
+
+        var counts = new Dictionary<DateTime, int>();
+        foreach (var artist in artists)
+        {
+            if (artist.FirstPlayed is { } heard)
+                CollectionsMarshal.GetValueRefOrAddDefault(counts, new DateTime(heard.Year, heard.Month, 1), out _)++;
+        }
+
+        // Counted rather than stepped to the last month, which in December 9999 has no next one.
+        var start = new DateTime(from.Year, from.Month, 1);
+        int months = (to.Year - from.Year) * 12 + to.Month - from.Month + 1;
+        for (int i = 0; i < months; i++)
+        {
+            var month = start.AddMonths(i);
+            points.Add(new DateTimePoint(month, counts.GetValueOrDefault(month)));
+        }
+        return points;
     }
 
     /// <summary>
