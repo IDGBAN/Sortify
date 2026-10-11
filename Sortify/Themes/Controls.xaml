@@ -887,6 +887,23 @@
         <Setter Property="RowHeight" Value="34" />
     </Style>
 
+    <!-- The drag handles on either edge of a column header, for resizing the column. -->
+    <Style x:Key="ColumnHeaderGripper" TargetType="Thumb">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="SizeWE" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" />
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A clickable header with an arrow beside its name showing which way the rows are
+         sorted by it: up for ascending, down for descending. The arrow's space is kept even
+         while hidden, so an Auto-width column doesn't widen the first time it is sorted. -->
     <Style TargetType="DataGridColumnHeader">
         <Setter Property="Background" Value="{DynamicResource PanelBrush2}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
@@ -895,6 +912,54 @@
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="0,0,0,1" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="DataGridColumnHeader">
+                    <Grid>
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" />
+                        <Border x:Name="hover" Background="{DynamicResource HoverBrush}" Opacity="0"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" />
+                        <StackPanel Orientation="Horizontal" Margin="{TemplateBinding Padding}"
+                                    HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                    VerticalAlignment="{TemplateBinding VerticalContentAlignment}">
+                            <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+                            <!-- Segoe MDL2 Assets: E74A is an up arrow, E74B a down arrow. -->
+                            <TextBlock x:Name="SortArrow" FontFamily="Segoe MDL2 Assets" FontSize="10"
+                                       FontWeight="Normal" Text="&#xE74B;" Margin="6,1,0,0"
+                                       VerticalAlignment="Center" Visibility="Hidden"
+                                       Foreground="{DynamicResource AccentTextBrush}" />
+                        </StackPanel>
+                        <Thumb x:Name="PART_LeftHeaderGripper" HorizontalAlignment="Left"
+                               Style="{StaticResource ColumnHeaderGripper}" />
+                        <Thumb x:Name="PART_RightHeaderGripper" HorizontalAlignment="Right"
+                               Style="{StaticResource ColumnHeaderGripper}" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <!-- The filler header past the last column can't sort, so it doesn't light up. -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="CanUserSort" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="hover" Property="Opacity" Value="1" />
+                        </MultiTrigger>
+                        <Trigger Property="SortDirection" Value="Ascending">
+                            <Setter TargetName="SortArrow" Property="Text" Value="&#xE74A;" />
+                            <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                            <Setter Property="ToolTip" Value="Sorted ascending. Click to reverse." />
+                        </Trigger>
+                        <Trigger Property="SortDirection" Value="Descending">
+                            <Setter TargetName="SortArrow" Property="Visibility" Value="Visible" />
+                            <Setter Property="ToolTip" Value="Sorted descending. Click to reverse." />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <Style TargetType="DataGridCell">
@@ -1032,8 +1097,17 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <TabPanel x:Name="HeaderPanel" Grid.Row="0" IsItemsHost="True"
-                                  Background="Transparent" Margin="2,0,2,0" />
+                        <!-- The tabs, and anything set as views:TabStrip.TrailingContent at their right. -->
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TabPanel x:Name="HeaderPanel" IsItemsHost="True"
+                                      Background="Transparent" Margin="2,0,2,0" />
+                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center" Margin="8,0,4,0"
+                                              Content="{Binding (views:TabStrip.TrailingContent), RelativeSource={RelativeSource TemplatedParent}}" />
+                        </Grid>
                         <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1"
                                           ContentSource="SelectedContent"
                                           RenderTransformOrigin="0.5,0.5">

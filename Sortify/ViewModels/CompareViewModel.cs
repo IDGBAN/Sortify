@@ -42,6 +42,40 @@ public sealed partial class CompareViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<ComparisonRow> _newInB = Array.Empty<ComparisonRow>();
     [ObservableProperty] private IReadOnlyList<ComparisonRow> _goneSinceA = Array.Empty<ComparisonRow>();
 
+    /// <summary>
+    /// What the tables rank by; follows the main window's Time / Plays switch. Changing it
+    /// re-ranks the last comparison rather than analysing both periods again.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(RankingHint), nameof(NewInBHint), nameof(GoneSinceAHint),
+        nameof(NewInBSortMember), nameof(GoneSinceASortMember))]
+    private Metric _metric;
+
+    /// <summary>The two periods last analysed, kept so a change of metric only has to re-rank them.</summary>
+    private PeriodComparisonResult? _last;
+
+    public string RankingHint => Metric == Metric.Plays
+        ? "Ranked by plays in period B. ▲ climbed since A, ▼ fell, new wasn't played in A, out isn't played in B."
+        : "Ranked by listening time in period B. ▲ climbed since A, ▼ fell, new wasn't played in A, out isn't played in B.";
+
+    public string NewInBHint => Metric == Metric.Plays
+        ? "Artists you listened to for at least an hour in B and not at all in A, most played first."
+        : "Artists you listened to for at least an hour in B and not at all in A.";
+
+    public string GoneSinceAHint => Metric == Metric.Plays
+        ? "Artists you listened to for at least an hour in A and not at all in B, most played first."
+        : "Artists you listened to for at least an hour in A and not at all in B.";
+
+    // The column the new and gone lists arrive sorted by, so their headers can show the arrow.
+    public string NewInBSortMember => Metric == Metric.Plays ? nameof(ComparisonRow.PlaysB) : nameof(ComparisonRow.MsB);
+    public string GoneSinceASortMember => Metric == Metric.Plays ? nameof(ComparisonRow.PlaysA) : nameof(ComparisonRow.MsA);
+
+    partial void OnMetricChanged(Metric value)
+    {
+        if (_last is { } last)
+            Show(PeriodComparison.Build(last.A, last.B, value));
+    }
+
     /// <summary>Set by the window as the Compare tab comes and goes.</summary>
     [ObservableProperty] private bool _isVisible;
 
@@ -194,16 +228,14 @@ public sealed partial class CompareViewModel : ObservableObject
         IsWorking = true;
         try
         {
+            var metric = Metric;
             var result = await PeriodComparison.CompareAsync(source.Records, source.Filter,
-                StartA, EndA, StartB, EndB, source.SessionGap, token);
+                StartA, EndA, StartB, EndB, metric, source.SessionGap, token);
             if (token.IsCancellationRequested)
                 return;
 
-            Metrics = result.Metrics;
-            Artists = result.Artists;
-            Tracks = result.Tracks;
-            NewInB = result.NewInB;
-            GoneSinceA = result.GoneSinceA;
+            // The switch may have been flipped while both periods were being worked out.
+            Show(metric == Metric ? result : PeriodComparison.Build(result.A, result.B, Metric));
             Message = (result.A.TotalPlays, result.B.TotalPlays) switch
             {
                 (0, 0) => "Neither period has any plays under the current filters.",
@@ -225,8 +257,19 @@ public sealed partial class CompareViewModel : ObservableObject
         }
     }
 
+    private void Show(PeriodComparisonResult result)
+    {
+        _last = result;
+        Metrics = result.Metrics;
+        Artists = result.Artists;
+        Tracks = result.Tracks;
+        NewInB = result.NewInB;
+        GoneSinceA = result.GoneSinceA;
+    }
+
     private void ClearResults()
     {
+        _last = null;
         Metrics = Array.Empty<ComparisonMetric>();
         Artists = Array.Empty<ComparisonRow>();
         Tracks = Array.Empty<ComparisonRow>();

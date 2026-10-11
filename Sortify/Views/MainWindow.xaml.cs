@@ -613,13 +613,13 @@ public partial class MainWindow : ThemedWindow
 
     private async void OnOpenMonthArtist(object sender, RoutedEventArgs e)
     {
-        if (MonthsGrid.SelectedItem is MonthStat m)
+        if (MonthsGrid.SelectedItem is MonthRow m)
             await ShowDetailAsync(new ArtistStat { Artist = m.TopArtist });
     }
 
     private async void OnOpenMonthTrack(object sender, RoutedEventArgs e)
     {
-        if (MonthsGrid.SelectedItem is MonthStat m)
+        if (MonthsGrid.SelectedItem is MonthRow m)
             await ShowDetailAsync(new TrackStat { Track = m.TopTrack, Artist = m.TopTrackArtist });
     }
 
@@ -722,7 +722,7 @@ public partial class MainWindow : ThemedWindow
             return;
         }
 
-        new DetailWindow(detail, vm.BuildDetailAsync) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
+        new DetailWindow(detail, vm.BuildDetailAsync, vm.Metric) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
     }
 
     // ---- Copy to clipboard -------------------------------------------------------------------

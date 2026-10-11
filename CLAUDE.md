@@ -73,10 +73,11 @@ tests can reach internal members). MVVM via CommunityToolkit.Mvvm (`[ObservableP
 7. **`Services/ExportService.cs`** — writes the current `AnalysisResult` out as txt/Markdown/JSON/CSV.
 
 Supporting services: `Services/AppSettings.cs` (JSON-persisted preferences — recent folders, theme,
-session-gap minutes, chart animation toggle — failures degrade to defaults rather than surfacing
-errors), `Services/ThemeService.cs` (swaps the palette `ResourceDictionary` at a fixed slot in
-`App.xaml`'s merged dictionaries so every DynamicResource-bound style repaints; raises `Changed`),
-`Services/ImageExporter.cs` (copy/save a chart as PNG, wired to chart right-click), `Views/Converters.cs`.
+session-gap minutes, chart animation toggle, the Time/Plays metric — failures degrade to defaults
+rather than surfacing errors), `Services/ThemeService.cs` (swaps the palette `ResourceDictionary`
+at a fixed slot in `App.xaml`'s merged dictionaries so every DynamicResource-bound style repaints;
+raises `Changed`), `Services/ImageExporter.cs` (copy/save a chart as PNG, wired to chart
+right-click), `Views/Converters.cs`.
 
 **UI structure**: `Views/MainWindow.xaml(.cs)` is the main shell (tabs: Overview, Tracks, Artists,
 Albums, Years, Podcasts, Trends, Insights) bound to `MainViewModel`. `Views/FilterPanel.xaml(.cs)`
@@ -94,6 +95,19 @@ mutated via `ObservableCollection`, since incremental updates to tens of thousan
 raise a `CollectionChanged` per row and freeze the UI. Large horizontal bar charts
 (tracks/artists/albums) page in via `LoadMore*` methods as the user scrolls rather than rendering
 every bar up front.
+
+**Time / Plays**: the segmented switch at the right end of the tab row (`Views/TabStrip.cs`'s
+`TrailingContent`, a slot in the TabControl template) sets `MainViewModel.Metric` (`Models/Metric.cs`,
+remembered in settings), which every chart and ranked list follows: bars, donuts, the over-time,
+hour, weekday, heatmap and per-year charts, the Overview top fives, the Tracks/Artists/Albums/podcast
+grids, each month's and year's leaders, the Compare tab (`CompareViewModel.Metric`) and the detail
+window. `AnalysisResult` already carries both measures (`Plays*` breakdowns, `*ByPlayCount` lists,
+`MostPlayed*` leaders), so switching re-ranks and rebuilds charts without re-running analysis; new
+charts take a `Metric` in `ChartBuilder`. Grid column headers draw a sort arrow (header template in
+`Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather than sorted by the grid,
+`Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they arrive sorted by.
+Grid columns, which can't see the DataContext, bind headers and visibility through
+`Views/BindingProxy.cs` (the `Vm` resource in MainWindow).
 
 The logo's source is `Sortify/Assets/sortify-logo.svg`. `Themes/Logo.xaml` is the same drawing as a
 WPF `DrawingImage` (key `SortifyLogo`) that the title bar, toolbar, Settings and the year-in-review

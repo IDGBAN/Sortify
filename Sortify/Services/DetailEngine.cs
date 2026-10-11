@@ -29,9 +29,10 @@ public static class DetailEngine
         var tracks = new Dictionary<(string Track, string Artist), TrackStat>();
         var albums = new Dictionary<(string Album, string Artist), AlbumStat>();
         var artists = new Dictionary<string, ArtistStat>(StringComparer.Ordinal);
-        var byMonth = new Dictionary<DateTime, long>();
+        var byMonth = new Dictionary<DateTime, (long Ms, int Plays)>();
         var days = new HashSet<DateTime>();
         var byHour = new long[24];
+        var playsByHour = new int[24];
 
         long totalMs = 0;
         int playCount = 0;
@@ -133,10 +134,14 @@ public static class DetailEngine
 
             days.Add(r.Timestamp.Date);
             byHour[r.Timestamp.Hour] += r.MsPlayed;
+            playsByHour[r.Timestamp.Hour]++;
 
             var month = new DateTime(r.Timestamp.Year, r.Timestamp.Month, 1);
-            byMonth[month] = byMonth.TryGetValue(month, out var m) ? m + r.MsPlayed : r.MsPlayed;
+            var (monthMs, monthPlays) = byMonth.GetValueOrDefault(month);
+            byMonth[month] = (monthMs + r.MsPlayed, monthPlays + 1);
         }
+
+        var months = byMonth.OrderBy(kv => kv.Key).ToList();
 
         return new DetailResult
         {
@@ -154,10 +159,10 @@ public static class DetailEngine
             Tracks = tracks.Values.OrderByDescending(t => t.TotalMsPlayed).ToList(),
             Albums = albums.Values.OrderByDescending(a => a.TotalMsPlayed).ToList(),
             Artists = artists.Values.OrderByDescending(a => a.TotalMsPlayed).ToList(),
-            ByMonth = byMonth.OrderBy(kv => kv.Key)
-                .Select(kv => new DateTimePoint(kv.Key, kv.Value / 3_600_000d))
-                .ToList(),
+            ByMonth = months.Select(kv => new DateTimePoint(kv.Key, kv.Value.Ms / 3_600_000d)).ToList(),
             ByHour = byHour,
+            PlaysByMonth = months.Select(kv => new DateTimePoint(kv.Key, kv.Value.Plays)).ToList(),
+            PlaysByHour = playsByHour,
             Uri = uri,
         };
     }

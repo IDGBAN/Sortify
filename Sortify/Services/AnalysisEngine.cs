@@ -64,10 +64,13 @@ public static class AnalysisEngine
         var reasons = new Dictionary<string, ReasonEndStat>(StringComparer.OrdinalIgnoreCase);
         var years = new Dictionary<int, PeriodAccumulator>();
         var months = new Dictionary<DateTime, PeriodAccumulator>();
-        var byDay = new Dictionary<DateTime, long>();
+        var byDay = new Dictionary<DateTime, (long Ms, int Plays)>();
         var byHour = new long[24];
         var byDow = new long[7];
         var byDowHour = new long[7, 24];
+        var playsByHour = new int[24];
+        var playsByDow = new int[7];
+        var playsByDowHour = new int[7, 24];
         var timedPlays = new List<TimedPlay>();
 
         var shows = new Dictionary<string, ShowStat>(StringComparer.Ordinal);
@@ -227,10 +230,15 @@ public static class AnalysisEngine
 
                 int hour = ts.Hour;
                 int dow = (int)ts.DayOfWeek;
-                CollectionsMarshal.GetValueRefOrAddDefault(byDay, ts.Date, out _) += r.MsPlayed;
+                ref var day = ref CollectionsMarshal.GetValueRefOrAddDefault(byDay, ts.Date, out _);
+                day.Ms += r.MsPlayed;
+                day.Plays++;
                 byHour[hour] += r.MsPlayed;
                 byDow[dow] += r.MsPlayed;
                 byDowHour[dow, hour] += r.MsPlayed;
+                playsByHour[hour]++;
+                playsByDow[dow]++;
+                playsByDowHour[dow, hour]++;
 
                 timedPlays.Add(new TimedPlay(ts, r.MsPlayed, track));
 
@@ -281,13 +289,15 @@ public static class AnalysisEngine
 
         var showList = shows.Values.OrderByDescending(s => s.TotalMsPlayed).ToList();
         var episodeList = episodes.Values.OrderByDescending(e => e.TotalMsPlayed).ToList();
+        // Sorted from the lists above, so shows played equally often stay in listening-time order.
+        var showsByCount = showList.OrderByDescending(s => s.PlayCount).ToList();
+        var episodesByCount = episodeList.OrderByDescending(e => e.PlayCount).ToList();
         var platformList = platforms.Values.OrderByDescending(p => p.TotalMsPlayed).ToList();
         var countryList = countries.Values.OrderByDescending(c => c.TotalMsPlayed).ToList();
 
-        var dayPoints = byDay
-            .OrderBy(kv => kv.Key)
-            .Select(kv => new DateTimePoint(kv.Key, kv.Value / 3_600_000d))
-            .ToList();
+        var days = byDay.OrderBy(kv => kv.Key).ToList();
+        var dayPoints = days.Select(kv => new DateTimePoint(kv.Key, kv.Value.Ms / 3_600_000d)).ToList();
+        var playDayPoints = days.Select(kv => new DateTimePoint(kv.Key, kv.Value.Plays)).ToList();
 
         var (streakDays, streakStart, streakEnd) = LongestStreak(dayPoints);
         int currentStreak = CurrentStreak(dayPoints);
@@ -295,11 +305,11 @@ public static class AnalysisEngine
 
         DateTime? biggestDay = null;
         long biggestDayMs = 0;
-        foreach (var (day, ms) in byDay)
+        foreach (var (day, totals) in byDay)
         {
-            if (ms > biggestDayMs)
+            if (totals.Ms > biggestDayMs)
             {
-                biggestDayMs = ms;
+                biggestDayMs = totals.Ms;
                 biggestDay = day;
             }
         }
@@ -358,6 +368,8 @@ public static class AnalysisEngine
             SkippedTracks = skippedList,
             Shows = showList,
             Episodes = episodeList,
+            ShowsByPlayCount = showsByCount,
+            EpisodesByPlayCount = episodesByCount,
             PodcastMsPlayed = podcastMs,
             PodcastPlays = podcastPlays,
             Platforms = platformList,
@@ -376,6 +388,10 @@ public static class AnalysisEngine
             PlaytimeByHour = byHour,
             PlaytimeByDayOfWeek = byDow,
             PlaytimeByDowHour = byDowHour,
+            PlaysByDay = playDayPoints,
+            PlaysByHour = playsByHour,
+            PlaysByDayOfWeek = playsByDow,
+            PlaysByDowHour = playsByDowHour,
             NewArtistsByMonth = newArtistsByMonth,
             ActiveDays = byDay.Count,
             LongestStreakDays = streakDays,
@@ -510,45 +526,46 @@ public static class AnalysisEngine
     {
         public long Ms;
         public int Plays;
-        public readonly Dictionary<ArtistStat, long> ArtistMs = new(ReferenceEqualityComparer.Instance);
-        public readonly Dictionary<TrackStat, long> TrackMs = new(ReferenceEqualityComparer.Instance);
+        public readonly Dictionary<ArtistStat, (long Ms, int Plays)> Artists = new(ReferenceEqualityComparer.Instance);
+        public readonly Dictionary<TrackStat, (long Ms, int Plays)> Tracks = new(ReferenceEqualityComparer.Instance);
 
         public void Add(ArtistStat artist, TrackStat track, int ms)
         {
             Ms += ms;
             Plays++;
-            CollectionsMarshal.GetValueRefOrAddDefault(ArtistMs, artist, out _) += ms;
-            CollectionsMarshal.GetValueRefOrAddDefault(TrackMs, track, out _) += ms;
+            ref var artistTotals = ref CollectionsMarshal.GetValueRefOrAddDefault(Artists, artist, out _);
+            artistTotals.Ms += ms;
+            artistTotals.Plays++;
+            ref var trackTotals = ref CollectionsMarshal.GetValueRefOrAddDefault(Tracks, track, out _);
+            trackTotals.Ms += ms;
+            trackTotals.Plays++;
         }
 
-        public (string Artist, long Ms) TopArtist()
-        {
-            (string, long) top = ("-", 0);
-            long best = -1;
-            foreach (var (artist, ms) in ArtistMs)
-            {
-                if (ms > best)
-                {
-                    best = ms;
-                    top = (artist.Artist, ms);
-                }
-            }
-            return top;
-        }
+        public (ArtistStat? Artist, long Ms, int Plays) TopArtist(Metric metric) => Leader(Artists, metric);
 
-        public ((string Track, string Artist) Key, long Ms) TopTrack()
+        public (TrackStat? Track, long Ms, int Plays) TopTrack(Metric metric) => Leader(Tracks, metric);
+
+        /// <summary>
+        /// The entry listened to longest, or played most often. Plays tie far more often than
+        /// milliseconds do, so a tie on plays goes to the one listened to longer.
+        /// </summary>
+        private static (T? Key, long Ms, int Plays) Leader<T>(Dictionary<T, (long Ms, int Plays)> totals, Metric metric)
+            where T : class
         {
-            ((string, string), long) top = (("-", "-"), 0);
-            long best = -1;
-            foreach (var (track, ms) in TrackMs)
+            T? top = null;
+            (long Ms, int Plays) best = (-1, -1);
+            foreach (var (key, value) in totals)
             {
-                if (ms > best)
+                bool better = metric == Metric.Plays
+                    ? value.Plays > best.Plays || (value.Plays == best.Plays && value.Ms > best.Ms)
+                    : value.Ms > best.Ms;
+                if (better)
                 {
-                    best = ms;
-                    top = ((track.Track, track.Artist), ms);
+                    top = key;
+                    best = value;
                 }
             }
-            return top;
+            return top is null ? (null, 0, 0) : (top, best.Ms, best.Plays);
         }
     }
 
@@ -557,26 +574,35 @@ public static class AnalysisEngine
         Year = year,
         TotalMsPlayed = acc.Ms,
         PlayCount = acc.Plays,
-        UniqueArtists = acc.ArtistMs.Count,
-        UniqueTracks = acc.TrackMs.Count,
-        TopArtist = acc.TopArtist().Artist,
-        TopTrack = acc.TopTrack().Key.Track,
+        UniqueArtists = acc.Artists.Count,
+        UniqueTracks = acc.Tracks.Count,
+        TopArtist = acc.TopArtist(Metric.Time).Artist?.Artist ?? "-",
+        TopTrack = acc.TopTrack(Metric.Time).Track?.Track ?? "-",
+        MostPlayedArtist = acc.TopArtist(Metric.Plays).Artist?.Artist ?? "-",
+        MostPlayedTrack = acc.TopTrack(Metric.Plays).Track?.Track ?? "-",
     };
 
     private static MonthStat BuildMonthStat(DateTime month, PeriodAccumulator acc)
     {
-        var (artist, artistMs) = acc.TopArtist();
-        var (track, trackMs) = acc.TopTrack();
+        var (artist, artistMs, _) = acc.TopArtist(Metric.Time);
+        var (track, trackMs, _) = acc.TopTrack(Metric.Time);
+        var (playedArtist, _, artistPlays) = acc.TopArtist(Metric.Plays);
+        var (playedTrack, _, trackPlays) = acc.TopTrack(Metric.Plays);
         return new MonthStat
         {
             Month = month,
             TotalMsPlayed = acc.Ms,
             PlayCount = acc.Plays,
-            TopArtist = artist,
+            TopArtist = artist?.Artist ?? "-",
             TopArtistMs = artistMs,
-            TopTrack = track.Track,
-            TopTrackArtist = track.Artist,
+            TopTrack = track?.Track ?? "-",
+            TopTrackArtist = track?.Artist ?? "-",
             TopTrackMs = trackMs,
+            MostPlayedArtist = playedArtist?.Artist ?? "-",
+            MostPlayedArtistPlays = artistPlays,
+            MostPlayedTrack = playedTrack?.Track ?? "-",
+            MostPlayedTrackArtist = playedTrack?.Artist ?? "-",
+            MostPlayedTrackPlays = trackPlays,
         };
     }
 

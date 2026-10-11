@@ -12,9 +12,12 @@ public enum Trend
     Gone,
 }
 
-/// <summary>One artist or track, ranked by listening time in each period.</summary>
+/// <summary>One artist or track, ranked by listening time (or by plays) in each period.</summary>
 public sealed record ComparisonRow(string Name, string Secondary, int? RankA, int? RankB, long MsA, long MsB, object Item)
 {
+    public int PlaysA { get; init; }
+    public int PlaysB { get; init; }
+
     public double HoursA => MsA / 3_600_000d;
     public double HoursB => MsB / 3_600_000d;
 
@@ -71,49 +74,63 @@ public static class PeriodComparison
 
     /// <summary>
     /// Analyses both periods under the same filters, apart from the dates, and joins the
-    /// results. The two analyses run at the same time.
+    /// results, ranked by <paramref name="metric"/>. The two analyses run at the same time.
     /// </summary>
     public static async Task<PeriodComparisonResult> CompareAsync(
         IReadOnlyList<PlayRecord> records, FilterOptions filter,
         DateTime? startA, DateTime? endA, DateTime? startB, DateTime? endB,
-        TimeSpan? sessionGap = null, CancellationToken cancellationToken = default)
+        Metric metric = Metric.Time, TimeSpan? sessionGap = null, CancellationToken cancellationToken = default)
     {
         var a = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startA, EndOfDay(endA)), sessionGap, cancellationToken);
         var b = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startB, EndOfDay(endB)), sessionGap, cancellationToken);
         await Task.WhenAll(a, b).ConfigureAwait(false);
-        return Build(a.Result, b.Result);
+        return Build(a.Result, b.Result, metric);
     }
 
     /// <summary>A period's last day is included in full, as the sidebar's To date is.</summary>
     private static DateTime? EndOfDay(DateTime? end) => end?.Date.AddDays(1).AddTicks(-1);
 
-    public static PeriodComparisonResult Build(AnalysisResult a, AnalysisResult b)
+    /// <summary>
+    /// Joins two analysed periods. Rankings follow <paramref name="metric"/>; an artist still
+    /// needs <see cref="NewOrGoneMinimum"/> of listening to count as new or gone either way.
+    /// </summary>
+    public static PeriodComparisonResult Build(AnalysisResult a, AnalysisResult b, Metric metric = Metric.Time)
     {
-        var artists = Rows(a.Artists, b.Artists, x => (x.Artist, string.Empty), x => x.TotalMsPlayed);
-        var tracks = Rows(a.Tracks, b.Tracks, x => (x.Track, x.Artist), x => x.TotalMsPlayed);
+        bool plays = metric == Metric.Plays;
+        var artistsA = plays ? a.ArtistsByPlayCount : a.Artists;
+        var artistsB = plays ? b.ArtistsByPlayCount : b.Artists;
+        var artists = Rows(artistsA, artistsB, x => (x.Artist, string.Empty), x => x.TotalMsPlayed, x => x.PlayCount);
+        var tracks = Rows(plays ? a.TracksByPlayCount : a.Tracks, plays ? b.TracksByPlayCount : b.Tracks,
+            x => (x.Track, x.Artist), x => x.TotalMsPlayed, x => x.PlayCount);
 
         var inA = a.Artists.Select(x => x.Artist).ToHashSet(StringComparer.Ordinal);
         var inB = b.Artists.Select(x => x.Artist).ToHashSet(StringComparer.Ordinal);
         long minimum = (long)NewOrGoneMinimum.TotalMilliseconds;
 
-        var newInB = b.Artists
+        var newInB = artistsB
             .Select((x, i) => (x, Rank: i + 1))
             .Where(p => !inA.Contains(p.x.Artist) && p.x.TotalMsPlayed >= minimum)
             .Take(NewOrGoneRows)
-            .Select(p => new ComparisonRow(p.x.Artist, string.Empty, null, p.Rank, 0, p.x.TotalMsPlayed, p.x))
+            .Select(p => new ComparisonRow(p.x.Artist, string.Empty, null, p.Rank, 0, p.x.TotalMsPlayed, p.x)
+            {
+                PlaysB = p.x.PlayCount,
+            })
             .ToList();
-        var goneSinceA = a.Artists
+        var goneSinceA = artistsA
             .Select((x, i) => (x, Rank: i + 1))
             .Where(p => !inB.Contains(p.x.Artist) && p.x.TotalMsPlayed >= minimum)
             .Take(NewOrGoneRows)
-            .Select(p => new ComparisonRow(p.x.Artist, string.Empty, p.Rank, null, p.x.TotalMsPlayed, 0, p.x))
+            .Select(p => new ComparisonRow(p.x.Artist, string.Empty, p.Rank, null, p.x.TotalMsPlayed, 0, p.x)
+            {
+                PlaysA = p.x.PlayCount,
+            })
             .ToList();
 
         return new PeriodComparisonResult
         {
             A = a,
             B = b,
-            Metrics = Metrics(a, b),
+            Metrics = Metrics(a, b, artistsA, artistsB),
             Artists = artists,
             Tracks = tracks,
             NewInB = newInB,
@@ -127,7 +144,8 @@ public static class PeriodComparison
     /// period's rank, with anything that dropped out of it at the bottom.
     /// </summary>
     private static List<ComparisonRow> Rows<T>(
-        IReadOnlyList<T> a, IReadOnlyList<T> b, Func<T, (string Name, string Secondary)> key, Func<T, long> ms)
+        IReadOnlyList<T> a, IReadOnlyList<T> b, Func<T, (string Name, string Secondary)> key,
+        Func<T, long> ms, Func<T, int> plays)
         where T : class
     {
         var rankA = new Dictionary<(string, string), (int Rank, T Item)>();
@@ -147,14 +165,21 @@ public static class PeriodComparison
                 return new ComparisonRow(k.Item1, k.Item2,
                     hasA ? inA.Rank : null, hasB ? inB.Rank : null,
                     hasA ? ms(inA.Item) : 0, hasB ? ms(inB.Item) : 0,
-                    hasB ? inB.Item : inA.Item);
+                    hasB ? inB.Item : inA.Item)
+                {
+                    PlaysA = hasA ? plays(inA.Item) : 0,
+                    PlaysB = hasB ? plays(inB.Item) : 0,
+                };
             })
             .OrderBy(r => r.RankB ?? int.MaxValue)
             .ThenBy(r => r.RankA ?? int.MaxValue)
             .ToList();
     }
 
-    private static List<ComparisonMetric> Metrics(AnalysisResult a, AnalysisResult b)
+    /// <param name="artistsA">Period A's artists, ranked the way the tables are.</param>
+    /// <param name="artistsB">Period B's artists, ranked the way the tables are.</param>
+    private static List<ComparisonMetric> Metrics(
+        AnalysisResult a, AnalysisResult b, IReadOnlyList<ArtistStat> artistsA, IReadOnlyList<ArtistStat> artistsB)
     {
         double PerDay(AnalysisResult r) => r.ActiveDays == 0 ? 0 : (double)r.TotalMsPlayed / r.ActiveDays;
         double SkipRate(AnalysisResult r) => r.SkipEligiblePlays == 0 ? 0 : r.TotalSkips * 100.0 / r.SkipEligiblePlays;
@@ -173,8 +198,8 @@ public static class PeriodComparison
         metrics.Add(new ComparisonMetric("Skip rate", $"{skipA:0.#}%", $"{skipB:0.#}%",
             $"{skipB - skipA:+0.#;-0.#;0} points", Direction(skipA, skipB)));
 
-        string topA = a.Artists.Count > 0 ? a.Artists[0].Artist : "-";
-        string topB = b.Artists.Count > 0 ? b.Artists[0].Artist : "-";
+        string topA = artistsA.Count > 0 ? artistsA[0].Artist : "-";
+        string topB = artistsB.Count > 0 ? artistsB[0].Artist : "-";
         metrics.Add(new ComparisonMetric("Top artist", topA, topB,
             topA == topB ? "same" : "changed", topA == topB ? Trend.Same : Trend.New));
         return metrics;
