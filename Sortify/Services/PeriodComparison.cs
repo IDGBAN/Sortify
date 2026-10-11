@@ -44,7 +44,7 @@ public sealed record ComparisonRow(string Name, string Secondary, int? RankA, in
 /// <summary>One headline figure for both periods and how it changed.</summary>
 public sealed record ComparisonMetric(string Metric, string A, string B, string Change, Trend Trend);
 
-/// <summary>Everything the Compare tab shows for one pair of periods.</summary>
+/// <summary>Everything the Compare Periods tab shows for one pair of periods.</summary>
 public sealed class PeriodComparisonResult
 {
     public required AnalysisResult A { get; init; }
@@ -205,7 +205,7 @@ public static class PeriodComparison
         return metrics;
     }
 
-    private static ComparisonMetric Numeric(string name, double a, double b, Func<double, string> format)
+    internal static ComparisonMetric Numeric(string name, double a, double b, Func<double, string> format)
     {
         string change = a == 0
             ? b == 0 ? "no change" : "new"
@@ -213,5 +213,5 @@ public static class PeriodComparison
         return new ComparisonMetric(name, format(a), format(b), change, a == 0 && b > 0 ? Trend.New : Direction(a, b));
     }
 
-    private static Trend Direction(double a, double b) => b > a ? Trend.Up : b < a ? Trend.Down : Trend.Same;
+    internal static Trend Direction(double a, double b) => b > a ? Trend.Up : b < a ? Trend.Down : Trend.Same;
 }

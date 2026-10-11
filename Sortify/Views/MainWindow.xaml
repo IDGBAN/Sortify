@@ -32,7 +32,7 @@
              the DataContext, so their Header and Visibility bind through this instead. -->
         <views:BindingProxy x:Key="Vm" Data="{Binding}" />
 
-        <!-- A movement or change on the Compare tab, coloured by which way it went. -->
+        <!-- A movement or change on the Compare tabs, coloured by which way it went. -->
         <Style x:Key="TrendText" TargetType="TextBlock">
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
@@ -1394,8 +1394,8 @@
                         </ScrollViewer>
                     </TabItem>
 
-                    <!-- ============================= COMPARE ============================= -->
-                    <TabItem x:Name="CompareTab" Header="Compare">
+                    <!-- ========================= COMPARE PERIODS ========================= -->
+                    <TabItem x:Name="CompareTab" Header="Compare Periods">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel DataContext="{Binding Compare}" SizeChanged="OnCompareSizeChanged">
                                 <Border Style="{StaticResource Card}" Margin="6,6,6,6">
@@ -1618,6 +1618,207 @@
                                         </DockPanel>
                                     </Border>
                                 </UniformGrid>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- ========================= COMPARE PEOPLE ========================== -->
+                    <TabItem x:Name="ComparePeopleTab" Header="Compare People">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel DataContext="{Binding ComparePeople}" SizeChanged="OnCompareSizeChanged">
+                                <Border Style="{StaticResource Card}" Margin="6,6,6,6">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="Open Their Folder" Style="{StaticResource AccentButton}"
+                                                        Command="{Binding OpenTheirFolderCommand}" Padding="10,5" FontSize="11"
+                                                        ToolTip="Pick the folder their Spotify export unpacked to" />
+                                                <Button Content="Open Their Files" Command="{Binding OpenTheirFilesCommand}"
+                                                        Padding="10,5" FontSize="11"
+                                                        ToolTip="Pick the ZIP Spotify sent them, or the JSON files inside it" />
+                                                <Button Content="Remove" Command="{Binding RemoveCommand}"
+                                                        Padding="10,5" FontSize="11" Margin="0"
+                                                        ToolTip="Forget their history" />
+                                            </StackPanel>
+                                            <TextBlock Text="Compare Two People" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,10"
+                                                   Text="Open someone else's Spotify export to put their listening next to yours. Every filter in the sidebar applies to both of you. Their history is only kept until Sortify closes; it isn't cached or added to Recent." />
+                                        <DockPanel>
+                                            <TextBlock Text="Their name" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="12" />
+                                            <TextBox Width="220"
+                                                     Text="{Binding TheirName, UpdateSourceTrigger=PropertyChanged}"
+                                                     AutomationProperties.Name="The other person's name" />
+                                            <TextBlock Text="{Binding LoadedText}" Style="{StaticResource Hint}" FontSize="11"
+                                                       VerticalAlignment="Center" Margin="12,0,0,0" />
+                                        </DockPanel>
+                                        <TextBlock Text="Reading their history..." Style="{StaticResource Hint}" FontSize="11"
+                                                   Margin="0,8,0,0"
+                                                   Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
+                                        <TextBlock Text="{Binding LoadError}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                   Visibility="{Binding LoadError, Converter={StaticResource TextToVis}}" />
+                                        <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                   Visibility="{Binding Message, Converter={StaticResource TextToVis}}" />
+                                        <TextBlock Text="Comparing your listening with theirs..." Style="{StaticResource Hint}" FontSize="11"
+                                                   Margin="0,8,0,0"
+                                                   Visibility="{Binding IsWorking, Converter={StaticResource BoolToVis}}" />
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource Card}"
+                                        Visibility="{Binding HasTheirs, Converter={StaticResource NotBoolToVis}}">
+                                    <TextBlock Style="{StaticResource Hint}" FontSize="12" Margin="0" TextAlignment="Center"
+                                               Text="No one to compare with yet. Ask a friend for their Spotify data export (Spotify account, Privacy, Download your data), then open it with the buttons above." />
+                                </Border>
+
+                                <StackPanel Visibility="{Binding HasResults, Converter={StaticResource BoolToVis}}">
+                                    <UniformGrid Columns="4">
+                                        <Border Style="{StaticResource Card}">
+                                            <StackPanel>
+                                                <TextBlock Text="ARTIST MATCH" Style="{StaticResource Caption}" />
+                                                <TextBlock Text="{Binding ArtistMatch}" Style="{StaticResource StatValue}"
+                                                           ToolTip="How much of your listening time and theirs goes to the same artists" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Card}">
+                                            <StackPanel>
+                                                <TextBlock Text="TRACK MATCH" Style="{StaticResource Caption}" />
+                                                <TextBlock Text="{Binding TrackMatch}" Style="{StaticResource StatValue}"
+                                                           ToolTip="How much of your listening time and theirs goes to the same tracks" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Card}">
+                                            <StackPanel>
+                                                <TextBlock Text="SHARED ARTISTS" Style="{StaticResource Caption}" />
+                                                <TextBlock Text="{Binding SharedArtistCount}" Style="{StaticResource StatValue}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Card}">
+                                            <StackPanel>
+                                                <TextBlock Text="SHARED TRACKS" Style="{StaticResource Caption}" />
+                                                <TextBlock Text="{Binding SharedTrackCount}" Style="{StaticResource StatValue}" />
+                                            </StackPanel>
+                                        </Border>
+                                    </UniformGrid>
+
+                                    <Border Style="{StaticResource Card}">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Top" Text="At a Glance" Style="{StaticResource SectionHeader}"
+                                                       Margin="0,0,0,2" />
+                                            <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                       Text="{Binding DisplayName, StringFormat='The Them column is {0}. Difference is how {0} compares with you.'}" />
+                                            <DataGrid ItemsSource="{Binding Metrics}" AutomationProperties.Name="Headline figures for both people"
+                                                      SelectionMode="Single" PreviewMouseWheel="OnPassWheelToPage">
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" />
+                                                    <DataGridTextColumn Header="You" Binding="{Binding A}" Width="*" />
+                                                    <DataGridTextColumn Header="Them" Binding="{Binding B}" Width="*" />
+                                                    <DataGridTextColumn Header="Difference" Binding="{Binding Change}" Width="*"
+                                                                        ElementStyle="{StaticResource TrendText}" />
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                        </DockPanel>
+                                    </Border>
+
+                                    <UniformGrid x:Name="PeopleShared" Columns="2">
+                                        <Border Style="{StaticResource Card}" Height="480">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Top" Text="Artists You Share" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                           Text="Artists you both play, the ones you're most alike on first, with each of your own ranks. Double-click a row for your breakdown." />
+                                                <Grid>
+                                                    <DataGrid ItemsSource="{Binding SharedArtists}" AutomationProperties.Name="Artists you both play"
+                                                              MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                        <DataGrid.Columns>
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
+                                                            <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
+                                                            <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsA" />
+                                                            <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsB" />
+                                                        </DataGrid.Columns>
+                                                    </DataGrid>
+                                                    <TextBlock Style="{StaticResource EmptyRows}"
+                                                               Visibility="{Binding SharedArtists, Converter={StaticResource EmptyToVis}}"
+                                                               Text="You don't share a single artist." />
+                                                </Grid>
+                                            </DockPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Card}" Height="480">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Top" Text="Tracks You Share" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                           Text="The same for tracks." />
+                                                <Grid>
+                                                    <DataGrid ItemsSource="{Binding SharedTracks}" AutomationProperties.Name="Tracks you both play"
+                                                              MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                        <DataGrid.Columns>
+                                                            <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" />
+                                                            <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
+                                                            <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
+                                                            <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsA" />
+                                                            <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsB" />
+                                                        </DataGrid.Columns>
+                                                    </DataGrid>
+                                                    <TextBlock Style="{StaticResource EmptyRows}"
+                                                               Visibility="{Binding SharedTracks, Converter={StaticResource EmptyToVis}}"
+                                                               Text="You don't share a single track." />
+                                                </Grid>
+                                            </DockPanel>
+                                        </Border>
+                                    </UniformGrid>
+
+                                    <UniformGrid x:Name="PeopleOnlyOne" Columns="2">
+                                        <Border Style="{StaticResource Card}" Height="360">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Top" Text="{Binding OnlyYouTitle}" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                           Text="{Binding OnlyYouHint}" />
+                                                <Grid>
+                                                    <DataGrid ItemsSource="{Binding OnlyYou}" AutomationProperties.Name="Artists only you play"
+                                                              MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                        <DataGrid.Columns>
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
+                                                            <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}"
+                                                                                Width="Auto" SortMemberPath="MsA" />
+                                                        </DataGrid.Columns>
+                                                    </DataGrid>
+                                                    <TextBlock Style="{StaticResource EmptyRows}"
+                                                               Visibility="{Binding OnlyYou, Converter={StaticResource EmptyToVis}}"
+                                                               Text="Every artist you have an hour of, they've played too." />
+                                                </Grid>
+                                            </DockPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource Card}" Height="360">
+                                            <DockPanel>
+                                                <TextBlock DockPanel.Dock="Top" Text="{Binding OnlyThemTitle}" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
+                                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                           Text="{Binding OnlyThemHint}" />
+                                                <Grid>
+                                                    <DataGrid ItemsSource="{Binding OnlyThem}" AutomationProperties.Name="Artists only they play">
+                                                        <DataGrid.Columns>
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
+                                                            <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}"
+                                                                                Width="Auto" SortMemberPath="MsB" />
+                                                        </DataGrid.Columns>
+                                                    </DataGrid>
+                                                    <TextBlock Style="{StaticResource EmptyRows}"
+                                                               Visibility="{Binding OnlyThem, Converter={StaticResource EmptyToVis}}"
+                                                               Text="Every artist they have an hour of, you've played too." />
+                                                </Grid>
+                                            </DockPanel>
+                                        </Border>
+                                    </UniformGrid>
+                                </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>

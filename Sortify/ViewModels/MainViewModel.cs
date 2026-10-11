@@ -49,8 +49,11 @@ public sealed partial class MainViewModel : ObservableObject
         .Select(a => new SearchSuggestion("Artist", a.Artist, "", a.TotalMsPlayed, a.PlayCount, "Current filters"))
         .ToArray();
 
-    /// <summary>The Compare tab.</summary>
+    /// <summary>The Compare Periods tab.</summary>
     public CompareViewModel Compare { get; }
+
+    /// <summary>The Compare People tab.</summary>
+    public PeopleCompareViewModel ComparePeople { get; }
 
     // Grid item sources. Swapped wholesale after each analysis pass instead of using
     // ObservableCollections: repopulating tens of thousands of rows item-by-item raises
@@ -262,9 +265,8 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = settings ?? AppSettings.Load();
         _settings.PruneMissingFolders();
-        Compare = new CompareViewModel(() => HasData
-            ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap)
-            : null);
+        Compare = new CompareViewModel(CompareSource);
+        ComparePeople = new PeopleCompareViewModel(CompareSource);
         SidebarVisible = _settings.SidebarVisible;
         Metric = _settings.Metric;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
@@ -307,6 +309,11 @@ public sealed partial class MainViewModel : ObservableObject
 
         RefreshActiveFilters();
     }
+
+    /// <summary>Your plays and the sidebar's filters, for the two Compare tabs; null until a history is open.</summary>
+    private CompareViewModel.Source? CompareSource() => HasData
+        ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap)
+        : null;
 
     // ---- Loading ---------------------------------------------------------------------------
 
@@ -579,7 +586,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// Offers the quick date ranges, devices and countries that fit the history just loaded.
     /// Read off the raw records rather than the filtered results, so filtering to one year
     /// or one device doesn't take the other choices away. A different export from the one
-    /// before also starts the Compare tab over on its own periods.
+    /// before also starts the Compare Periods tab over on its own periods.
     /// </summary>
     private void OfferChoicesForHistory(bool newHistory)
     {
@@ -844,6 +851,7 @@ public sealed partial class MainViewModel : ObservableObject
             SeedComparison();
             RefreshCompareSuggestions();
             Compare.Invalidate();
+            ComparePeople.Invalidate();
             await RefreshArtistTimelineAsync();
         }
         finally

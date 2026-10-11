@@ -80,7 +80,11 @@ raises `Changed`), `Services/ImageExporter.cs` (copy/save a chart as PNG, wired 
 right-click), `Views/Converters.cs`.
 
 **UI structure**: `Views/MainWindow.xaml(.cs)` is the main shell (tabs: Overview, Tracks, Artists,
-Albums, Years, Podcasts, Trends, Insights) bound to `MainViewModel`. `Views/FilterPanel.xaml(.cs)`
+Albums, Years, Podcasts, Trends, Insights, Compare Periods, Compare People) bound to `MainViewModel`.
+Compare Periods (`ViewModels/CompareViewModel.cs`, `Services/PeriodComparison.cs`) puts two date
+ranges of the loaded history side by side; Compare People (`ViewModels/PeopleCompareViewModel.cs`,
+`Services/PeopleComparison.cs`) puts someone else's export next to yours, holding their plays in
+memory only (never in the record cache or Recent). `Views/FilterPanel.xaml(.cs)`
 + `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises `FiltersChanged` on any
 change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before re-running analysis.
 `Views/DetailWindow.xaml(.cs)` is the per-row drill-down. `Views/SettingsWindow.xaml(.cs)` covers

@@ -267,7 +267,7 @@ public partial class MainWindow : ThemedWindow
         await ShowDetailAsync(result.Item);
     }
 
-    /// <summary>Below this width the Compare tab's paired tables go one above the other.</summary>
+    /// <summary>Below this width the Compare tabs' paired tables go one above the other.</summary>
     private const double CompareSideBySideMinWidth = 960;
 
     private void OnCompareSizeChanged(object sender, SizeChangedEventArgs e)
@@ -275,6 +275,8 @@ public partial class MainWindow : ThemedWindow
         int columns = e.NewSize.Width < CompareSideBySideMinWidth ? 1 : 2;
         CompareRankings.Columns = columns;
         CompareNewGone.Columns = columns;
+        PeopleShared.Columns = columns;
+        PeopleOnlyOne.Columns = columns;
     }
 
     // ---- Tabs --------------------------------------------------------------------------------
@@ -290,9 +292,12 @@ public partial class MainWindow : ThemedWindow
         if (sender is not TabControl tabs)
             return;
 
-        // The comparison is only worked out while someone is looking at it.
+        // The comparisons are only worked out while someone is looking at them.
         if (ViewModel is { } vm)
+        {
             vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
+            vm.ComparePeople.IsVisible = ReferenceEquals(tabs.SelectedItem, ComparePeopleTab);
+        }
 
         var host = FindContentHost(tabs);
         if (host is null)

@@ -7,7 +7,7 @@ using Sortify.Services;
 namespace Sortify.ViewModels;
 
 /// <summary>
-/// The Compare tab: two date ranges of the loaded history side by side, under the sidebar's
+/// The Compare Periods tab: two date ranges of the loaded history side by side, under the sidebar's
 /// other filters. Only works anything out while the tab is on screen; changes made while it
 /// is hidden are picked up when it is shown again.
 /// </summary>
@@ -74,7 +74,7 @@ public sealed partial class CompareViewModel : ObservableObject
             Show(PeriodComparison.Build(last.A, last.B, value));
     }
 
-    /// <summary>Set by the window as the Compare tab comes and goes.</summary>
+    /// <summary>Set by the window as the Compare Periods tab comes and goes.</summary>
     [ObservableProperty] private bool _isVisible;
 
     partial void OnIsVisibleChanged(bool value)
