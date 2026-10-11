@@ -237,21 +237,15 @@ public class MetricChartTests
     {
         var r = TwoWayHistory.Analyze();
 
-        var artists = OnUiThread(() =>
-        {
-            using var culture = CultureScope.Named("en-US");
-            return ChartBuilder.ArtistShare(r, Metric.Plays);
-        });
-        Assert.StartsWith("Quick Band  (66.7%)", artists[0].Name);
+        var artists = OnUiThread(() => ChartBuilder.ArtistShare(r, Metric.Plays));
+        Assert.Equal("Quick Band", artists[0].Name);
+        Assert.Equal(66.7, OnUiThread(() => ChartBuilder.ArtistShareSlicesOf(r, Metric.Plays))[0].Percent, 1);
         Assert.Equal(new[] { 6d }, ((PieSeries<double>)artists[0]).Values);
 
         // By time the desktop leads; by plays the phone does.
         Assert.StartsWith("Desktop", OnUiThread(() => ChartBuilder.PlatformShare(r))[0].Name);
-        Assert.StartsWith("Mobile  (66.7%)", OnUiThread(() =>
-        {
-            using var culture = CultureScope.Named("en-US");
-            return ChartBuilder.PlatformShare(r, Metric.Plays);
-        })[0].Name);
+        Assert.Equal("Mobile", OnUiThread(() => ChartBuilder.PlatformShare(r, Metric.Plays))[0].Name);
+        Assert.Equal(66.7, OnUiThread(() => ChartBuilder.PlatformSlicesOf(r, Metric.Plays))[0].Percent, 1);
     }
 
     [Fact]

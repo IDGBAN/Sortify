@@ -141,8 +141,8 @@ public partial class DetailWindow : ThemedWindow
         {
             bool book = detail.Kind == ContentKind.Audiobook;
             TracksHeader.Text = book ? "Chapters" : "Episodes";
-            TracksGrid.Columns[0].Header = book ? "Chapter" : "Episode";
-            TracksGrid.Columns[1].Header = book ? "Audiobook" : "Show";
+            TrackNameColumn.Header = book ? "Chapter" : "Episode";
+            TrackArtistColumn.Header = book ? "Audiobook" : "Show";
         }
 
         // Spotify has nothing to open for a whole year.

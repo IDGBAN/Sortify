@@ -115,6 +115,21 @@
         <Setter Property="FontSize" Value="16" />
     </Style>
 
+    <!-- A place in a ranked list, kept in its own column apart from the name it ranks. -->
+    <Style x:Key="RankText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <!-- The "#" column views:RowNumbers adds to a grid: quieter than the data beside it. -->
+    <Style x:Key="RowNumberText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+
     <!-- Links inside text, such as the artist under a track's title. -->
     <Style TargetType="Hyperlink">
         <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />

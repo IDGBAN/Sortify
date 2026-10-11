@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -215,6 +216,10 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private ChartData _episodesChart = ChartData.Empty;
 
     [ObservableProperty] private ISeries[] _artistShareSeries = Array.Empty<ISeries>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _artistShareLegend = Array.Empty<LegendEntry>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _reasonEndLegend = Array.Empty<LegendEntry>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _platformLegend = Array.Empty<LegendEntry>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _countryLegend = Array.Empty<LegendEntry>();
     [ObservableProperty] private ISeries[] _reasonEndSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _platformSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _countrySeries = Array.Empty<ISeries>();
@@ -1376,9 +1381,13 @@ public sealed partial class MainViewModel : ObservableObject
         Discovery = ChartBuilder.NewArtistsByMonth(_result);
         Skipped = ChartBuilder.TopSkippedTracks(_result);
         ArtistShareSeries = ChartBuilder.ArtistShare(_result, Metric);
+        ArtistShareLegend = LegendEntry.For(ChartBuilder.ArtistShareSlicesOf(_result, Metric));
         ReasonEndSeries = ChartBuilder.ReasonEndShare(_result);
+        ReasonEndLegend = LegendEntry.For(ChartBuilder.ReasonEndSlicesOf(_result));
         PlatformSeries = ChartBuilder.PlatformShare(_result, Metric);
+        PlatformLegend = LegendEntry.For(ChartBuilder.PlatformSlicesOf(_result, Metric));
         CountrySeries = ChartBuilder.CountryShare(_result, Metric);
+        CountryLegend = LegendEntry.For(ChartBuilder.CountrySlicesOf(_result, Metric));
 
         // Size these to their content: most libraries hold only a handful of shows, and a
         // fixed-height chart would space three bars across half a screen.
@@ -1606,6 +1615,23 @@ public sealed class MonthRow
             Total = m.TotalMsPlayed,
             TotalText = TimeFormat.HhMmSs(m.TotalTime),
         };
+}
+
+/// <summary>
+/// One row of a donut's legend: the rank sits in its own column beside the name (blank for
+/// "Other"), with the slice's colour as a swatch.
+/// </summary>
+public sealed record LegendEntry(string Rank, string Name, string Share, Brush Swatch)
+{
+    public static IReadOnlyList<LegendEntry> For(IEnumerable<ChartBuilder.ShareSlice> slices) =>
+        slices.Select(From).ToList();
+
+    public static LegendEntry From(ChartBuilder.ShareSlice slice)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(slice.Color.Red, slice.Color.Green, slice.Color.Blue));
+        brush.Freeze();
+        return new LegendEntry(slice.Rank?.ToString() ?? string.Empty, slice.Name, $"{slice.Percent:0.#}%", brush);
+    }
 }
 
 /// <summary>

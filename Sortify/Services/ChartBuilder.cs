@@ -75,6 +75,18 @@ public static class ChartBuilder
 
     private static SolidColorPaint Label() => new(ChartPalette.Text);
 
+    private static SolidColorPaint RankLabel() => new(ChartPalette.Text)
+    {
+        SKTypeface = SKTypeface.FromFamilyName(null, SKFontStyle.Bold),
+    };
+
+    /// <summary>
+    /// Rank numbers for a bar chart of <paramref name="count"/> bars, bottom bar first: the
+    /// bars run bottom-up, so the top one, ranked 1, is last.
+    /// </summary>
+    internal static string[] RankLabels(int count) =>
+        Enumerable.Range(1, count).Reverse().Select(rank => rank.ToString()).ToArray();
+
     internal static string ShortLabel(string s, int max = LabelMaxChars)
     {
         if (s.Length <= max)
@@ -177,10 +189,29 @@ public static class ChartBuilder
                 DataLabelsFormatter = p => p.Coordinate.PrimaryValue.ToString("0.##"),
                 DataLabelsSize = 11,
                 Padding = 2,
+                // Scaled against the name axis; the rank axis before it only carries labels.
+                ScalesYAt = 1,
             },
         };
+        // Both axes are pinned to the same span, one unit per bar, so each rank lines up
+        // with its name; the rank axis has no series of its own to size it.
+        double minRow = -0.5;
+        double maxRow = Math.Max(values.Length, 1) - 0.5;
         var y = new[]
         {
+            // The rank, in its own axis outside the names rather than glued onto them.
+            // Bars are drawn bottom-up, so the first bar is the last-ranked one.
+            new Axis
+            {
+                Labels = RankLabels(labels.Length),
+                LabelsPaint = RankLabel(),
+                TextSize = DenseAxisTextSize,
+                MinStep = 1,
+                ForceStepToMin = true,
+                SeparatorsPaint = null,
+                MinLimit = minRow,
+                MaxLimit = maxRow,
+            },
             // One label per bar, smaller text so the category names don't overlap.
             new Axis
             {
@@ -190,6 +221,8 @@ public static class ChartBuilder
                 MinStep = 1,
                 ForceStepToMin = true,
                 SeparatorsPaint = null,
+                MinLimit = minRow,
+                MaxLimit = maxRow,
             },
         };
         // Leave headroom past the longest bar so the right-aligned data label isn't
@@ -485,7 +518,15 @@ public static class ChartBuilder
 
     // ---- Pie / donut -----------------------------------------------------------------------
 
-    public static ISeries[] ArtistShare(AnalysisResult r, Metric metric = Metric.Time)
+    /// <summary>
+    /// One slice of a donut: its rank (null for "Other"), name, value, share and colour, and
+    /// what its tooltip says. A donut and its legend are both built from these, so the legend
+    /// can show the rank in a column of its own rather than in the name.
+    /// </summary>
+    public sealed record ShareSlice(int? Rank, string Name, double Value, double Percent, SKColor Color, string Tooltip);
+
+    /// <summary>The top artists by listening time, or plays, then everyone else folded into "Other".</summary>
+    public static IReadOnlyList<ShareSlice> ArtistShareSlicesOf(AnalysisResult r, Metric metric = Metric.Time)
     {
         bool plays = metric == Metric.Plays;
         var top = (plays ? r.ArtistsByPlayCount : r.Artists).Take(ArtistShareSlices).ToList();
@@ -494,49 +535,54 @@ public static class ChartBuilder
         long other = total - top.Sum(Amount);
         total = Math.Max(1, total);
 
-        // No on-slice labels: they overlap on small slices. Share % lives in the legend instead.
-        var series = new List<ISeries>();
-        for (int i = 0; i < top.Count; i++)
-            AddSlice(series, ShortLabel(top[i].Artist), Amount(top[i]), total, Category(i), metric, ArtistDonutInnerRadius);
-
+        var slices = top.Select((a, i) => Slice(i + 1, a.Artist, Amount(a), total, Category(i), metric)).ToList();
         if (other > 0)
-            AddSlice(series, "Other", other, total, ChartPalette.Muted, metric, ArtistDonutInnerRadius);
-
-        return series.ToArray();
+            slices.Add(Slice(null, "Other", other, total, ChartPalette.Muted, metric));
+        return slices;
     }
 
-    /// <summary>Donut of why plays ended (reason_end), top reasons plus "Other".</summary>
-    public static ISeries[] ReasonEndShare(AnalysisResult r)
+    /// <summary>Why plays ended (reason_end): the top reasons plus "Other".</summary>
+    public static IReadOnlyList<ShareSlice> ReasonEndSlicesOf(AnalysisResult r)
     {
         long total = r.ReasonEnds.Sum(x => (long)x.Count);
         if (total <= 0)
-            return Array.Empty<ISeries>();
+            return Array.Empty<ShareSlice>();
 
-        var series = new List<ISeries>();
-        int i = 0;
-        foreach (var reason in r.ReasonEnds.Take(ReasonSlices))
-        {
-            string label = ReasonLabels.TryGetValue(reason.Reason, out var friendly)
-                ? friendly
-                : reason.Reason;
-            AddCountSlice(series, label, reason.Count, total, Category(i));
-            i++;
-        }
+        var slices = r.ReasonEnds
+            .Take(ReasonSlices)
+            .Select((reason, i) => CountSlice(
+                i + 1,
+                ReasonLabels.TryGetValue(reason.Reason, out var friendly) ? friendly : reason.Reason,
+                reason.Count, total, Category(i)))
+            .ToList();
 
         int otherCount = r.ReasonEnds.Skip(ReasonSlices).Sum(x => x.Count);
         if (otherCount > 0)
-            AddCountSlice(series, "Other", otherCount, total, ChartPalette.Muted);
-
-        return series.ToArray();
+            slices.Add(CountSlice(null, "Other", otherCount, total, ChartPalette.Muted));
+        return slices;
     }
+
+    /// <summary>Listening time, or plays, by device family.</summary>
+    public static IReadOnlyList<ShareSlice> PlatformSlicesOf(AnalysisResult r, Metric metric = Metric.Time) =>
+        ContextSlices(r.Platforms, PlatformSlices, metric);
+
+    /// <summary>Listening time, or plays, by the country each play streamed from.</summary>
+    public static IReadOnlyList<ShareSlice> CountrySlicesOf(AnalysisResult r, Metric metric = Metric.Time) =>
+        ContextSlices(r.Countries, CountrySlices, metric);
+
+    public static ISeries[] ArtistShare(AnalysisResult r, Metric metric = Metric.Time) =>
+        Donut(ArtistShareSlicesOf(r, metric), ArtistDonutInnerRadius);
+
+    /// <summary>Donut of why plays ended (reason_end), top reasons plus "Other".</summary>
+    public static ISeries[] ReasonEndShare(AnalysisResult r) => Donut(ReasonEndSlicesOf(r), ContextDonutInnerRadius);
 
     /// <summary>Donut of listening time, or plays, by device family.</summary>
     public static ISeries[] PlatformShare(AnalysisResult r, Metric metric = Metric.Time) =>
-        ContextShare(r.Platforms, PlatformSlices, metric);
+        Donut(PlatformSlicesOf(r, metric), ContextDonutInnerRadius);
 
     /// <summary>Donut of listening time, or plays, by the country each play streamed from.</summary>
     public static ISeries[] CountryShare(AnalysisResult r, Metric metric = Metric.Time) =>
-        ContextShare(r.Countries, CountrySlices, metric);
+        Donut(CountrySlicesOf(r, metric), ContextDonutInnerRadius);
 
     private static SKColor Category(int index)
     {
@@ -544,7 +590,7 @@ public static class ChartBuilder
         return categories[index % categories.Length];
     }
 
-    private static ISeries[] ContextShare(IReadOnlyList<ContextStat> stats, int maxSlices, Metric metric)
+    private static IReadOnlyList<ShareSlice> ContextSlices(IReadOnlyList<ContextStat> stats, int maxSlices, Metric metric)
     {
         // The stats arrive in listening-time order; there are only a few dozen at most.
         long Amount(ContextStat s) => metric == Metric.Plays ? s.PlayCount : s.TotalMsPlayed;
@@ -552,61 +598,50 @@ public static class ChartBuilder
 
         long total = ranked.Sum(Amount);
         if (total <= 0)
-            return Array.Empty<ISeries>();
+            return Array.Empty<ShareSlice>();
 
-        var series = new List<ISeries>();
-        int i = 0;
-        foreach (var stat in ranked.Take(maxSlices))
-        {
-            AddSlice(series, stat.Name, Amount(stat), total, Category(i), metric, ContextDonutInnerRadius);
-            i++;
-        }
+        var slices = ranked
+            .Take(maxSlices)
+            .Select((stat, i) => Slice(i + 1, stat.Name, Amount(stat), total, Category(i), metric))
+            .ToList();
 
         long other = ranked.Skip(maxSlices).Sum(Amount);
         if (other > 0)
-            AddSlice(series, "Other", other, total, ChartPalette.Muted, metric, ContextDonutInnerRadius);
-
-        return series.ToArray();
+            slices.Add(Slice(null, "Other", other, total, ChartPalette.Muted, metric));
+        return slices;
     }
 
     /// <summary>A donut slice of listening time (<paramref name="amount"/> in ms) or of plays.</summary>
-    private static void AddSlice(
-        List<ISeries> series, string label, long amount, long total, SKColor color, Metric metric, double innerRadius)
-    {
-        if (metric == Metric.Plays)
-            AddCountSlice(series, label, (int)amount, total, color, innerRadius);
-        else
-            AddHoursSlice(series, label, amount, total, color, innerRadius);
-    }
+    private static ShareSlice Slice(int? rank, string name, long amount, long total, SKColor color, Metric metric) =>
+        metric == Metric.Plays
+            ? CountSlice(rank, name, (int)amount, total, color)
+            : HoursSlice(rank, name, amount, total, color);
 
-    private static void AddHoursSlice(
-        List<ISeries> series, string label, long ms, long total, SKColor color, double innerRadius = ContextDonutInnerRadius)
+    private static ShareSlice HoursSlice(int? rank, string name, long ms, long total, SKColor color)
     {
         double hours = Math.Round(ms / 3_600_000d, 2);
         double pct = ms * 100.0 / total;
-        series.Add(new PieSeries<double>
-        {
-            Values = new double[] { hours },
-            Name = $"{ShortLabel(label)}  ({pct:0.#}%)",
-            Fill = new SolidColorPaint(color),
-            ToolTipLabelFormatter = _ => $"{hours:0.#} h  ({pct:0.#}%)",
-            InnerRadius = innerRadius,
-        });
+        return new ShareSlice(rank, name, hours, pct, color, $"{hours:0.#} h  ({pct:0.#}%)");
     }
 
-    private static void AddCountSlice(
-        List<ISeries> series, string label, int count, long total, SKColor color, double innerRadius = ContextDonutInnerRadius)
+    private static ShareSlice CountSlice(int? rank, string name, int count, long total, SKColor color)
     {
         double pct = count * 100.0 / total;
-        series.Add(new PieSeries<double>
-        {
-            Values = new double[] { count },
-            Name = $"{label}  ({pct:0.#}%)",
-            Fill = new SolidColorPaint(color),
-            ToolTipLabelFormatter = _ => $"{count:N0} plays  ({pct:0.#}%)",
-            InnerRadius = innerRadius,
-        });
+        return new ShareSlice(rank, name, count, pct, color, $"{count:N0} plays  ({pct:0.#}%)");
     }
+
+    // No on-slice labels: they overlap on small slices. The chart's own legend is hidden too;
+    // the rank, name and share % live in the legend beside it (see MainViewModel's *Legend).
+    private static ISeries[] Donut(IReadOnlyList<ShareSlice> slices, double innerRadius) => slices
+        .Select(s => (ISeries)new PieSeries<double>
+        {
+            Values = new[] { s.Value },
+            Name = ShortLabel(s.Name),
+            Fill = new SolidColorPaint(s.Color),
+            ToolTipLabelFormatter = _ => s.Tooltip,
+            InnerRadius = innerRadius,
+        })
+        .ToArray();
 
     // ---- Drill-down detail --------------------------------------------------------------------
 

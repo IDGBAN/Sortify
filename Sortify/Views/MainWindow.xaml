@@ -57,8 +57,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Text="{Binding Rank}" FontWeight="Bold" FontSize="13"
-                           Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="0" Text="{Binding Rank}" Style="{StaticResource RankText}" FontSize="13" />
                 <StackPanel Grid.Column="1" Margin="4,0,8,0">
                     <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" FontSize="13" />
                     <TextBlock Text="{Binding Secondary}" FontSize="11"
@@ -73,6 +72,25 @@
                     <TextBlock Text="{Binding Detail}" FontSize="11" Foreground="{DynamicResource MutedBrush}"
                                HorizontalAlignment="Right" />
                 </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <!-- One entry of a donut's legend: rank, colour swatch, name, share. -->
+        <DataTemplate x:Key="LegendRow">
+            <Grid Width="230" Margin="0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0" Text="{Binding Rank}" Style="{StaticResource RankText}" />
+                <Rectangle Grid.Column="1" Width="10" Height="10" RadiusX="2" RadiusY="2" Margin="0,0,6,0"
+                           Fill="{Binding Swatch}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="2" Text="{Binding Name}" FontSize="12" TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Name}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="3" Text="{Binding Share}" FontSize="12" Margin="6,0,10,0"
+                           Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
             </Grid>
         </DataTemplate>
     </Window.Resources>
@@ -339,10 +357,21 @@
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Text="{Binding ArtistShareTitle}"
                                                    Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                        <!-- The legend is drawn here rather than by the chart, so each artist's
+                                             rank can sit in its own column instead of in its name. -->
+                                        <ItemsControl DockPanel.Dock="Bottom" ItemsSource="{Binding ArtistShareLegend}"
+                                                      ItemTemplate="{StaticResource LegendRow}" Margin="0,8,0,0"
+                                                      AutomationProperties.Name="Top artists legend" Focusable="False">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel HorizontalAlignment="Center" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
                                         <lvc:PieChart Series="{Binding ArtistShareSeries}"
                                                       Background="Transparent"
                                                       AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                      LegendPosition="Bottom" LegendTextSize="12" />
+                                                      LegendPosition="Hidden" />
                                     </DockPanel>
                                 </Border>
 
@@ -417,7 +446,7 @@
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
-                                    <DataGrid x:Name="TracksGrid" ItemsSource="{Binding Tracks}"
+                                    <DataGrid views:RowNumbers.IsEnabled="True" x:Name="TracksGrid" ItemsSource="{Binding Tracks}"
                                               views:GridSort.PresortedBy="{Binding RankSortMember}"
                                               AutomationProperties.Name="Tracks"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
@@ -501,7 +530,7 @@
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
-                                    <DataGrid x:Name="ArtistsGrid" ItemsSource="{Binding Artists}"
+                                    <DataGrid views:RowNumbers.IsEnabled="True" x:Name="ArtistsGrid" ItemsSource="{Binding Artists}"
                                               views:GridSort.PresortedBy="{Binding RankSortMember}"
                                               AutomationProperties.Name="Artists"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
@@ -579,7 +608,7 @@
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
-                                    <DataGrid x:Name="AlbumsGrid" ItemsSource="{Binding Albums}"
+                                    <DataGrid views:RowNumbers.IsEnabled="True" x:Name="AlbumsGrid" ItemsSource="{Binding Albums}"
                                               views:GridSort.PresortedBy="{Binding RankSortMember}"
                                               AutomationProperties.Name="Albums"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
@@ -645,7 +674,7 @@
                                                Foreground="{DynamicResource MutedBrush}"
                                                Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
                                     <Grid>
-                                    <DataGrid x:Name="YearsGrid" ItemsSource="{Binding Years}"
+                                    <DataGrid views:RowNumbers.IsEnabled="True" x:Name="YearsGrid" ItemsSource="{Binding Years}"
                                               AutomationProperties.Name="Years"
                                               views:GridSort.PresortedBy="Year" views:GridSort.PresortedDirection="Ascending"
                                               PreviewMouseRightButtonDown="OnGridRightClick"
@@ -775,7 +804,7 @@
                                                            Foreground="{DynamicResource MutedBrush}" />
                                             </DockPanel>
                                             <Grid>
-                                            <DataGrid x:Name="ShowsGrid" ItemsSource="{Binding Shows}" AutomationProperties.Name="Shows"
+                                            <DataGrid views:RowNumbers.IsEnabled="True" x:Name="ShowsGrid" ItemsSource="{Binding Shows}" AutomationProperties.Name="Shows"
                                                       views:GridSort.PresortedBy="{Binding RankSortMember}"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
@@ -806,7 +835,7 @@
                                             <TextBlock DockPanel.Dock="Top" Text="Episodes" Style="{StaticResource SectionHeader}"
                                                        Margin="0,0,0,8" />
                                             <Grid>
-                                            <DataGrid x:Name="EpisodesGrid" ItemsSource="{Binding Episodes}" AutomationProperties.Name="Episodes"
+                                            <DataGrid views:RowNumbers.IsEnabled="True" x:Name="EpisodesGrid" ItemsSource="{Binding Episodes}" AutomationProperties.Name="Episodes"
                                                       views:GridSort.PresortedBy="{Binding RankSortMember}"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
@@ -978,7 +1007,7 @@
                                         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
                                                    Text="{Binding MonthlyTopHint}" />
                                         <Grid>
-                                            <DataGrid x:Name="MonthsGrid" ItemsSource="{Binding Months}"
+                                            <DataGrid views:RowNumbers.IsEnabled="True" x:Name="MonthsGrid" ItemsSource="{Binding Months}"
                                                       AutomationProperties.Name="Top artist and track per month"
                                                       views:GridSort.PresortedBy="Month"
                                                       SelectionMode="Single"
@@ -1222,7 +1251,7 @@
                                         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
                                                    Text="The plays that mark your history: the first, the ones that reached round numbers of plays and hours, and the first time your top artist came on. Double-click one for that track's breakdown." />
                                         <Grid>
-                                            <DataGrid ItemsSource="{Binding Milestones}" AutomationProperties.Name="Milestones"
+                                            <DataGrid views:RowNumbers.IsEnabled="True" ItemsSource="{Binding Milestones}" AutomationProperties.Name="Milestones"
                                                       views:GridSort.PresortedBy="Date" views:GridSort.PresortedDirection="Ascending"
                                                       SelectionMode="Single" MinHeight="80"
                                                       PreviewMouseWheel="OnPassWheelToPage"
@@ -1261,7 +1290,7 @@
                                                 <ColumnDefinition Width="2*" />
                                             </Grid.ColumnDefinitions>
                                             <Grid Grid.Column="0">
-                                                <DataGrid x:Name="ForgottenTracksGrid" ItemsSource="{Binding ForgottenTracks}"
+                                                <DataGrid views:RowNumbers.IsEnabled="True" x:Name="ForgottenTracksGrid" ItemsSource="{Binding ForgottenTracks}"
                                                           AutomationProperties.Name="Forgotten tracks"
                                                           views:GridSort.PresortedBy="PlayCount"
                                                           PreviewMouseRightButtonDown="OnGridRightClick"
@@ -1286,7 +1315,7 @@
                                                            Text="No forgotten tracks: everything you played that often is still in rotation." />
                                             </Grid>
                                             <Grid Grid.Column="2">
-                                                <DataGrid ItemsSource="{Binding ForgottenArtists}"
+                                                <DataGrid views:RowNumbers.IsEnabled="True" ItemsSource="{Binding ForgottenArtists}"
                                                           AutomationProperties.Name="Forgotten artists"
                                                           views:GridSort.PresortedBy="PlayCount"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
@@ -1310,10 +1339,13 @@
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Text="Why Plays Ended (short plays included)"
                                                    Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                        <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding ReasonEndLegend}"
+                                                      ItemTemplate="{StaticResource LegendRow}"
+                                                      VerticalAlignment="Center" Focusable="False" />
                                         <lvc:PieChart Series="{Binding ReasonEndSeries}"
                                                       Background="Transparent"
                                                       AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                      LegendPosition="Right" LegendTextSize="12" />
+                                                      LegendPosition="Hidden" />
                                     </DockPanel>
                                 </Border>
 
@@ -1321,10 +1353,13 @@
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Text="Listening by Device"
                                                    Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                        <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding PlatformLegend}"
+                                                      ItemTemplate="{StaticResource LegendRow}"
+                                                      VerticalAlignment="Center" Focusable="False" />
                                         <lvc:PieChart Series="{Binding PlatformSeries}"
                                                       Background="Transparent"
                                                       AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                      LegendPosition="Right" LegendTextSize="12" />
+                                                      LegendPosition="Hidden" />
                                     </DockPanel>
                                 </Border>
 
@@ -1332,10 +1367,13 @@
                                     <DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Text="Listening by Country"
                                                    Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+                                        <ItemsControl DockPanel.Dock="Right" ItemsSource="{Binding CountryLegend}"
+                                                      ItemTemplate="{StaticResource LegendRow}"
+                                                      VerticalAlignment="Center" Focusable="False" />
                                         <lvc:PieChart Series="{Binding CountrySeries}"
                                                       Background="Transparent"
                                                       AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                      LegendPosition="Right" LegendTextSize="12" />
+                                                      LegendPosition="Hidden" />
                                     </DockPanel>
                                 </Border>
 
@@ -1531,7 +1569,7 @@
                                             <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
                                                        Text="{Binding NewInBHint}" />
                                             <Grid>
-                                                <DataGrid ItemsSource="{Binding NewInB}" AutomationProperties.Name="Artists new in period B"
+                                                <DataGrid views:RowNumbers.IsEnabled="True" ItemsSource="{Binding NewInB}" AutomationProperties.Name="Artists new in period B"
                                                           views:GridSort.PresortedBy="{Binding NewInBSortMember}"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                     <DataGrid.Columns>
@@ -1556,7 +1594,7 @@
                                             <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
                                                        Text="{Binding GoneSinceAHint}" />
                                             <Grid>
-                                                <DataGrid ItemsSource="{Binding GoneSinceA}" AutomationProperties.Name="Artists gone since period A"
+                                                <DataGrid views:RowNumbers.IsEnabled="True" ItemsSource="{Binding GoneSinceA}" AutomationProperties.Name="Artists gone since period A"
                                                           views:GridSort.PresortedBy="{Binding GoneSinceASortMember}"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                     <DataGrid.Columns>
