@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:Sortify.Views"
              xmlns:vm="clr-namespace:Sortify.ViewModels"
+             xmlns:views="clr-namespace:Sortify.Views"
              d:DataContext="{d:DesignInstance Type=vm:FilterViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -146,9 +147,9 @@
                 <!-- Date range -->
                 <TextBlock Text="DATE RANGE" Style="{StaticResource SectionHeader}" />
                 <TextBlock Text="From" Style="{StaticResource Caption}" />
-                <DatePicker SelectedDate="{Binding StartDate}" AutomationProperties.Name="Filter from date" />
+                <views:DateSelector SelectedDate="{Binding StartDate}" AutomationProperties.Name="Filter from date" />
                 <TextBlock Text="To" Style="{StaticResource Caption}" />
-                <DatePicker SelectedDate="{Binding EndDate}" AutomationProperties.Name="Filter to date" />
+                <views:DateSelector SelectedDate="{Binding EndDate}" FillToEnd="True" AutomationProperties.Name="Filter to date" />
                 <TextBlock Style="{StaticResource Hint}" Foreground="{DynamicResource DangerBrush}"
                            Text="From is after To, so nothing can match. Swap the dates or clear one."
                            AutomationProperties.LiveSetting="Assertive"

@@ -1383,17 +1383,12 @@
                                             </Grid.ColumnDefinitions>
                                             <StackPanel Grid.Column="0">
                                                 <TextBlock Text="{Binding PeriodALabel}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="8" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <DatePicker Grid.Column="0" SelectedDate="{Binding StartA}"
-                                                                AutomationProperties.Name="Period A from" ToolTip="Period A starts" />
-                                                    <DatePicker Grid.Column="2" SelectedDate="{Binding EndA}"
-                                                                AutomationProperties.Name="Period A to" ToolTip="Period A ends (this day included)" />
-                                                </Grid>
+                                                <TextBlock Text="From" Style="{StaticResource Caption}" />
+                                                <views:DateSelector SelectedDate="{Binding StartA}"
+                                                                    AutomationProperties.Name="Period A from" ToolTip="Period A starts" />
+                                                <TextBlock Text="To" Style="{StaticResource Caption}" />
+                                                <views:DateSelector SelectedDate="{Binding EndA}" FillToEnd="True"
+                                                                    AutomationProperties.Name="Period A to" ToolTip="Period A ends (this day included)" />
                                                 <ItemsControl ItemsSource="{Binding RangesA}" Margin="0,8,0,0" Focusable="False"
                                                               AutomationProperties.Name="Quick ranges for period A">
                                                     <ItemsControl.ItemsPanel>
@@ -1414,17 +1409,12 @@
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">
                                                 <TextBlock Text="{Binding PeriodBLabel}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="8" />
-                                                        <ColumnDefinition Width="*" />
-                                                    </Grid.ColumnDefinitions>
-                                                    <DatePicker Grid.Column="0" SelectedDate="{Binding StartB}"
-                                                                AutomationProperties.Name="Period B from" ToolTip="Period B starts" />
-                                                    <DatePicker Grid.Column="2" SelectedDate="{Binding EndB}"
-                                                                AutomationProperties.Name="Period B to" ToolTip="Period B ends (this day included)" />
-                                                </Grid>
+                                                <TextBlock Text="From" Style="{StaticResource Caption}" />
+                                                <views:DateSelector SelectedDate="{Binding StartB}"
+                                                                    AutomationProperties.Name="Period B from" ToolTip="Period B starts" />
+                                                <TextBlock Text="To" Style="{StaticResource Caption}" />
+                                                <views:DateSelector SelectedDate="{Binding EndB}" FillToEnd="True"
+                                                                    AutomationProperties.Name="Period B to" ToolTip="Period B ends (this day included)" />
                                                 <ItemsControl ItemsSource="{Binding RangesB}" Margin="0,8,0,0" Focusable="False"
                                                               AutomationProperties.Name="Quick ranges for period B">
                                                     <ItemsControl.ItemsPanel>
