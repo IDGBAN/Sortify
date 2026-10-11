@@ -213,12 +213,14 @@
                 <ItemsControl ItemsSource="{Binding Days}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
-                            <WrapPanel />
+                            <UniformGrid Rows="1" Margin="-2,0" />
                         </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <CheckBox Content="{Binding Label}" IsChecked="{Binding IsSelected}" Width="56" />
+                            <ToggleButton Content="{Binding Label}" IsChecked="{Binding IsSelected}"
+                                          Style="{StaticResource DayToggle}"
+                                          AutomationProperties.Name="{Binding Label}" />
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
