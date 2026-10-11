@@ -1,4 +1,3 @@
-using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sortify.Models;
@@ -20,6 +19,7 @@ public sealed partial class CompareViewModel : ObservableObject
     private CancellationTokenSource? _cts;
     private bool _stale = true;
     private bool _settingPeriods;
+    private IReadOnlyList<int> _years = Array.Empty<int>();
 
     public CompareViewModel(Func<Source?> source) => _source = source;
 
@@ -27,9 +27,6 @@ public sealed partial class CompareViewModel : ObservableObject
     [ObservableProperty] private DateTime? _endA;
     [ObservableProperty] private DateTime? _startB;
     [ObservableProperty] private DateTime? _endB;
-
-    public ObservableCollection<DateRangeOption> RangesA { get; } = new();
-    public ObservableCollection<DateRangeOption> RangesB { get; } = new();
 
     [ObservableProperty] private bool _isWorking;
     [ObservableProperty] private string _message = string.Empty;
@@ -92,10 +89,6 @@ public sealed partial class CompareViewModel : ObservableObject
 
     private void PeriodsChanged()
     {
-        foreach (var option in RangesA)
-            option.IsActive = option.Matches(StartA, EndA);
-        foreach (var option in RangesB)
-            option.IsActive = option.Matches(StartB, EndB);
         PeriodALabel = Describe("Period A", StartA, EndA);
         PeriodBLabel = Describe("Period B", StartB, EndB);
         if (!_settingPeriods)
@@ -111,18 +104,14 @@ public sealed partial class CompareViewModel : ObservableObject
     };
 
     /// <summary>
-    /// Offers quick ranges for the loaded history and, the first time, starts with the last 12
-    /// months against the 12 before them: two full stretches of the same length, where "this
-    /// year against last" would put a few months against a whole year.
+    /// Notes the years the loaded history covers, for <see cref="SameDaysInOtherYears"/>, and,
+    /// the first time, starts with the last 12 months against the 12 before them: two full
+    /// stretches of the same length, where "this year against last" would put a few months
+    /// against a whole year.
     /// </summary>
     public void SetHistory(DateTime? lastListen, IReadOnlyList<int> years, bool resetPeriods)
     {
-        RangesA.Clear();
-        RangesB.Clear();
-        foreach (var option in DateRangeOption.For(lastListen, years))
-            RangesA.Add(option);
-        foreach (var option in DateRangeOption.For(lastListen, years))
-            RangesB.Add(option);
+        _years = years.Distinct().OrderByDescending(y => y).ToList();
 
         if (resetPeriods && lastListen is { } last)
         {
@@ -173,6 +162,44 @@ public sealed partial class CompareViewModel : ObservableObject
     {
         if (option is not null)
             SetPeriods(StartA, EndA, option.Start, option.End);
+    }
+
+    /// <summary>Ends period A today.</summary>
+    [RelayCommand]
+    private void EndANow() => SetPeriods(StartA, DateTime.Today, StartB, EndB);
+
+    /// <summary>Ends period B today.</summary>
+    [RelayCommand]
+    private void EndBNow() => SetPeriods(StartA, EndA, StartB, DateTime.Today);
+
+    /// <summary>
+    /// The other period's days moved into each other year of the history, keeping their month
+    /// and day, newest year first: what period A (or B) can be set to so it covers the same
+    /// stretch of another year. Each is labelled by the year it ends in. A period that runs to
+    /// the end of a month keeps doing so, so February takes in the 29th in a leap year. Empty
+    /// until the other period has both a start and an end.
+    /// </summary>
+    public IReadOnlyList<DateRangeOption> SameDaysInOtherYears(bool forA)
+    {
+        var (start, end) = forA ? (StartB, EndB) : (StartA, EndA);
+        if (start is not { } s || end is not { } e || e < s)
+            return Array.Empty<DateRangeOption>();
+
+        s = s.Date;
+        e = e.Date;
+        bool toMonthEnd = e.AddDays(1).Day == 1;
+        var options = new List<DateRangeOption>();
+        foreach (int year in _years)
+        {
+            if (year == e.Year)
+                continue;
+            var newStart = s.AddYears(year - e.Year);
+            var newEnd = e.AddYears(year - e.Year);
+            if (toMonthEnd)
+                newEnd = new DateTime(newEnd.Year, newEnd.Month, DateTime.DaysInMonth(newEnd.Year, newEnd.Month));
+            options.Add(new(year.ToString(), newStart, newEnd, $"{TimeFormat.Day(newStart)} to {TimeFormat.Day(newEnd)}"));
+        }
+        return options;
     }
 
     [RelayCommand]

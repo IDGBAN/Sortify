@@ -934,13 +934,17 @@
         <Setter Property="Margin" Value="0,0,6,4" />
     </Style>
 
-    <!-- A one-click date range in the sidebar, outlined in the accent while it is the range
-         in effect. Outlined rather than filled: the hover layer in the button template paints
-         over the background, which would leave dark-on-accent text sitting on grey. -->
-    <Style x:Key="QuickRangeButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+    <!-- A small one-click shortcut under a pair of date pickers. -->
+    <Style x:Key="QuickDateButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
         <Setter Property="Padding" Value="9,4" />
         <Setter Property="Margin" Value="0,0,5,5" />
         <Setter Property="FontSize" Value="11" />
+    </Style>
+
+    <!-- A one-click date range in the sidebar, outlined in the accent while it is the range
+         in effect. Outlined rather than filled: the hover layer in the button template paints
+         over the background, which would leave dark-on-accent text sitting on grey. -->
+    <Style x:Key="QuickRangeButton" TargetType="Button" BasedOn="{StaticResource QuickDateButton}">
         <Style.Triggers>
             <DataTrigger Binding="{Binding IsActive}" Value="True">
                 <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />

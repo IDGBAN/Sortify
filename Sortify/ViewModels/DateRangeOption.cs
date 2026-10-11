@@ -3,7 +3,7 @@ using Sortify.Services;
 
 namespace Sortify.ViewModels;
 
-/// <summary>A one-click date range: all time, a recent stretch, or a calendar year.</summary>
+/// <summary>A one-click date range: all time, a recent stretch, a calendar year, or a Compare period's days in another year.</summary>
 public sealed partial class DateRangeOption : ObservableObject
 {
     /// <summary>Length of the shorter "recent" range, in days.</summary>

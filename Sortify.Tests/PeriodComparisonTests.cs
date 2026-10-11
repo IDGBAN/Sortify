@@ -186,18 +186,102 @@ public class CompareViewModelTests
         Assert.Equal((new DateTime(2025, 6, 30), new DateTime(2026, 6, 29)), (vm.StartB, vm.EndB));
         Assert.Equal((new DateTime(2024, 6, 30), new DateTime(2025, 6, 29)), (vm.StartA, vm.EndA));
         Assert.Equal("Period B: 2025-06-30 to 2026-06-29", vm.PeriodBLabel);
-        Assert.True(vm.RangesB.Single(r => r.Label == "Last 12 months").IsActive);
     }
 
     [Fact]
     public void ReloadingKeepsThePeriodsTheUserChose()
     {
         var vm = Model();
-        vm.ApplyRangeBCommand.Execute(vm.RangesB.Single(r => r.Label == "2025"));
+        vm.StartB = new DateTime(2025, 1, 1);
 
         vm.SetHistory(LastListen, new[] { 2024, 2025, 2026 }, resetPeriods: false);
 
         Assert.Equal(new DateTime(2025, 1, 1), vm.StartB);
+    }
+
+    [Fact]
+    public void Now_EndsJustThatPeriodToday()
+    {
+        var vm = Model();
+        var (startA, endA, startB) = (vm.StartA, vm.EndA, vm.StartB);
+
+        vm.EndBNowCommand.Execute(null);
+
+        Assert.Equal((startB, DateTime.Today), (vm.StartB, vm.EndB));
+        Assert.Equal((startA, endA), (vm.StartA, vm.EndA));
+        Assert.Equal($"Period B: 2025-06-30 to {TimeFormat.Day(DateTime.Today)}", vm.PeriodBLabel);
+
+        vm.EndANowCommand.Execute(null);
+
+        Assert.Equal((startA, DateTime.Today), (vm.StartA, vm.EndA));
+    }
+
+    [Fact]
+    public void SameDaysInOtherYears_MovesTheOtherPeriodsMonthsAndDaysNewestYearFirst()
+    {
+        var vm = Model();
+        vm.StartB = new DateTime(2026, 1, 1);
+        vm.EndB = new DateTime(2026, 6, 29);
+
+        var options = vm.SameDaysInOtherYears(forA: true);
+
+        Assert.Equal(new[] { "2025", "2024" }, options.Select(o => o.Label));
+        Assert.Equal((new DateTime(2025, 1, 1), new DateTime(2025, 6, 29)), (options[0].Start, options[0].End));
+        Assert.Equal("2024-01-01 to 2024-06-29", options[1].Tooltip);
+
+        vm.ApplyRangeACommand.Execute(options[0]);
+
+        Assert.Equal((new DateTime(2025, 1, 1), new DateTime(2025, 6, 29)), (vm.StartA, vm.EndA));
+        Assert.Equal((new DateTime(2026, 1, 1), new DateTime(2026, 6, 29)), (vm.StartB, vm.EndB));
+    }
+
+    [Fact]
+    public void SameDaysInOtherYears_WorksFromAToBToo()
+    {
+        var vm = Model();
+        vm.StartA = new DateTime(2024, 3, 10);
+        vm.EndA = new DateTime(2024, 4, 20);
+
+        var options = vm.SameDaysInOtherYears(forA: false);
+
+        Assert.Equal(new[] { "2026", "2025" }, options.Select(o => o.Label));
+        Assert.Equal((new DateTime(2026, 3, 10), new DateTime(2026, 4, 20)), (options[0].Start, options[0].End));
+    }
+
+    [Fact]
+    public void SameDaysInOtherYears_NamesAStretchAcrossNewYearByTheYearItEndsIn()
+    {
+        var vm = Model();
+
+        var options = vm.SameDaysInOtherYears(forA: true);
+
+        Assert.Equal(new[] { "2025", "2024" }, options.Select(o => o.Label));
+        Assert.Equal((new DateTime(2024, 6, 30), new DateTime(2025, 6, 29)), (options[0].Start, options[0].End));
+    }
+
+    [Theory]
+    [InlineData("2025-02-01", "2025-02-28", "2024", "2024-02-01", "2024-02-29")]
+    [InlineData("2024-02-01", "2024-02-29", "2025", "2025-02-01", "2025-02-28")]
+    [InlineData("2024-02-10", "2024-02-29", "2026", "2026-02-10", "2026-02-28")]
+    public void SameDaysInOtherYears_KeepsAMonthsEndAtTheMonthsEnd(string start, string end, string year, string newStart, string newEnd)
+    {
+        var vm = Model();
+        vm.StartB = DateTime.Parse(start, System.Globalization.CultureInfo.InvariantCulture);
+        vm.EndB = DateTime.Parse(end, System.Globalization.CultureInfo.InvariantCulture);
+
+        var option = vm.SameDaysInOtherYears(forA: true).Single(o => o.Label == year);
+
+        Assert.Equal(DateTime.Parse(newStart, System.Globalization.CultureInfo.InvariantCulture), option.Start);
+        Assert.Equal(DateTime.Parse(newEnd, System.Globalization.CultureInfo.InvariantCulture), option.End);
+    }
+
+    [Fact]
+    public void SameDaysInOtherYears_NeedsBothEndsOfTheOtherPeriod()
+    {
+        var vm = Model();
+        vm.EndB = null;
+
+        Assert.Empty(vm.SameDaysInOtherYears(forA: true));
     }
 
     [Fact]
@@ -216,7 +300,8 @@ public class CompareViewModelTests
     public void MatchAToB_TakesTheSameNumberOfDaysJustBefore()
     {
         var vm = Model();
-        vm.ApplyRangeBCommand.Execute(vm.RangesB.Single(r => r.Label == "Last 30 days"));
+        vm.StartB = new DateTime(2026, 5, 31);
+        vm.EndB = new DateTime(2026, 6, 29);
 
         vm.MatchAToBCommand.Execute(null);
 
@@ -244,7 +329,8 @@ public class CompareViewModelTests
     public void MatchAToB_NeedsBothEndsOfB()
     {
         var vm = Model();
-        vm.ApplyRangeBCommand.Execute(vm.RangesB.Single(r => r.Label == "All time"));
+        vm.StartB = null;
+        vm.EndB = null;
 
         vm.MatchAToBCommand.Execute(null);
 

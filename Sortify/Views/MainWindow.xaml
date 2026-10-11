@@ -1427,23 +1427,15 @@
                                                 <TextBlock Text="To" Style="{StaticResource Caption}" />
                                                 <views:DateSelector SelectedDate="{Binding EndA}" FillToEnd="True"
                                                                     AutomationProperties.Name="Period A to" ToolTip="Period A ends (this day included)" />
-                                                <ItemsControl ItemsSource="{Binding RangesA}" Margin="0,8,0,0" Focusable="False"
-                                                              AutomationProperties.Name="Quick ranges for period A">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <WrapPanel />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
-                                                                    ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
-                                                                    Command="{Binding DataContext.ApplyRangeACommand,
-                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                    CommandParameter="{Binding}" />
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                <WrapPanel Margin="0,8,0,0">
+                                                    <Button Content="Now" Style="{StaticResource QuickDateButton}"
+                                                            Command="{Binding EndANowCommand}"
+                                                            AutomationProperties.Name="End period A today" ToolTip="End period A today" />
+                                                    <Button Content="Same days in another year  &#x25BE;" Style="{StaticResource QuickDateButton}"
+                                                            Tag="A" Click="OnSameDaysClick"
+                                                            AutomationProperties.Name="Set period A to period B's days in another year"
+                                                            ToolTip="Set period A to period B's months and days, in another year of your history" />
+                                                </WrapPanel>
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">
                                                 <TextBlock Text="{Binding PeriodBLabel}" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" />
@@ -1453,23 +1445,15 @@
                                                 <TextBlock Text="To" Style="{StaticResource Caption}" />
                                                 <views:DateSelector SelectedDate="{Binding EndB}" FillToEnd="True"
                                                                     AutomationProperties.Name="Period B to" ToolTip="Period B ends (this day included)" />
-                                                <ItemsControl ItemsSource="{Binding RangesB}" Margin="0,8,0,0" Focusable="False"
-                                                              AutomationProperties.Name="Quick ranges for period B">
-                                                    <ItemsControl.ItemsPanel>
-                                                        <ItemsPanelTemplate>
-                                                            <WrapPanel />
-                                                        </ItemsPanelTemplate>
-                                                    </ItemsControl.ItemsPanel>
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
-                                                                    ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
-                                                                    Command="{Binding DataContext.ApplyRangeBCommand,
-                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                    CommandParameter="{Binding}" />
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
+                                                <WrapPanel Margin="0,8,0,0">
+                                                    <Button Content="Now" Style="{StaticResource QuickDateButton}"
+                                                            Command="{Binding EndBNowCommand}"
+                                                            AutomationProperties.Name="End period B today" ToolTip="End period B today" />
+                                                    <Button Content="Same days in another year  &#x25BE;" Style="{StaticResource QuickDateButton}"
+                                                            Tag="B" Click="OnSameDaysClick"
+                                                            AutomationProperties.Name="Set period B to period A's days in another year"
+                                                            ToolTip="Set period B to period A's months and days, in another year of your history" />
+                                                </WrapPanel>
                                             </StackPanel>
                                         </Grid>
                                         <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"

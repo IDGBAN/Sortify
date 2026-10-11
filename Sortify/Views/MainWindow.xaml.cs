@@ -277,6 +277,55 @@ public partial class MainWindow : ThemedWindow
         CompareNewGone.Columns = columns;
     }
 
+    /// <summary>
+    /// Offers the years a Compare period can take the other period's days in. Built on demand
+    /// because the choices follow the other period's dates.
+    /// </summary>
+    private void OnSameDaysClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: string period } button || ViewModel is not { } vm)
+            return;
+
+        var compare = vm.Compare;
+        bool forA = period == "A";
+        var menu = new ContextMenu
+        {
+            PlacementTarget = button,
+            Placement = PlacementMode.Bottom,
+        };
+
+        var options = compare.SameDaysInOtherYears(forA);
+        if (options.Count == 0)
+        {
+            var (start, end, other) = forA ? (compare.StartB, compare.EndB, "B") : (compare.StartA, compare.EndA, "A");
+            menu.Items.Add(new MenuItem
+            {
+                Header = (start, end) switch
+                {
+                    ({ } first, { } last) when last < first => $"Period {other} starts after it ends",
+                    ({ }, { }) => "Your history has no other year",
+                    _ => $"Give period {other} a start and an end first",
+                },
+                IsEnabled = false,
+            });
+        }
+        else
+        {
+            foreach (var option in options)
+            {
+                menu.Items.Add(new MenuItem
+                {
+                    Header = option.Label,
+                    InputGestureText = option.Tooltip,
+                    Command = forA ? compare.ApplyRangeACommand : compare.ApplyRangeBCommand,
+                    CommandParameter = option,
+                });
+            }
+        }
+
+        menu.IsOpen = true;
+    }
+
     // ---- Tabs --------------------------------------------------------------------------------
 
     // Fade + slide the tab body in whenever the user switches tabs. Filtered to the
