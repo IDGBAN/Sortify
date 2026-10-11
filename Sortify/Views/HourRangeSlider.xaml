@@ -1,0 +1,21 @@
+<UserControl x:Class="Sortify.Views.HourRangeSlider"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Margin="0,4,0,0" Focusable="False">
+    <Grid x:Name="Root" MinHeight="20" SizeChanged="OnSizeChanged">
+        <Border Height="4" CornerRadius="2" VerticalAlignment="Center"
+                Background="{DynamicResource PanelBrush2}" />
+        <Canvas x:Name="Surface" Height="20" VerticalAlignment="Center">
+            <Border x:Name="FillA" Height="4" CornerRadius="2" Canvas.Top="8"
+                    Background="{DynamicResource AccentBrush}" IsHitTestVisible="False" />
+            <Border x:Name="FillB" Height="4" CornerRadius="2" Canvas.Top="8"
+                    Background="{DynamicResource AccentBrush}" IsHitTestVisible="False" />
+            <Thumb x:Name="StartThumb" Style="{StaticResource SliderThumb}" Canvas.Top="2"
+                   AutomationProperties.Name="Start hour"
+                   DragDelta="OnStartDrag" PreviewKeyDown="OnStartKey" />
+            <Thumb x:Name="EndThumb" Style="{StaticResource SliderThumb}" Canvas.Top="2"
+                   AutomationProperties.Name="End hour"
+                   DragDelta="OnEndDrag" PreviewKeyDown="OnEndKey" />
+        </Canvas>
+    </Grid>
+</UserControl>

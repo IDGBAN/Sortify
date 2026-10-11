@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:views="clr-namespace:Sortify.Views"
              xmlns:vm="clr-namespace:Sortify.ViewModels"
+             xmlns:local="clr-namespace:Sortify.Views"
              d:DataContext="{d:DesignInstance Type=vm:FilterViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
@@ -183,28 +184,13 @@
 
                 <!-- Time of day -->
                 <TextBlock Text="TIME OF DAY" Style="{StaticResource SectionHeader}" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0" Margin="0,0,6,0">
-                        <TextBlock Style="{StaticResource Caption}">
-                            <Run Text="Start hour: " />
-                            <Run Text="{Binding StartHour}" FontWeight="Bold" />
-                        </TextBlock>
-                        <Slider Minimum="0" Maximum="23" Value="{Binding StartHour}" TickFrequency="1" IsSnapToTickEnabled="True"
-                                AutomationProperties.Name="Start hour" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="1" Margin="6,0,0,0">
-                        <TextBlock Style="{StaticResource Caption}">
-                            <Run Text="End hour: " />
-                            <Run Text="{Binding EndHour}" FontWeight="Bold" />
-                        </TextBlock>
-                        <Slider Minimum="0" Maximum="23" Value="{Binding EndHour}" TickFrequency="1" IsSnapToTickEnabled="True"
-                                AutomationProperties.Name="End hour" />
-                    </StackPanel>
-                </Grid>
+                <TextBlock Style="{StaticResource Caption}">
+                    <Run Text="Hours: " />
+                    <Run Text="{Binding StartHour, StringFormat={}{0:00}:00}" FontWeight="Bold" />
+                    <Run Text=" to " />
+                    <Run Text="{Binding EndHour, StringFormat={}{0:00}:59}" FontWeight="Bold" />
+                </TextBlock>
+                <local:HourRangeSlider Start="{Binding StartHour, Mode=TwoWay}" End="{Binding EndHour, Mode=TwoWay}" />
                 <TextBlock Style="{StaticResource Hint}" Margin="0,4,0,0"
                            Text="Tip: set start &gt; end to span midnight (e.g. 22 to 2)." />
 
