@@ -390,7 +390,8 @@
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
                                     <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,8">
-                                        <TextBox x:Name="TrackQuickFilter" DockPanel.Dock="Right" Width="240"
+                                        <TextBox views:SearchCompletion.Source="{Binding TableSuggestions}" views:SearchCompletion.Kinds="Track"
+                                                 x:Name="TrackQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter track rows"
                                                  Text="{Binding TrackQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                                                  ToolTip="Narrow the rows below (Ctrl+F)" />
@@ -487,7 +488,8 @@
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
                                     <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
-                                        <TextBox x:Name="ArtistQuickFilter" DockPanel.Dock="Right" Width="240"
+                                        <TextBox views:SearchCompletion.Source="{Binding TableSuggestions}" views:SearchCompletion.Kinds="Artist"
+                                                 x:Name="ArtistQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter artist rows"
                                                  Text="{Binding ArtistQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                                                  ToolTip="Narrow the rows below (Ctrl+F)" />
@@ -564,7 +566,8 @@
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
                                     <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
-                                        <TextBox x:Name="AlbumQuickFilter" DockPanel.Dock="Right" Width="240"
+                                        <TextBox views:SearchCompletion.Source="{Binding TableSuggestions}" views:SearchCompletion.Kinds="Album"
+                                                 x:Name="AlbumQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter album rows"
                                                  Text="{Binding AlbumQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                                                  ToolTip="Narrow the rows below (Ctrl+F)" />
@@ -760,7 +763,8 @@
                                     <Border Style="{StaticResource Card}" Height="340">
                                         <DockPanel>
                                             <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
-                                                <TextBox x:Name="ShowQuickFilter" DockPanel.Dock="Right" Width="240"
+                                                <TextBox views:SearchCompletion.Source="{Binding TableSuggestions}" views:SearchCompletion.Kinds="Show,Episode"
+                                                 x:Name="ShowQuickFilter" DockPanel.Dock="Right" Width="240"
                                                          AutomationProperties.Name="Filter shows and episodes"
                                                          Text="{Binding ShowQuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=150}"
                                                          ToolTip="Narrow the shows and episodes below (Ctrl+F)" />
@@ -912,7 +916,7 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </DockPanel>
-                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CompareSuggestions}"
+                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CompareSuggestionDetails}"
                                                       Focusable="False" AutomationProperties.Name="Matching artists">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
@@ -921,11 +925,11 @@
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Button Content="{Binding}" ContentStringFormat="+  {0}" Style="{StaticResource QuickRangeButton}"
+                                                    <Button Content="{Binding}" ContentTemplate="{StaticResource SearchSuggestionTemplate}" Style="{StaticResource QuickRangeButton}"
                                                             Command="{Binding DataContext.AddComparedArtistCommand,
                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}"
-                                                            AutomationProperties.Name="{Binding StringFormat='Compare {0}'}" />
+                                                            CommandParameter="{Binding Name}"
+                                                            AutomationProperties.Name="{Binding Name, StringFormat='Compare {0}'}" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>

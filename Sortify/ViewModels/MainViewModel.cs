@@ -40,6 +40,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     public FilterViewModel Filters { get; } = new();
 
+    [ObservableProperty] private IReadOnlyList<SearchSuggestion> _suggestions = Array.Empty<SearchSuggestion>();
+    [ObservableProperty] private IReadOnlyList<SearchSuggestion> _tableSuggestions = Array.Empty<SearchSuggestion>();
+
+    public IReadOnlyList<SearchSuggestion> CompareSuggestionDetails => CompareSuggestions
+        .Select(name => _result.Artists.First(a => a.Artist == name))
+        .Select(a => new SearchSuggestion("Artist", a.Artist, "", a.TotalMsPlayed, a.PlayCount, "Current filters"))
+        .ToArray();
+
     /// <summary>The Compare tab.</summary>
     public CompareViewModel Compare { get; }
 
@@ -570,6 +578,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void OfferChoicesForHistory(bool newHistory)
     {
+        Suggestions = SearchSuggestions.Build(_rawRecords);
         DateTime? last = null;
         var years = new SortedSet<int>();
         var platformMs = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -841,6 +850,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void UpdateCollections()
     {
+        TableSuggestions = SearchSuggestions.FromResult(_result);
         ApplyTrackQuickFilter();
         ApplyArtistQuickFilter();
         ApplyAlbumQuickFilter();
@@ -963,6 +973,7 @@ public sealed partial class MainViewModel : ObservableObject
                 .Take(CompareSuggestionCount)
                 .Select(x => x.Artist)
                 .ToList();
+        OnPropertyChanged(nameof(CompareSuggestionDetails));
         RefreshCompareHint();
     }
 

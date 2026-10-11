@@ -164,7 +164,8 @@ public partial class MainWindow : ThemedWindow
         if (e.Key == Key.Escape && Keyboard.FocusedElement is TextBox { Text.Length: > 0 } box &&
             IsQuickFilter(box))
         {
-            box.Clear();
+            if (!SearchCompletion.Dismiss(box))
+                box.Clear();
             e.Handled = true;
             return;
         }

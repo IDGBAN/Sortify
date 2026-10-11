@@ -1,6 +1,7 @@
 ﻿<UserControl x:Class="Sortify.Views.FilterPanel"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:Sortify.Views"
              xmlns:vm="clr-namespace:Sortify.ViewModels"
              d:DataContext="{d:DesignInstance Type=vm:FilterViewModel}"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -174,7 +175,8 @@
 
                 <!-- Search -->
                 <TextBlock Text="SEARCH ALL PLAYS" Style="{StaticResource SectionHeader}" />
-                <TextBox Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged, Delay=400}"
+                <TextBox views:SearchCompletion.Source="{Binding DataContext.Suggestions, RelativeSource={RelativeSource AncestorType=Window}}"
+                         Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged, Delay=400}"
                          AutomationProperties.Name="Search all plays" />
                 <TextBlock Style="{StaticResource Hint}"
                            Text="Matches a track, artist, album or show name and re-runs the whole analysis. To narrow just the rows in a table, use the filter box above it." />
@@ -270,7 +272,8 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Text="{Binding NewExcludedArtist, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox Grid.Column="0" views:SearchCompletion.Source="{Binding DataContext.Suggestions, RelativeSource={RelativeSource AncestorType=Window}}"
+                             views:SearchCompletion.Kinds="Artist,Show" Text="{Binding NewExcludedArtist, UpdateSourceTrigger=PropertyChanged}"
                              AutomationProperties.Name="Artist name to exclude">
                         <TextBox.InputBindings>
                             <KeyBinding Key="Enter" Command="{Binding AddExcludedArtistCommand}" />
@@ -307,7 +310,8 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" Text="{Binding NewExcludedTrack, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox Grid.Column="0" views:SearchCompletion.Source="{Binding DataContext.Suggestions, RelativeSource={RelativeSource AncestorType=Window}}"
+                             views:SearchCompletion.Kinds="Track,Episode" Text="{Binding NewExcludedTrack, UpdateSourceTrigger=PropertyChanged}"
                              AutomationProperties.Name="Track name to exclude">
                         <TextBox.InputBindings>
                             <KeyBinding Key="Enter" Command="{Binding AddExcludedTrackCommand}" />
