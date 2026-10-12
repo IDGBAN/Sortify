@@ -102,7 +102,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _themeTooltip = "Switch to the light theme";
 
     /// <summary>
-    /// What every chart and list ranks and measures by: the Time / Plays switch beside the tabs.
+    /// What every chart and list ranks and measures by: the Time / Plays switch in the sidebar.
     /// The analysis already holds both, so switching only re-ranks and redraws.
     /// </summary>
     [ObservableProperty]

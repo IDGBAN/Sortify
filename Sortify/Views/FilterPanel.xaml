@@ -57,6 +57,28 @@
                             Padding="8,4" Margin="0" ToolTip="Clear every filter (Ctrl+R)" />
                 </DockPanel>
 
+                <!-- Time / Plays: what every chart and list ranks and measures by. The panel's
+                     DataContext is the filters, so this binds to the window's view model. Green for
+                     time and blue for plays, as the bars they draw. -->
+                <TextBlock Text="RANK BY" Style="{StaticResource SectionHeader}" />
+                <Border Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                        HorizontalAlignment="Left">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton Content="Time" GroupName="Metric"
+                                     IsChecked="{Binding DataContext.IsRankedByTime, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     AutomationProperties.Name="Rank by listening time"
+                                     Style="{StaticResource SegmentToggle}" />
+                        <RadioButton Content="Plays" GroupName="Metric"
+                                     IsChecked="{Binding DataContext.IsRankedByPlays, RelativeSource={RelativeSource AncestorType=Window}}"
+                                     AutomationProperties.Name="Rank by number of plays"
+                                     Background="{DynamicResource Accent2Brush}"
+                                     Style="{StaticResource SegmentToggle}" />
+                    </StackPanel>
+                </Border>
+                <TextBlock Style="{StaticResource Hint}"
+                           Text="Ranks and measures every chart and list by listening time or by number of plays." />
+
                 <!-- Saved filter sets -->
                 <TextBlock Text="SAVED FILTERS" Style="{StaticResource SectionHeader}" />
                 <Grid>

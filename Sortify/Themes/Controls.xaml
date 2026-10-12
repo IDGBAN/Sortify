@@ -1097,17 +1097,8 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <!-- The tabs, and anything set as views:TabStrip.TrailingContent at their right. -->
-                        <Grid Grid.Row="0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TabPanel x:Name="HeaderPanel" IsItemsHost="True"
-                                      Background="Transparent" Margin="2,0,2,0" />
-                            <ContentPresenter Grid.Column="1" VerticalAlignment="Center" Margin="8,0,4,0"
-                                              Content="{Binding (views:TabStrip.TrailingContent), RelativeSource={RelativeSource TemplatedParent}}" />
-                        </Grid>
+                        <TabPanel x:Name="HeaderPanel" Grid.Row="0" IsItemsHost="True"
+                                  Background="Transparent" Margin="2,0,2,0" />
                         <ContentPresenter x:Name="PART_SelectedContentHost" Grid.Row="1"
                                           ContentSource="SelectedContent"
                                           RenderTransformOrigin="0.5,0.5">

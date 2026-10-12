@@ -90,8 +90,8 @@ etc.) are swapped wholesale after each analysis pass rather than mutated via
 `CollectionChanged` per row and freeze the UI. Large horizontal bar charts (tracks/artists/albums)
 page in via `LoadMore*` methods as the user scrolls rather than rendering every bar up front.
 
-**Time / Plays**: the segmented switch at the right end of the tab row (`Views/TabStrip.cs`'s
-`TrailingContent`, a slot in the TabControl template) sets `MainViewModel.Metric` (`Models/Metric.cs`,
+**Time / Plays**: the segmented switch at the top of the filter sidebar (`Views/FilterPanel.xaml`,
+bound to the window's view model rather than the panel's `FilterViewModel`) sets `MainViewModel.Metric` (`Models/Metric.cs`,
 remembered in settings), which every chart and ranked list follows: bars, donuts, the over-time,
 hour, weekday, heatmap and per-year charts, the Overview top fives, the Tracks/Artists/Albums/podcast
 grids, each month's and year's leaders, the Compare tab (`CompareViewModel.Metric`) and the detail

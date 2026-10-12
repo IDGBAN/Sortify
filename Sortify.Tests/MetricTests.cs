@@ -409,7 +409,7 @@ public class MetricSwitchTests : IDisposable
     }
 
     [Fact]
-    public void TheSwitchSitsAtTheEndOfTheTabRow()
+    public void TheSwitchSitsInTheFilterSidebar()
     {
         static IEnumerable<object> Logical(object node)
         {
@@ -427,20 +427,20 @@ public class MetricSwitchTests : IDisposable
         WpfTestHost.Run(() =>
         {
             var window = new MainWindow();
-            var tabs = (TabControl)window.FindName("Tabs");
-            var trailing = TabStrip.GetTrailingContent(tabs);
-            var halves = Logical(trailing!).OfType<RadioButton>().ToList();
+            var panel = Logical(window).OfType<FilterPanel>().Single();
+            var halves = Logical(panel).OfType<RadioButton>().Where(r => r.GroupName == "Metric").ToList();
             Assert.Equal(new object[] { "Time", "Plays" }, halves.Select(r => r.Content));
 
-            // The tab template draws it beside the tabs, where it picks up the window's view model.
-            tabs.Visibility = Visibility.Visible;
-            tabs.Measure(new Size(1200, 800));
-            tabs.Arrange(new Rect(0, 0, 1200, 800));
-            tabs.UpdateLayout();
-            Assert.IsType<ContentPresenter>(VisualTreeHelper.GetParent((Visual)trailing!));
-
+            // The panel's own DataContext is the filters; the switch reaches past it to the window's,
+            // which it finds once laid out.
+            panel.Measure(new Size(290, 900));
+            panel.Arrange(new Rect(0, 0, 290, 900));
+            panel.UpdateLayout();
             ((MainViewModel)window.DataContext).Metric = Metric.Plays;
             Assert.Equal(new bool?[] { false, true }, halves.Select(r => r.IsChecked));
+
+            halves[0].IsChecked = true;
+            Assert.Equal(Metric.Time, ((MainViewModel)window.DataContext).Metric);
         });
     }
 

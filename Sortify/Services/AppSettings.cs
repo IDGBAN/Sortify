@@ -59,7 +59,7 @@ public sealed class AppSettings
     /// </summary>
     public bool AnimateCharts { get; set; } = true;
 
-    /// <summary>Whether the charts and lists rank by listening time or by plays (the switch beside the tabs).</summary>
+    /// <summary>Whether the charts and lists rank by listening time or by plays (the switch in the sidebar).</summary>
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public Metric Metric { get; set; } = Metric.Time;
 
