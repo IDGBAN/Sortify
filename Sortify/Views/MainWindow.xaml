@@ -1434,23 +1434,17 @@
                                                     <TextBlock Text="Same days as B in" Style="{StaticResource Hint}" FontSize="11"
                                                                Margin="6,0,6,5" VerticalAlignment="Center"
                                                                Visibility="{Binding HasSameDaysA, Converter={StaticResource BoolToVis}}" />
-                                                    <ItemsControl ItemsSource="{Binding SameDaysA}" Focusable="False"
-                                                                  AutomationProperties.Name="Period B's days in another year, for period A">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <WrapPanel />
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                        <ItemsControl.ItemTemplate>
+                                                    <ComboBox ItemsSource="{Binding SameDaysA}" SelectedItem="{Binding SelectedSameDaysA}"
+                                                              MinWidth="90" FontSize="11" Margin="0,0,5,5"
+                                                              Visibility="{Binding HasSameDaysA, Converter={StaticResource BoolToVis}}"
+                                                              AutomationProperties.Name="Set period A to period B's days in another year"
+                                                              ToolTip="Set period A to period B's months and days, in another year of your history">
+                                                        <ComboBox.ItemTemplate>
                                                             <DataTemplate>
-                                                                <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
-                                                                        ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
-                                                                        Command="{Binding DataContext.ApplyRangeACommand,
-                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                        CommandParameter="{Binding}" />
+                                                                <TextBlock Text="{Binding Label}" ToolTip="{Binding Tooltip}" />
                                                             </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
                                                 </WrapPanel>
                                             </StackPanel>
                                             <StackPanel Grid.Column="2">
@@ -1468,23 +1462,17 @@
                                                     <TextBlock Text="Same days as A in" Style="{StaticResource Hint}" FontSize="11"
                                                                Margin="6,0,6,5" VerticalAlignment="Center"
                                                                Visibility="{Binding HasSameDaysB, Converter={StaticResource BoolToVis}}" />
-                                                    <ItemsControl ItemsSource="{Binding SameDaysB}" Focusable="False"
-                                                                  AutomationProperties.Name="Period A's days in another year, for period B">
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <WrapPanel />
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                        <ItemsControl.ItemTemplate>
+                                                    <ComboBox ItemsSource="{Binding SameDaysB}" SelectedItem="{Binding SelectedSameDaysB}"
+                                                              MinWidth="90" FontSize="11" Margin="0,0,5,5"
+                                                              Visibility="{Binding HasSameDaysB, Converter={StaticResource BoolToVis}}"
+                                                              AutomationProperties.Name="Set period B to period A's days in another year"
+                                                              ToolTip="Set period B to period A's months and days, in another year of your history">
+                                                        <ComboBox.ItemTemplate>
                                                             <DataTemplate>
-                                                                <Button Content="{Binding Label}" Style="{StaticResource QuickRangeButton}"
-                                                                        ToolTip="{Binding Tooltip}" AutomationProperties.HelpText="{Binding Tooltip}"
-                                                                        Command="{Binding DataContext.ApplyRangeBCommand,
-                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                        CommandParameter="{Binding}" />
+                                                                <TextBlock Text="{Binding Label}" ToolTip="{Binding Tooltip}" />
                                                             </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
+                                                        </ComboBox.ItemTemplate>
+                                                    </ComboBox>
                                                 </WrapPanel>
                                             </StackPanel>
                                         </Grid>

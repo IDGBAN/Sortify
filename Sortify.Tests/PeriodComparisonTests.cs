@@ -236,7 +236,7 @@ public class CompareViewModelTests
     }
 
     [Fact]
-    public void SameDays_AreOfferedOneClickAwayAndFollowTheOtherPeriod()
+    public void SameDays_DropdownSetsThePeriodAndShowsTheYearInUse()
     {
         var vm = Model();
         vm.StartB = new DateTime(2026, 1, 1);
@@ -245,10 +245,14 @@ public class CompareViewModelTests
         Assert.True(vm.HasSameDaysA);
         Assert.Equal(new[] { "2025", "2024" }, vm.SameDaysA.Select(o => o.Label));
 
-        vm.ApplyRangeACommand.Execute(vm.SameDaysA.Single(o => o.Label == "2025"));
+        vm.SelectedSameDaysA = vm.SameDaysA.Single(o => o.Label == "2025");
 
         Assert.Equal((new DateTime(2025, 1, 1), new DateTime(2025, 6, 29)), (vm.StartA, vm.EndA));
         Assert.Equal(new[] { "2025" }, vm.SameDaysA.Where(o => o.IsActive).Select(o => o.Label));
+        Assert.Equal("2025", vm.SelectedSameDaysA?.Label);
+
+        vm.StartA = new DateTime(2025, 1, 2);
+        Assert.Null(vm.SelectedSameDaysA);
 
         vm.EndB = null;
         Assert.False(vm.HasSameDaysA);

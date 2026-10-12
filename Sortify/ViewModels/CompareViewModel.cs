@@ -97,6 +97,24 @@ public sealed partial class CompareViewModel : ObservableObject
     [ObservableProperty] private bool _hasSameDaysA;
     [ObservableProperty] private bool _hasSameDaysB;
 
+    /// <summary>The year picked in period A's dropdown, or null while A is not one of them.</summary>
+    [ObservableProperty] private DateRangeOption? _selectedSameDaysA;
+
+    /// <summary>The year picked in period B's dropdown, or null while B is not one of them.</summary>
+    [ObservableProperty] private DateRangeOption? _selectedSameDaysB;
+
+    partial void OnSelectedSameDaysAChanged(DateRangeOption? value)
+    {
+        if (value is not null && !value.IsActive)
+            ApplyRangeA(value);
+    }
+
+    partial void OnSelectedSameDaysBChanged(DateRangeOption? value)
+    {
+        if (value is not null && !value.IsActive)
+            ApplyRangeB(value);
+    }
+
     private static void Fill(ObservableCollection<DateRangeOption> target, IReadOnlyList<DateRangeOption> options, DateTime? start, DateTime? end)
     {
         if (!target.Select(o => (o.Start, o.End)).SequenceEqual(options.Select(o => (o.Start, o.End))))
@@ -115,6 +133,8 @@ public sealed partial class CompareViewModel : ObservableObject
         Fill(SameDaysB, SameDaysInOtherYears(forA: false), StartB, EndB);
         HasSameDaysA = SameDaysA.Count > 0;
         HasSameDaysB = SameDaysB.Count > 0;
+        SelectedSameDaysA = SameDaysA.FirstOrDefault(o => o.IsActive);
+        SelectedSameDaysB = SameDaysB.FirstOrDefault(o => o.IsActive);
         PeriodALabel = Describe("Period A", StartA, EndA);
         PeriodBLabel = Describe("Period B", StartB, EndB);
         if (!_settingPeriods)
