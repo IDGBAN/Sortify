@@ -236,6 +236,25 @@ public class CompareViewModelTests
     }
 
     [Fact]
+    public void SameDays_AreOfferedOneClickAwayAndFollowTheOtherPeriod()
+    {
+        var vm = Model();
+        vm.StartB = new DateTime(2026, 1, 1);
+        vm.EndB = new DateTime(2026, 6, 29);
+
+        Assert.True(vm.HasSameDaysA);
+        Assert.Equal(new[] { "2025", "2024" }, vm.SameDaysA.Select(o => o.Label));
+
+        vm.ApplyRangeACommand.Execute(vm.SameDaysA.Single(o => o.Label == "2025"));
+
+        Assert.Equal((new DateTime(2025, 1, 1), new DateTime(2025, 6, 29)), (vm.StartA, vm.EndA));
+        Assert.Equal(new[] { "2025" }, vm.SameDaysA.Where(o => o.IsActive).Select(o => o.Label));
+
+        vm.EndB = null;
+        Assert.False(vm.HasSameDaysA);
+    }
+
+    [Fact]
     public void SameDaysInOtherYears_WorksFromAToBToo()
     {
         var vm = Model();

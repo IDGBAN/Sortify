@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Sortify.Models;
@@ -87,8 +88,33 @@ public sealed partial class CompareViewModel : ObservableObject
     partial void OnStartBChanged(DateTime? value) => PeriodsChanged();
     partial void OnEndBChanged(DateTime? value) => PeriodsChanged();
 
+    /// <summary>Period B's days in each other year, offered one click away under period A.</summary>
+    public ObservableCollection<DateRangeOption> SameDaysA { get; } = new();
+
+    /// <summary>Period A's days in each other year, offered one click away under period B.</summary>
+    public ObservableCollection<DateRangeOption> SameDaysB { get; } = new();
+
+    [ObservableProperty] private bool _hasSameDaysA;
+    [ObservableProperty] private bool _hasSameDaysB;
+
+    private static void Fill(ObservableCollection<DateRangeOption> target, IReadOnlyList<DateRangeOption> options, DateTime? start, DateTime? end)
+    {
+        if (!target.Select(o => (o.Start, o.End)).SequenceEqual(options.Select(o => (o.Start, o.End))))
+        {
+            target.Clear();
+            foreach (var option in options)
+                target.Add(option);
+        }
+        foreach (var option in target)
+            option.IsActive = option.Matches(start, end);
+    }
+
     private void PeriodsChanged()
     {
+        Fill(SameDaysA, SameDaysInOtherYears(forA: true), StartA, EndA);
+        Fill(SameDaysB, SameDaysInOtherYears(forA: false), StartB, EndB);
+        HasSameDaysA = SameDaysA.Count > 0;
+        HasSameDaysB = SameDaysB.Count > 0;
         PeriodALabel = Describe("Period A", StartA, EndA);
         PeriodBLabel = Describe("Period B", StartB, EndB);
         if (!_settingPeriods)
