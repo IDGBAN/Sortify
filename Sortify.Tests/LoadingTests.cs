@@ -65,6 +65,8 @@ public class LoadingTests : IDisposable
             Assert.Equal("2", vm.TotalPlaysText);
             Assert.Equal(folder, settings.LastFolder);
             Assert.Equal(new[] { folder }, settings.RecentFolders);
+            Assert.Single(SearchSuggestions.Find(vm.Suggestions, "Artist", "Artist"));
+            Assert.Equal(2, SearchSuggestions.Find(vm.TableSuggestions, "Artist", "Track").Count);
         });
     }
 
@@ -78,12 +80,14 @@ public class LoadingTests : IDisposable
         {
             var vm = new MainViewModel(new AppSettings());
             await vm.OpenFolderPathAsync(folder);
+            var suggestions = vm.Suggestions;
             await vm.LoadDroppedAsync(new[] { stray });
 
             Assert.True(vm.HasData);
             Assert.Equal("2", vm.TotalPlaysText);
             Assert.True(vm.StatusIsError);
             Assert.Contains("still open", vm.StatusText);
+            Assert.Same(suggestions, vm.Suggestions);
         });
     }
 
@@ -99,6 +103,8 @@ public class LoadingTests : IDisposable
             await vm.OpenFolderPathAsync(empty);
 
             Assert.False(vm.HasData);
+            Assert.Empty(vm.Suggestions);
+            Assert.Empty(vm.TableSuggestions);
             Assert.True(vm.StatusIsError);
             Assert.Null(settings.LastFolder);
             Assert.Empty(settings.RecentFolders);

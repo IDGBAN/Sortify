@@ -1,0 +1,28 @@
+<UserControl x:Class="Sortify.Views.DateSelector"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <UserControl.Resources>
+        <!-- An item template rather than DisplayMemberPath: the closed box in the app's
+             ComboBox template only shows the selection through a template. -->
+        <DataTemplate x:Key="DatePartItem">
+            <TextBlock Text="{Binding Label}" />
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="1.3*" MinWidth="60" />
+            <ColumnDefinition Width="4" />
+            <ColumnDefinition Width="1.2*" MinWidth="56" />
+            <ColumnDefinition Width="4" />
+            <ColumnDefinition Width="*" MinWidth="48" />
+        </Grid.ColumnDefinitions>
+        <ComboBox x:Name="YearBox" Grid.Column="0" ItemTemplate="{StaticResource DatePartItem}"
+                  Padding="8,7" ToolTip="Year (Any clears the date)"
+                  SelectionChanged="OnPartChanged" />
+        <ComboBox x:Name="MonthBox" Grid.Column="2" ItemTemplate="{StaticResource DatePartItem}"
+                  Padding="8,7" ToolTip="Month" SelectionChanged="OnPartChanged" />
+        <ComboBox x:Name="DayBox" Grid.Column="4" ItemTemplate="{StaticResource DatePartItem}"
+                  Padding="8,7" ToolTip="Day" SelectionChanged="OnPartChanged" />
+    </Grid>
+</UserControl>

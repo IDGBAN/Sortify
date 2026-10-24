@@ -164,7 +164,8 @@ public partial class MainWindow : ThemedWindow
         if (e.Key == Key.Escape && Keyboard.FocusedElement is TextBox { Text.Length: > 0 } box &&
             IsQuickFilter(box))
         {
-            box.Clear();
+            if (!SearchCompletion.Dismiss(box))
+                box.Clear();
             e.Handled = true;
             return;
         }
@@ -266,7 +267,7 @@ public partial class MainWindow : ThemedWindow
         await ShowDetailAsync(result.Item);
     }
 
-    /// <summary>Below this width the Compare tab's paired tables go one above the other.</summary>
+    /// <summary>Below this width the Compare tabs' paired tables go one above the other.</summary>
     private const double CompareSideBySideMinWidth = 960;
 
     private void OnCompareSizeChanged(object sender, SizeChangedEventArgs e)
@@ -274,6 +275,8 @@ public partial class MainWindow : ThemedWindow
         int columns = e.NewSize.Width < CompareSideBySideMinWidth ? 1 : 2;
         CompareRankings.Columns = columns;
         CompareNewGone.Columns = columns;
+        PeopleShared.Columns = columns;
+        PeopleOnlyOne.Columns = columns;
     }
 
     // ---- Tabs --------------------------------------------------------------------------------
@@ -289,9 +292,12 @@ public partial class MainWindow : ThemedWindow
         if (sender is not TabControl tabs)
             return;
 
-        // The comparison is only worked out while someone is looking at it.
+        // The comparisons are only worked out while someone is looking at them.
         if (ViewModel is { } vm)
+        {
             vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
+            vm.ComparePeople.IsVisible = ReferenceEquals(tabs.SelectedItem, ComparePeopleTab);
+        }
 
         var host = FindContentHost(tabs);
         if (host is null)
@@ -613,13 +619,13 @@ public partial class MainWindow : ThemedWindow
 
     private async void OnOpenMonthArtist(object sender, RoutedEventArgs e)
     {
-        if (MonthsGrid.SelectedItem is MonthStat m)
+        if (MonthsGrid.SelectedItem is MonthRow m)
             await ShowDetailAsync(new ArtistStat { Artist = m.TopArtist });
     }
 
     private async void OnOpenMonthTrack(object sender, RoutedEventArgs e)
     {
-        if (MonthsGrid.SelectedItem is MonthStat m)
+        if (MonthsGrid.SelectedItem is MonthRow m)
             await ShowDetailAsync(new TrackStat { Track = m.TopTrack, Artist = m.TopTrackArtist });
     }
 
@@ -722,7 +728,7 @@ public partial class MainWindow : ThemedWindow
             return;
         }
 
-        new DetailWindow(detail, vm.BuildDetailAsync) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
+        new DetailWindow(detail, vm.BuildDetailAsync, vm.Metric) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
     }
 
     // ---- Copy to clipboard -------------------------------------------------------------------

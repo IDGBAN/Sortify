@@ -59,6 +59,10 @@ public sealed class AppSettings
     /// </summary>
     public bool AnimateCharts { get; set; } = true;
 
+    /// <summary>Whether the charts and lists rank by listening time or by plays (the switch in the sidebar).</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
+    public Metric Metric { get; set; } = Metric.Time;
+
     // ---- Window and layout -------------------------------------------------------------------
 
     public double WindowWidth { get; set; }
@@ -174,6 +178,8 @@ public sealed class AppSettings
             .ToList();
         SessionGapMinutes = Math.Clamp(SessionGapMinutes, MinSessionGapMinutes, MaxSessionGapMinutes);
         LastTabIndex = Math.Max(0, LastTabIndex);
+        if (!Enum.IsDefined(Metric))
+            Metric = Metric.Time;
 
         Filters?.Normalize();
         FilterPresets = (FilterPresets ?? new List<FilterPreset>())
