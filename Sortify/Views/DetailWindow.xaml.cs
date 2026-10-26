@@ -196,15 +196,20 @@ public partial class DetailWindow : ThemedWindow
         RankText.Text = d.Rank is { } rank ? $"#{rank:N0}" : "-";
         RankHint.Text = d.Rank is null ? string.Empty : $"of {RankedAmong(d)}";
 
+        bool byPlays = _metric == Metric.Plays;
+        string measure = byPlays ? "plays" : "listening";
+        ShareCaption.Text = byPlays ? "SHARE OF PLAYS" : "SHARE OF LISTENING";
         ShareText.Text = d.Rank is null ? "-" : $"{d.SharePercent:0.#}%";
         ShareHint.Text = d.Rank is null ? string.Empty
-            : d.Scope is DetailScope.Show or DetailScope.Episode ? "of your podcast and audiobook listening" : "of your listening";
+            : d.Scope is DetailScope.Show or DetailScope.Episode ? $"of your podcast and audiobook {measure}" : $"of your {measure}";
 
         SkipText.Text = d.SkipEligiblePlays > 0 ? $"{d.SkipRate:0.#}%" : "-";
         SkipHint.Text = d.SkipEligiblePlays > 0 ? $"{d.Skips:N0} of {Plural.Of(d.SkipEligiblePlays, "play")} skipped" : string.Empty;
 
         BusiestText.Text = d.BusiestMonth is { } month ? TimeFormat.Month(month) : "-";
-        BusiestHint.Text = d.BusiestMonth is null ? string.Empty : TimeFormat.Friendly(TimeSpan.FromMilliseconds(d.BusiestMonthMs));
+        BusiestHint.Text = d.BusiestMonth is null ? string.Empty
+            : byPlays ? Plural.Of(d.BusiestMonthPlays, "play")
+            : TimeFormat.Friendly(TimeSpan.FromMilliseconds(d.BusiestMonthMs));
 
         StreakText.Text = d.LongestStreakDays > 0 ? Plural.Of(d.LongestStreakDays, "day") : "-";
         StreakHint.Text = (d.LongestStreakStart, d.LongestStreakEnd) switch

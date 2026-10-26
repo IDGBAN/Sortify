@@ -17,13 +17,15 @@ public static class DetailEngine
         string title,
         string subtitle,
         AnalysisResult? overall = null,
+        Metric metric = Metric.Time,
         CancellationToken cancellationToken = default)
-        => Task.Run(() => Build(records, filter, scope, title, subtitle, overall, cancellationToken), cancellationToken);
+        => Task.Run(() => Build(records, filter, scope, title, subtitle, overall, metric, cancellationToken), cancellationToken);
 
     /// <param name="overall">
     /// The results the breakdown was opened from, under the same filters. Where it ranks and its
     /// share of the listening are read from them; without them both are left out.
     /// </param>
+    /// <param name="metric">What its rank, share and busiest month go by: listening time or plays.</param>
     public static DetailResult Build(
         IReadOnlyList<PlayRecord> records,
         FilterOptions filter,
@@ -31,6 +33,7 @@ public static class DetailEngine
         string title,
         string subtitle,
         AnalysisResult? overall = null,
+        Metric metric = Metric.Time,
         CancellationToken cancellationToken = default)
     {
         var tracks = new Dictionary<(string Track, string Artist), TrackStat>();
@@ -171,10 +174,12 @@ public static class DetailEngine
 
         var months = byMonth.OrderBy(kv => kv.Key).ToList();
         var (streakDays, streakStart, streakEnd) = AnalysisEngine.LongestStreak(days.Order().ToList());
-        var busiest = months.Count == 0 ? (KeyValuePair<DateTime, (long Ms, int Plays)>?)null : months.MaxBy(kv => kv.Value.Ms);
+        var busiest = months.Count == 0
+            ? (KeyValuePair<DateTime, (long Ms, int Plays)>?)null
+            : months.MaxBy(kv => metric == Metric.Plays ? kv.Value.Plays : kv.Value.Ms);
         var topDevice = deviceMs.Count == 0 ? (KeyValuePair<string, long>?)null : deviceMs.MaxBy(kv => kv.Value);
         long deviceTotal = deviceMs.Values.Sum();
-        var (rank, rankOutOf, share) = Standing(overall, scope, title, subtitle, totalMs);
+        var (rank, rankOutOf, share) = Standing(overall, scope, title, subtitle, totalMs, playCount, metric);
 
         return new DetailResult
         {
@@ -204,6 +209,7 @@ public static class DetailEngine
             Skips = skips,
             BusiestMonth = busiest?.Key,
             BusiestMonthMs = busiest?.Value.Ms ?? 0,
+            BusiestMonthPlays = busiest?.Value.Plays ?? 0,
             LongestStreakDays = streakDays,
             LongestStreakStart = streakStart,
             LongestStreakEnd = streakEnd,
@@ -215,26 +221,31 @@ public static class DetailEngine
     }
 
     /// <summary>
-    /// Where the selection ranks by listening time among everything of its kind in
-    /// <paramref name="overall"/>, how many of those there are, and its share of their listening.
-    /// A year is ranked against the other years; a show or episode against the podcast listening.
+    /// Where the selection ranks by listening time, or by plays, among everything of its kind in
+    /// <paramref name="overall"/>, how many of those there are, and its share of their listening
+    /// or plays. A year is ranked against the other years; a show or episode against the podcasts.
     /// </summary>
     private static (int? Rank, int OutOf, double SharePercent) Standing(
-        AnalysisResult? overall, DetailScope scope, string title, string subtitle, long totalMs)
+        AnalysisResult? overall, DetailScope scope, string title, string subtitle, long totalMs, int playCount, Metric metric)
     {
         if (overall is null)
             return (null, 0, 0);
 
+        bool plays = metric == Metric.Plays;
         int index = scope switch
         {
-            DetailScope.Artist => IndexOf(overall.Artists, a => a.Artist == title),
-            DetailScope.Track => IndexOf(overall.Tracks, t => t.Track == title && t.Artist == subtitle),
-            DetailScope.Album => IndexOf(overall.Albums, a => a.Album == title && a.Artist == subtitle),
-            DetailScope.Year => IndexOf(overall.Years.OrderByDescending(y => y.TotalMsPlayed).ToList(),
+            DetailScope.Artist => IndexOf(plays ? overall.ArtistsByPlayCount : overall.Artists, a => a.Artist == title),
+            DetailScope.Track => IndexOf(plays ? overall.TracksByPlayCount : overall.Tracks,
+                t => t.Track == title && t.Artist == subtitle),
+            DetailScope.Album => IndexOf(plays ? overall.AlbumsByPlayCount : overall.Albums,
+                a => a.Album == title && a.Artist == subtitle),
+            DetailScope.Year => IndexOf(
+                overall.Years.OrderByDescending(y => plays ? y.PlayCount : y.TotalMsPlayed).ThenByDescending(y => y.TotalMsPlayed).ToList(),
                 y => y.Year.ToString(CultureInfo.InvariantCulture) == title),
-            DetailScope.Show => IndexOf(overall.Shows, s => s.Show == title),
-            DetailScope.Episode => IndexOf(overall.Episodes, e => e.Episode == title && e.Show == subtitle),
-            DetailScope.Day => IndexOf(overall.PlaytimeByDay.OrderByDescending(p => p.Value).ToList(),
+            DetailScope.Show => IndexOf(plays ? overall.ShowsByPlayCount : overall.Shows, s => s.Show == title),
+            DetailScope.Episode => IndexOf(plays ? overall.EpisodesByPlayCount : overall.Episodes,
+                e => e.Episode == title && e.Show == subtitle),
+            DetailScope.Day => IndexOf((plays ? overall.PlaysByDay : overall.PlaytimeByDay).OrderByDescending(p => p.Value).ToList(),
                 p => TimeFormat.Day(p.Date) == title),
             _ => -1,
         };
@@ -249,8 +260,16 @@ public static class DetailEngine
             DetailScope.Day => overall.PlaytimeByDay.Count,
             _ => 0,
         };
-        long whole = scope is DetailScope.Show or DetailScope.Episode ? overall.PodcastMsPlayed : overall.TotalMsPlayed;
-        double share = whole > 0 ? Math.Min(100, totalMs * 100.0 / whole) : 0;
+        bool podcast = scope is DetailScope.Show or DetailScope.Episode;
+        long whole = (podcast, plays) switch
+        {
+            (true, true) => overall.PodcastPlays,
+            (true, false) => overall.PodcastMsPlayed,
+            (false, true) => overall.TotalPlays,
+            (false, false) => overall.TotalMsPlayed,
+        };
+        long amount = plays ? playCount : totalMs;
+        double share = whole > 0 ? Math.Min(100, amount * 100.0 / whole) : 0;
         return (index >= 0 ? index + 1 : null, outOf, share);
     }
 

@@ -896,7 +896,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasData || _rawRecords.Count == 0)
             return null;
 
-        return await DetailEngine.BuildAsync(Records, Filters.ToOptions(), scope, title, subtitle, _result);
+        return await DetailEngine.BuildAsync(Records, Filters.ToOptions(), scope, title, subtitle, _result, Metric);
     }
 
     /// <summary>

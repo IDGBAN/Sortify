@@ -92,7 +92,7 @@
                     </Border>
                     <Border Style="{StaticResource Card}" Padding="12">
                         <StackPanel>
-                            <TextBlock Text="SHARE OF LISTENING" Style="{StaticResource Caption}" Margin="0,0,0,3" />
+                            <TextBlock x:Name="ShareCaption" Text="SHARE OF LISTENING" Style="{StaticResource Caption}" Margin="0,0,0,3" />
                             <TextBlock x:Name="ShareText" Style="{StaticResource StatValueSmall}" FontSize="15" />
                             <TextBlock x:Name="ShareHint" Style="{StaticResource Hint}" />
                         </StackPanel>

@@ -106,6 +106,21 @@ public class DetailStandingTests
     }
 
     [Fact]
+    public void ByPlays_TheRankShareAndBusiestMonth_CountPlays()
+    {
+        var records = Library();
+        var overall = AnalysisEngine.Analyze(records, new FilterOptions());
+
+        var alpha = DetailEngine.Build(records, new FilterOptions(), DetailScope.Artist, "Alpha", string.Empty, overall, Metric.Plays);
+
+        // Second by time behind Beta's one long play, but first by plays: 4 of the 6.
+        Assert.Equal(1, alpha.Rank);
+        Assert.Equal(4 * 100.0 / 6, alpha.SharePercent, precision: 6);
+        Assert.Equal(new DateTime(2024, 3, 1), alpha.BusiestMonth);
+        Assert.Equal(3, alpha.BusiestMonthPlays);
+    }
+
+    [Fact]
     public void TracksAlbumsAndYears_AreRankedAmongTheirOwnKind()
     {
         var records = Library();
