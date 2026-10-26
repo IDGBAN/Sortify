@@ -2049,14 +2049,14 @@
                                             <StackPanel>
                                                 <TextBlock Text="ARTIST MATCH" Style="{StaticResource Caption}" />
                                                 <TextBlock Text="{Binding ArtistMatch}" Style="{StaticResource StatValue}"
-                                                           ToolTip="How much of your listening time and theirs goes to the same artists" />
+                                                           ToolTip="{Binding ArtistMatchHint}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="TRACK MATCH" Style="{StaticResource Caption}" />
                                                 <TextBlock Text="{Binding TrackMatch}" Style="{StaticResource StatValue}"
-                                                           ToolTip="How much of your listening time and theirs goes to the same tracks" />
+                                                           ToolTip="{Binding TrackMatchHint}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
@@ -2097,7 +2097,7 @@
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Top" Text="Artists You Share" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
                                                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
-                                                           Text="Artists you both play, the ones you're most alike on first, with each of your own ranks. Double-click a row for your breakdown." />
+                                                           Text="{Binding SharedHint}" />
                                                 <Grid>
                                                     <DataGrid ItemsSource="{Binding SharedArtists}" AutomationProperties.Name="Artists you both play"
                                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
@@ -2106,9 +2106,17 @@
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
                                                             <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
                                                             <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsA" />
+                                                                                SortMemberPath="MsA"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                             <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsB" />
+                                                                                SortMemberPath="MsB"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Your plays" Binding="{Binding PlaysA, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysA"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Their plays" Binding="{Binding PlaysB, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysB"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -2131,9 +2139,17 @@
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
                                                             <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
                                                             <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsA" />
+                                                                                SortMemberPath="MsA"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                             <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsB" />
+                                                                                SortMemberPath="MsB"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Your plays" Binding="{Binding PlaysA, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysA"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Their plays" Binding="{Binding PlaysB, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysB"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -2156,8 +2172,12 @@
                                                         <DataGrid.Columns>
                                                             <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
-                                                            <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}"
-                                                                                Width="Auto" SortMemberPath="MsA" />
+                                                            <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsA"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Your plays" Binding="{Binding PlaysA, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysA"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -2176,8 +2196,12 @@
                                                         <DataGrid.Columns>
                                                             <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
-                                                            <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}"
-                                                                                Width="Auto" SortMemberPath="MsB" />
+                                                            <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsB"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Their plays" Binding="{Binding PlaysB, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysB"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"

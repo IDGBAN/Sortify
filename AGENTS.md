@@ -130,9 +130,10 @@ bound to the window's view model rather than the panel's `FilterViewModel`) sets
 `MainViewModel.Metric` (`Models/Metric.cs`, remembered in settings), which every chart and ranked
 list follows: bars, donuts, the over-time, hour, weekday, heatmap and per-year charts (the
 year-found split and Rank History included), the Overview top fives, the
-Tracks/Artists/Albums/podcast grids, each month's and year's leaders, the Compare Periods tab
-(`CompareViewModel.Metric`), Compare Artists (`CompareArtistsViewModel.Metric`) and the detail
-window. `AnalysisResult` already carries both measures (`Plays*` breakdowns, `*ByPlayCount` lists,
+Tracks/Artists/Albums/podcast grids, each month's and year's leaders, both Compare tabs
+(`CompareViewModel.Metric`, `PeopleCompareViewModel.Metric`), Compare Artists
+(`CompareArtistsViewModel.Metric`) and the detail window. `AnalysisResult` already carries both
+measures (`Plays*` breakdowns, `*ByPlayCount` lists,
 `MostPlayed*` leaders, `RankHistoryByPlays`), so switching re-ranks and rebuilds charts without
 re-running analysis; new charts take a `Metric` in `ChartBuilder`. Grid column headers draw a sort
 arrow (header template in `Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather

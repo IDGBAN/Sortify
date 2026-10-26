@@ -124,6 +124,58 @@ public class PeopleComparisonTests
 
         Assert.Equal("same", result.Metrics.Single(m => m.Metric == "Plays").Change);
     }
+
+    [Fact]
+    public void ByPlays_TheRanksMatchOrderAndTopArtist_CountPlays()
+    {
+        var you = AnalysisEngine.Analyze(TwoListeners.Yours, new FilterOptions());
+        var them = AnalysisEngine.Analyze(TwoListeners.Theirs, new FilterOptions());
+
+        var byTime = PeopleComparison.Build(you, them, Metric.Time);
+        var byPlays = PeopleComparison.Build(you, them, Metric.Plays);
+
+        Assert.Equal(new[] { "Long Band", "Often Band" }, byTime.SharedArtists.Select(r => r.Name));
+        Assert.Equal(new[] { "Often Band", "Long Band" }, byPlays.SharedArtists.Select(r => r.Name));
+        var often = byPlays.SharedArtists[0];
+        Assert.Equal((1, 3), (often.RankA, often.RankB));
+        Assert.Equal((6, 3), (often.PlaysA, often.PlaysB));
+
+        // Often Band: 6 of your 7 plays, 3 of their 18; Long Band: 1 of 7, 1 of 18.
+        Assert.Equal((3 + 1) * 100.0 / 18, byPlays.ArtistMatch, 3);
+        Assert.Equal("Often Band", byPlays.Metrics.Single(m => m.Metric == "Top artist").A);
+        Assert.Equal("Long Band", byTime.Metrics.Single(m => m.Metric == "Top artist").A);
+
+        // Their Quick leads their plays, but an hour is still the floor for being theirs alone.
+        var onlyThem = Assert.Single(byPlays.OnlyThem);
+        Assert.Equal(("Their Pick", 2), (onlyThem.Name, onlyThem.RankB));
+        Assert.Equal(4, onlyThem.PlaysB);
+    }
+}
+
+/// <summary>One listener who plays a long piece once and another who plays short ones often.</summary>
+internal static class TwoListeners
+{
+    private static IEnumerable<PlayRecord> Plays(string track, string artist, int count, int minutes) => Enumerable.Range(0, count)
+        .Select(day => new PlayRecord
+        {
+            TrackName = track,
+            ArtistName = artist,
+            AlbumName = "Album",
+            MsPlayed = minutes * 60_000,
+            Timestamp = new DateTime(2024, 6, 1, 12, 0, 0).AddDays(day),
+        });
+
+    // 318 minutes over 7 plays.
+    public static readonly List<PlayRecord> Yours = Plays("Epic", "Long Band", 1, 300)
+        .Concat(Plays("Hit", "Often Band", 6, 3))
+        .ToList();
+
+    // 165 minutes over 18 plays.
+    public static readonly List<PlayRecord> Theirs = Plays("Epic", "Long Band", 1, 60)
+        .Concat(Plays("Hit", "Often Band", 3, 5))
+        .Concat(Plays("Theirs", "Their Pick", 4, 20))
+        .Concat(Plays("Quick", "Their Quick", 10, 1))
+        .ToList();
 }
 
 /// <summary>The Compare People tab's own behaviour.</summary>
@@ -170,6 +222,29 @@ public class PeopleCompareViewModelTests
         Assert.Equal("Sam", vm.TheirName);
         Assert.Equal("Only Sam, Not You", vm.OnlyThemTitle);
         Assert.Contains("1 play loaded, 2024-01-02 to 2024-01-02", vm.LoadedText);
+    }
+
+    [Fact]
+    public async Task FlippingTheSwitch_ReRanksWithoutComparingAgain()
+    {
+        int asked = 0;
+        var vm = new PeopleCompareViewModel(() =>
+        {
+            asked++;
+            return new CompareViewModel.Source(TwoListeners.Yours, new FilterOptions(), TimeSpan.FromMinutes(30));
+        });
+        vm.SetTheirs(TwoListeners.Theirs, "Sam");
+        await vm.RefreshAsync();
+        Assert.Equal("Long Band", vm.SharedArtists[0].Name);
+        int before = asked;
+
+        vm.Metric = Metric.Plays;
+
+        Assert.Equal(before, asked);
+        Assert.Equal("Often Band", vm.SharedArtists[0].Name);
+        Assert.Equal("22%", vm.ArtistMatch);
+        Assert.EndsWith("most played first.", vm.OnlyThemHint);
+        Assert.Contains("plays", vm.ArtistMatchHint);
     }
 
     [Fact]

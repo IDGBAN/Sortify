@@ -768,6 +768,7 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         Compare.Metric = value;
+        ComparePeople.Metric = value;
         CompareArtists.Metric = value;
         if (HasData)
         {

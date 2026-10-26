@@ -76,13 +76,45 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     /// <summary>Set by the window as the Compare People tab comes and goes.</summary>
     [ObservableProperty] private bool _isVisible;
 
+    /// <summary>
+    /// What the tables rank by and the match figures measure; follows the main window's Time /
+    /// Plays switch. Changing it re-ranks the last comparison rather than analysing both again.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OnlyYouHint), nameof(OnlyThemHint), nameof(SharedHint),
+        nameof(ArtistMatchHint), nameof(TrackMatchHint))]
+    private Metric _metric;
+
+    /// <summary>The two histories last analysed, kept so a change of metric only has to re-rank them.</summary>
+    private PeopleComparisonResult? _last;
+
+    partial void OnMetricChanged(Metric value)
+    {
+        if (_last is { } last)
+            Show(PeopleComparison.Build(last.You, last.Them, value));
+    }
+
     /// <summary>The other person's name as headings use it.</summary>
     public string DisplayName => string.IsNullOrWhiteSpace(TheirName) ? DefaultName : TheirName.Trim();
 
+    private string MostPlayedFirst => Metric == Metric.Plays ? ", most played first" : string.Empty;
+
     public string OnlyYouTitle => $"Only You, Not {DisplayName}";
     public string OnlyThemTitle => $"Only {DisplayName}, Not You";
-    public string OnlyYouHint => $"Artists you listened to for at least an hour that {DisplayName} never played.";
-    public string OnlyThemHint => $"Artists {DisplayName} listened to for at least an hour that you never played.";
+    public string OnlyYouHint => $"Artists you listened to for at least an hour that {DisplayName} never played{MostPlayedFirst}.";
+    public string OnlyThemHint => $"Artists {DisplayName} listened to for at least an hour that you never played{MostPlayedFirst}.";
+
+    public string SharedHint => Metric == Metric.Plays
+        ? "Artists you both play, the ones you're most alike on first, with where each of you ranks them by plays. Double-click a row for your breakdown."
+        : "Artists you both play, the ones you're most alike on first, with where each of you ranks them by listening time. Double-click a row for your breakdown.";
+
+    public string ArtistMatchHint => Metric == Metric.Plays
+        ? "How many of your plays and theirs go to the same artists"
+        : "How much of your listening time and theirs goes to the same artists";
+
+    public string TrackMatchHint => Metric == Metric.Plays
+        ? "How many of your plays and theirs go to the same tracks"
+        : "How much of your listening time and theirs goes to the same tracks";
 
     partial void OnTheirNameChanged(string value)
     {
@@ -311,21 +343,14 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
                     _theirCombined = theirs;
             }
 
-            var result = await PeopleComparison.CompareAsync(source.Records, theirs, source.Filter,
+            var metric = Metric;
+            var result = await PeopleComparison.CompareAsync(source.Records, theirs, source.Filter, metric,
                 source.SessionGap, token);
             if (token.IsCancellationRequested)
                 return;
 
-            Metrics = result.Metrics;
-            SharedArtists = result.SharedArtists;
-            SharedTracks = result.SharedTracks;
-            OnlyYou = result.OnlyYou;
-            OnlyThem = result.OnlyThem;
-            ArtistMatch = Percent(result.ArtistMatch);
-            TrackMatch = Percent(result.TrackMatch);
-            SharedArtistCount = result.SharedArtistCount.ToString("N0");
-            SharedTrackCount = result.SharedTrackCount.ToString("N0");
-            HasResults = true;
+            // The switch may have been flipped while both histories were being worked out.
+            Show(metric == Metric ? result : PeopleComparison.Build(result.You, result.Them, Metric));
             Message = (result.You.TotalPlays, result.Them.TotalPlays) switch
             {
                 (0, 0) => "Neither of you has any plays under the current filters.",
@@ -355,8 +380,24 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
         _ => $"{value:0}%",
     };
 
+    private void Show(PeopleComparisonResult result)
+    {
+        _last = result;
+        Metrics = result.Metrics;
+        SharedArtists = result.SharedArtists;
+        SharedTracks = result.SharedTracks;
+        OnlyYou = result.OnlyYou;
+        OnlyThem = result.OnlyThem;
+        ArtistMatch = Percent(result.ArtistMatch);
+        TrackMatch = Percent(result.TrackMatch);
+        SharedArtistCount = result.SharedArtistCount.ToString("N0");
+        SharedTrackCount = result.SharedTrackCount.ToString("N0");
+        HasResults = true;
+    }
+
     private void ClearResults()
     {
+        _last = null;
         Metrics = Array.Empty<ComparisonMetric>();
         SharedArtists = Array.Empty<ComparisonRow>();
         SharedTracks = Array.Empty<ComparisonRow>();
