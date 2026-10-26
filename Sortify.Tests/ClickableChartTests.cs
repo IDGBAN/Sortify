@@ -37,7 +37,7 @@ public class ClickableChartTests
     [Fact]
     public void EachBarKnowsItsRow()
     {
-        var chart = OnUiThread(() => ChartBuilder.TopTracksByTime(Result(), 3));
+        var chart = OnUiThread(() => ChartBuilder.TopTracks(Result(), 3, Metric.Time));
 
         // Bars are drawn bottom-up, so the biggest is last; its row has to be last too.
         var values = ((RowSeries<double>)chart.Series[0]).Values!.ToList();

@@ -81,66 +81,30 @@ public static class ChartBuilder
     // ---- Horizontal bar charts (RowSeries) -------------------------------------------------
 
     public static ChartData TopTracks(AnalysisResult r, int take, Metric metric) =>
-        metric == Metric.Plays ? TopTracksByCount(r, take) : TopTracksByTime(r, take);
+        Ranked(metric == Metric.Plays ? r.TracksByPlayCount : r.Tracks, take, metric, t => t.Track, t => t.TotalHours, t => t.PlayCount);
 
     public static ChartData TopArtists(AnalysisResult r, int take, Metric metric) =>
-        metric == Metric.Plays ? TopArtistsByCount(r, take) : TopArtistsByTime(r, take);
+        Ranked(metric == Metric.Plays ? r.ArtistsByPlayCount : r.Artists, take, metric, a => a.Artist, a => a.TotalHours, a => a.PlayCount);
 
     public static ChartData TopAlbums(AnalysisResult r, int take, Metric metric) =>
-        metric == Metric.Plays ? TopAlbumsByCount(r, take) : TopAlbumsByTime(r, take);
+        Ranked(metric == Metric.Plays ? r.AlbumsByPlayCount : r.Albums, take, metric, a => a.Album, a => a.TotalHours, a => a.PlayCount);
 
-    public static ChartData TopTracksByTime(AnalysisResult r, int take)
+    /// <summary>
+    /// The first <paramref name="take"/> of a list already ranked by <paramref name="metric"/>, as
+    /// bars of hours or plays. Without a <paramref name="color"/> of their own, bars take the
+    /// accent by listening time and the second accent by plays.
+    /// </summary>
+    private static ChartData Ranked<T>(
+        IReadOnlyList<T> ranked, int take, Metric metric, Func<T, string> name, Func<T, double> hours, Func<T, int> plays,
+        SKColor? color = null)
+        where T : class
     {
-        var items = r.Tracks.Take(take).Reverse().ToList();
+        bool byPlays = metric == Metric.Plays;
+        var items = ranked.Take(take).Reverse().ToList();
         return Rows(
-            items.Select(t => Math.Round(t.TotalHours, 2)).ToArray(),
-            items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Hours", ChartPalette.Accent, items);
-    }
-
-    public static ChartData TopTracksByCount(AnalysisResult r, int take)
-    {
-        var items = r.TracksByPlayCount.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(t => (double)t.PlayCount).ToArray(),
-            items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Plays", ChartPalette.Accent2, items);
-    }
-
-    public static ChartData TopArtistsByTime(AnalysisResult r, int take)
-    {
-        var items = r.Artists.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
-            items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Hours", ChartPalette.Accent, items);
-    }
-
-    public static ChartData TopArtistsByCount(AnalysisResult r, int take)
-    {
-        var items = r.ArtistsByPlayCount.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => (double)a.PlayCount).ToArray(),
-            items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Plays", ChartPalette.Accent2, items);
-    }
-
-    public static ChartData TopAlbumsByTime(AnalysisResult r, int take)
-    {
-        var items = r.Albums.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
-            items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Hours", ChartPalette.Accent, items);
-    }
-
-    public static ChartData TopAlbumsByCount(AnalysisResult r, int take)
-    {
-        var items = r.AlbumsByPlayCount.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => (double)a.PlayCount).ToArray(),
-            items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Plays", ChartPalette.Accent2, items);
+            items.Select(x => byPlays ? plays(x) : Math.Round(hours(x), 2)).ToArray(),
+            items.Select(x => ShortLabel(name(x))).ToArray(),
+            Unit(metric), color ?? (byPlays ? ChartPalette.Accent2 : ChartPalette.Accent), items);
     }
 
     public static ChartData TopSkippedTracks(AnalysisResult r, int take = SkippedTrackBars)
@@ -396,6 +360,7 @@ public static class ChartBuilder
             ItemsFollowSeries = true,
         };
     }
+
     /// <summary>What a value axis and its series are called: "Hours" or "Plays".</summary>
     private static string Unit(Metric metric) => metric == Metric.Plays ? "Plays" : "Hours";
 
@@ -826,23 +791,11 @@ public static class ChartBuilder
 
     // ---- Podcasts ----------------------------------------------------------------------------
 
-    public static ChartData TopShows(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time)
-    {
-        bool plays = metric == Metric.Plays;
-        var items = (plays ? r.ShowsByPlayCount : r.Shows).Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(s => plays ? s.PlayCount : Math.Round(s.TotalHours, 2)).ToArray(),
-            items.Select(s => ShortLabel(s.Show)).ToArray(),
-            Unit(metric), ChartPalette.Violet, items);
-    }
+    public static ChartData TopShows(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time) =>
+        Ranked(metric == Metric.Plays ? r.ShowsByPlayCount : r.Shows, take, metric, s => s.Show, s => s.TotalHours, s => s.PlayCount,
+            ChartPalette.Violet);
 
-    public static ChartData TopEpisodes(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time)
-    {
-        bool plays = metric == Metric.Plays;
-        var items = (plays ? r.EpisodesByPlayCount : r.Episodes).Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(e => plays ? e.PlayCount : Math.Round(e.TotalHours, 2)).ToArray(),
-            items.Select(e => ShortLabel(e.Episode)).ToArray(),
-            Unit(metric), ChartPalette.Cyan, items);
-    }
+    public static ChartData TopEpisodes(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time) =>
+        Ranked(metric == Metric.Plays ? r.EpisodesByPlayCount : r.Episodes, take, metric, e => e.Episode, e => e.TotalHours,
+            e => e.PlayCount, ChartPalette.Cyan);
 }

@@ -47,7 +47,7 @@ public class ChartTableTests
     [Fact]
     public void BarCharts_ListTheBiggestFirst_UnderTheirFullNames()
     {
-        var table = Table(OnUiThread(() => ChartBuilder.TopTracksByTime(Result, 5)));
+        var table = Table(OnUiThread(() => ChartBuilder.TopTracks(Result, 5, Metric.Time)));
 
         Assert.Equal(new[] { "Track", "Artist", "Hours" }, table.Columns);
         Assert.Equal(new[] { false, false, true }, table.Numeric);
