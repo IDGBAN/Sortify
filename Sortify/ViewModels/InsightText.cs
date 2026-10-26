@@ -198,8 +198,8 @@ public sealed class InsightText
             : text + ".";
     }
 
-    /// <summary>The latest year's share of new music, and of music from the year before it.</summary>
-    internal static string Cohorts(CohortBreakdown c)
+    /// <summary>The latest year's share of new music, and of music from the year before it, by listening time or by plays.</summary>
+    internal static string Cohorts(CohortBreakdown c, Metric metric = Metric.Time)
     {
         if (c.Years.Count == 0)
             return string.Empty;
@@ -207,10 +207,13 @@ public sealed class InsightText
             return $"With only {c.Years[0]} in the history, all of it counts as music first heard that year.";
 
         int year = c.Years[^1];
-        string text = $"{c.NewSharePercent(year):0}% of {year}'s listening was music you first heard that year";
-        double before = c.SharePercent(year, year - 1);
-        return before > 0
-            ? $"{text}, and {before:0}% was music found in {year - 1}. The first year of a history is all new by definition."
-            : $"{text}. The first year of a history is all new by definition.";
+        bool plays = metric == Metric.Plays;
+        double found = c.NewSharePercent(year, metric), before = c.SharePercent(year, year - 1, metric);
+        string text = plays
+            ? $"{found:0}% of {year}'s plays were of music you first heard that year"
+            : $"{found:0}% of {year}'s listening was music you first heard that year";
+        if (before > 0)
+            text += plays ? $", and {before:0}% of music found in {year - 1}" : $", and {before:0}% was music found in {year - 1}";
+        return $"{text}. The first year of a history is all new by definition.";
     }
 }

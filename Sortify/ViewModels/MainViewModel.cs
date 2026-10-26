@@ -164,7 +164,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsRankedByTime), nameof(IsRankedByPlays), nameof(RankSortMember),
         nameof(RankedByText), nameof(ArtistShareTitle), nameof(PerYearTitle), nameof(MonthlyTopHint),
-        nameof(AmountHeader))]
+        nameof(AmountHeader), nameof(RankHint))]
     private Metric _metric;
 
     /// <summary>The Time half of the switch. Unchecking it does nothing; checking Plays does.</summary>
@@ -247,8 +247,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private ChartData _episodesChart = ChartData.Empty;
 
     /// <summary>What the rank history follows, worded for its card.</summary>
-    public string RankHint { get; } =
-        $"Where your top {AnalysisEngine.RankHistoryArtists} artists ranked each year by listening time. " +
+    public string RankHint =>
+        $"Where your top {AnalysisEngine.RankHistoryArtists} artists ranked each year {RankedByText}. " +
         $"A gap means they were outside the top {AnalysisEngine.RankHistoryFloor} that year.";
 
     [ObservableProperty] private ISeries[] _artistShareSeries = Array.Empty<ISeries>();
@@ -1143,8 +1143,8 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
 
             _cohorts = cohorts;
-            CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years);
-            CohortText = InsightText.Cohorts(_cohorts);
+            CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years, Metric);
+            CohortText = InsightText.Cohorts(_cohorts, Metric);
         }
         catch (OperationCanceledException)
         {
@@ -1279,7 +1279,7 @@ public sealed partial class MainViewModel : ObservableObject
         Heat = ChartBuilder.DowHourHeat(_result, Metric, _settings.FirstDayOfWeek);
         OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity, Metric, _settings.FirstDayOfWeek);
         ByYear = ChartBuilder.PerYear(_result, Metric);
-        RankChart = ChartBuilder.RankHistory(_result);
+        RankChart = ChartBuilder.RankHistory(_result, Metric);
         HasRankHistory = _result.RankHistory.Count > 0;
         Discovery = ChartBuilder.NewArtistsByMonth(_result);
         Skipped = ChartBuilder.TopSkippedTracks(_result);
@@ -1299,7 +1299,8 @@ public sealed partial class MainViewModel : ObservableObject
         ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
         EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
         CompareArtists.Redraw();
-        CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years);
+        CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years, Metric);
+        CohortText = InsightText.Cohorts(_cohorts, Metric);
 
         // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
         _tracksShown = Math.Min(BarPageSize, MaxTracks);

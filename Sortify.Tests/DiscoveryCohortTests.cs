@@ -96,6 +96,23 @@ public class DiscoveryCohortTests
     }
 
     [Fact]
+    public void ByPlays_TheSplitAndTheSentenceCountPlays()
+    {
+        // In 2024 the old track is played twice for an hour and the new one ten times for a minute.
+        var records = new List<PlayRecord> { Play("Old", In2023), Play("Old", In2024), Play("Old", In2024.AddDays(1)) };
+        records.AddRange(Enumerable.Range(0, 10).Select(i => Play("New", In2024.AddDays(2 + i), ms: 60_000)));
+
+        var c = DiscoveryCohorts.Build(records, new FilterOptions());
+
+        Assert.Equal(2, c.Plays[1, 0]);
+        Assert.Equal(10, c.Plays[1, 1]);
+        Assert.Equal(1000.0 / 12, c.NewSharePercent(2024, Metric.Plays), precision: 6);
+        Assert.True(c.NewSharePercent(2024) < 10);
+        Assert.Equal("83% of 2024's plays were of music you first heard that year, and 17% of music found in 2023. "
+            + "The first year of a history is all new by definition.", InsightText.Cohorts(c, Metric.Plays));
+    }
+
+    [Fact]
     public void TheSentence_ForASingleYear_SaysEverythingIsNew()
     {
         var c = DiscoveryCohorts.Build(new[] { Play("Only", In2024) }, new FilterOptions());

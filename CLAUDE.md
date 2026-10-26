@@ -121,16 +121,18 @@ raise a `CollectionChanged` per row and freeze the UI. Large horizontal bar char
 every bar up front.
 
 **Time / Plays**: the segmented switch at the top of the filter sidebar (`Views/FilterPanel.xaml`,
-bound to the window's view model rather than the panel's `FilterViewModel`) sets `MainViewModel.Metric` (`Models/Metric.cs`,
-remembered in settings), which every chart and ranked list follows: bars, donuts, the over-time,
-hour, weekday, heatmap and per-year charts, the Overview top fives, the Tracks/Artists/Albums/podcast
-grids, each month's and year's leaders, the Compare Periods tab (`CompareViewModel.Metric`), Compare
-Artists (`CompareArtistsViewModel.Metric`) and the detail window. `AnalysisResult` already carries
-both measures (`Plays*` breakdowns, `*ByPlayCount` lists, `MostPlayed*` leaders), so switching
-re-ranks and rebuilds charts without re-running analysis; new charts take a `Metric` in
-`ChartBuilder`. Grid column headers draw a sort arrow (header template in `Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather than sorted by the grid,
-`Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they arrive sorted by.
-Grid columns, which can't see the DataContext, bind headers and visibility through
+bound to the window's view model rather than the panel's `FilterViewModel`) sets
+`MainViewModel.Metric` (`Models/Metric.cs`, remembered in settings), which every chart and ranked
+list follows: bars, donuts, the over-time, hour, weekday, heatmap and per-year charts (the
+year-found split and Rank History included), the Overview top fives, the
+Tracks/Artists/Albums/podcast grids, each month's and year's leaders, the Compare Periods tab
+(`CompareViewModel.Metric`), Compare Artists (`CompareArtistsViewModel.Metric`) and the detail
+window. `AnalysisResult` already carries both measures (`Plays*` breakdowns, `*ByPlayCount` lists,
+`MostPlayed*` leaders, `RankHistoryByPlays`), so switching re-ranks and rebuilds charts without
+re-running analysis; new charts take a `Metric` in `ChartBuilder`. Grid column headers draw a sort
+arrow (header template in `Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather
+than sorted by the grid, `Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they
+arrive sorted by. Grid columns, which can't see the DataContext, bind headers and visibility through
 `Views/BindingProxy.cs` (the `Vm` resource in MainWindow).
 
 The logo's source is `Sortify/Assets/sortify-logo.svg`. `Themes/Logo.xaml` is the same drawing as a

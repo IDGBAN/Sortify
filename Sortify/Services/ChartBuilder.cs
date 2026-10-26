@@ -265,16 +265,17 @@ public static class ChartBuilder
     }
 
     /// <summary>
-    /// Each year's listening stacked by how long before it the music was first heard: that
-    /// year at the bottom, then a band for each of the <see cref="DiscoveryCohorts.YearsBack"/>
-    /// years before, and everything older on top. Relative years rather than calendar ones, so
-    /// a twentieth year reads as clearly as a second. Empty bands are left out. The columns' items are the matching rows
-    /// of <paramref name="years"/>, so a click opens that year.
+    /// Each year's listening time, or plays, stacked by how long before it the music was first
+    /// heard: that year at the bottom, then a band for each of the
+    /// <see cref="DiscoveryCohorts.YearsBack"/> years before, and everything older on top.
+    /// Relative years rather than calendar ones, so a twentieth year reads as clearly as a
+    /// second. Empty bands are left out. The columns' items are the matching rows of
+    /// <paramref name="years"/>, so a click opens that year.
     /// </summary>
-    public static ChartData Cohorts(CohortBreakdown c, IReadOnlyList<YearStat> years)
+    public static ChartData Cohorts(CohortBreakdown c, IReadOnlyList<YearStat> years, Metric metric = Metric.Time)
     {
         int bands = DiscoveryCohorts.YearsBack + 1;
-        var hours = new double[bands + 1, c.Years.Count];
+        var amounts = new double[bands + 1, c.Years.Count];
         for (int y = 0; y < c.Years.Count; y++)
         {
             for (int j = 0; j < c.Cohorts.Count; j++)
@@ -282,11 +283,11 @@ public static class ChartBuilder
                 // Music can't be first heard after it was played, so those cells are empty.
                 int age = c.Years[y] - c.Cohorts[j];
                 if (age >= 0)
-                    hours[Math.Min(age, bands), y] += c.Hours[y, j];
+                    amounts[Math.Min(age, bands), y] += c.Amount(y, j, metric);
             }
         }
 
-        double[] Band(int age) => Enumerable.Range(0, c.Years.Count).Select(y => Math.Round(hours[age, y], 1)).ToArray();
+        double[] Band(int age) => Enumerable.Range(0, c.Years.Count).Select(y => Math.Round(amounts[age, y], 1)).ToArray();
 
         // New music at the bottom, so its share is measured from the same baseline every year.
         var series = new List<ISeries>();
@@ -322,7 +323,7 @@ public static class ChartBuilder
                     TextSize = AxisTextSize,
                 },
             },
-            YAxes = new[] { ValueAxis("Hours") },
+            YAxes = new[] { ValueAxis(Unit(metric)) },
             Items = c.Years.Select(y => byYear.GetValueOrDefault(y) ?? new YearStat { Year = y }).ToList(),
         };
 
@@ -335,13 +336,14 @@ public static class ChartBuilder
     }
 
     /// <summary>
-    /// The top artists' rank in each year, one line each, #1 at the top. A year an artist sat
-    /// below the floor is a gap in their line. The chart's items are the artists in series
-    /// order, so a click on a point can open its artist.
+    /// The top artists' rank in each year by listening time, or by plays, one line each, #1
+    /// at the top. A year an artist sat below the floor is a gap in their line. The chart's
+    /// items are the artists in series order, so a click on a point can open its artist.
     /// </summary>
-    public static ChartData RankHistory(AnalysisResult r)
+    public static ChartData RankHistory(AnalysisResult r, Metric metric = Metric.Time)
     {
-        var series = r.RankHistory
+        var history = metric == Metric.Plays ? r.RankHistoryByPlays : r.RankHistory;
+        var series = history
             .Select((a, i) => (ISeries)new LineSeries<double?>
             {
                 Values = a.Ranks.Select(rank => (double?)rank).ToArray(),
@@ -356,7 +358,7 @@ public static class ChartBuilder
             })
             .ToArray();
 
-        int lowest = r.RankHistory.SelectMany(a => a.Ranks).Max() ?? 1;
+        int lowest = history.SelectMany(a => a.Ranks).Max() ?? 1;
         return new ChartData
         {
             Series = series,
@@ -390,7 +392,7 @@ public static class ChartBuilder
                     Labeler = value => value >= 1 ? $"#{value:0}" : string.Empty,
                 },
             },
-            Items = r.RankHistory.Select(a => a.Artist).ToList(),
+            Items = history.Select(a => a.Artist).ToList(),
             ItemsFollowSeries = true,
         };
     }

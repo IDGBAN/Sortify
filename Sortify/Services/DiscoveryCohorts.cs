@@ -14,13 +14,22 @@ public sealed class CohortBreakdown
     /// <summary>Hours played in <c>Years[i]</c> of tracks first heard in <c>Cohorts[j]</c>.</summary>
     public double[,] Hours { get; init; } = new double[0, 0];
 
+    /// <summary>Plays in <c>Years[i]</c> of tracks first heard in <c>Cohorts[j]</c>.</summary>
+    public int[,] Plays { get; init; } = new int[0, 0];
+
     public static CohortBreakdown Empty { get; } = new();
 
-    /// <summary>The share (0-100) of a year's listening that went to tracks first heard that same year.</summary>
-    public double NewSharePercent(int year) => SharePercent(year, year);
+    /// <summary>The hours, or plays, in <c>Years[y]</c> of tracks first heard in <c>Cohorts[c]</c>.</summary>
+    public double Amount(int y, int c, Metric metric) => metric == Metric.Plays ? Plays[y, c] : Hours[y, c];
 
-    /// <summary>The share (0-100) of <paramref name="year"/>'s listening that went to tracks first heard in <paramref name="cohort"/>.</summary>
-    public double SharePercent(int year, int cohort)
+    /// <summary>The share (0-100) of a year's listening time, or plays, that went to tracks first heard that same year.</summary>
+    public double NewSharePercent(int year, Metric metric = Metric.Time) => SharePercent(year, year, metric);
+
+    /// <summary>
+    /// The share (0-100) of <paramref name="year"/>'s listening time, or plays, that went to
+    /// tracks first heard in <paramref name="cohort"/>.
+    /// </summary>
+    public double SharePercent(int year, int cohort, Metric metric = Metric.Time)
     {
         int y = IndexOf(Years, year), c = IndexOf(Cohorts, cohort);
         if (y < 0 || c < 0)
@@ -28,8 +37,8 @@ public sealed class CohortBreakdown
 
         double total = 0;
         for (int j = 0; j < Cohorts.Count; j++)
-            total += Hours[y, j];
-        return total > 0 ? Hours[y, c] * 100 / total : 0;
+            total += Amount(y, j, metric);
+        return total > 0 ? Amount(y, c, metric) * 100 / total : 0;
     }
 
     private static int IndexOf(IReadOnlyList<int> list, int value)
@@ -78,7 +87,7 @@ public static class DiscoveryCohorts
                 firstHeard[key] = r.Timestamp;
         }
 
-        var ms = new Dictionary<(int Year, int Cohort), long>();
+        var cells = new Dictionary<(int Year, int Cohort), (long Ms, int Plays)>();
         foreach (var r in FilterEngine.Apply(records, filter))
         {
             if ((++counter & 0x3FFF) == 0)
@@ -88,19 +97,25 @@ public static class DiscoveryCohorts
 
             int cohort = firstHeard[(r.DisplayTrack, r.DisplayArtist)].Year;
             var cell = (r.Timestamp.Year, cohort);
-            ms[cell] = ms.GetValueOrDefault(cell) + r.MsPlayed;
+            var (ms, plays) = cells.GetValueOrDefault(cell);
+            cells[cell] = (ms + r.MsPlayed, plays + 1);
         }
 
-        if (ms.Count == 0)
+        if (cells.Count == 0)
             return CohortBreakdown.Empty;
 
-        var years = ms.Keys.Select(k => k.Year).Distinct().Order().ToList();
-        var cohorts = ms.Keys.Select(k => k.Cohort).Distinct().Order().ToList();
+        var years = cells.Keys.Select(k => k.Year).Distinct().Order().ToList();
+        var cohorts = cells.Keys.Select(k => k.Cohort).Distinct().Order().ToList();
         var hours = new double[years.Count, cohorts.Count];
-        foreach (var ((year, cohort), value) in ms)
-            hours[years.IndexOf(year), cohorts.IndexOf(cohort)] = value / 3_600_000d;
+        var playCounts = new int[years.Count, cohorts.Count];
+        foreach (var ((year, cohort), value) in cells)
+        {
+            int y = years.IndexOf(year), c = cohorts.IndexOf(cohort);
+            hours[y, c] = value.Ms / 3_600_000d;
+            playCounts[y, c] = value.Plays;
+        }
 
-        return new CohortBreakdown { Years = years, Cohorts = cohorts, Hours = hours };
+        return new CohortBreakdown { Years = years, Cohorts = cohorts, Hours = hours, Plays = playCounts };
     }
 
     /// <summary>A dated play the year rollups count: music, or podcasts when the sidebar includes them.</summary>

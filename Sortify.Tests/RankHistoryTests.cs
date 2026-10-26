@@ -39,6 +39,21 @@ public class RankHistoryTests
     }
 
     [Fact]
+    public void ByPlays_TheMostPlayedArtistsAreFollowed_AndRankedByPlays()
+    {
+        // Short plays: Often is played most but listened to least.
+        var records = new List<PlayRecord> { Play("Long", 2023, 300), Play("Long", 2024, 300) };
+        records.AddRange(Enumerable.Range(0, 3).SelectMany(_ => new[] { Play("Often", 2023, 2), Play("Often", 2024, 2) }));
+
+        var r = AnalysisEngine.Analyze(records, new FilterOptions());
+
+        Assert.Equal("Long", r.RankHistory[0].Artist.Artist);
+        Assert.Equal("Often", r.RankHistoryByPlays[0].Artist.Artist);
+        Assert.Equal(new int?[] { 1, 1 }, r.RankHistoryByPlays[0].Ranks);
+        Assert.Equal(new int?[] { 2, 2 }, r.RankHistoryByPlays[1].Ranks);
+    }
+
+    [Fact]
     public void AYearBelowTheFloor_IsAGap()
     {
         var records = Enumerable.Range(0, AnalysisEngine.RankHistoryFloor)

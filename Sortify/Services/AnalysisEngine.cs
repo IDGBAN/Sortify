@@ -367,7 +367,8 @@ public static class AnalysisEngine
             .OrderBy(kv => kv.Key)
             .Select(kv => BuildMonthStat(kv.Key, kv.Value))
             .ToList();
-        var rankHistory = ComputeRankHistory(years, yearList, artistList);
+        var rankHistory = ComputeRankHistory(years, yearList, artistList, Metric.Time);
+        var rankHistoryByPlays = ComputeRankHistory(years, yearList, artistsByCount, Metric.Plays);
 
         // Measured from the last play in the results rather than from today: an export is a
         // snapshot, and a filtered one can end years ago.
@@ -395,6 +396,7 @@ public static class AnalysisEngine
             AlbumsByPlayCount = albumsByCount,
             Years = yearList,
             RankHistory = rankHistory,
+            RankHistoryByPlays = rankHistoryByPlays,
             Months = monthList,
             Milestones = milestones,
             OnRepeat = onRepeat,
@@ -594,11 +596,13 @@ public static class AnalysisEngine
     }
 
     /// <summary>
-    /// Where each of the top artists overall ranked by listening time in every year, down to
-    /// <see cref="RankHistoryFloor"/>. Needs two years to say anything.
+    /// Where each of the top artists overall ranked by listening time, or by plays, in every
+    /// year, down to <see cref="RankHistoryFloor"/>. Needs two years to say anything.
     /// </summary>
+    /// <param name="artists">Every artist, ranked by <paramref name="metric"/>.</param>
     private static List<ArtistRanks> ComputeRankHistory(
-        Dictionary<int, PeriodAccumulator> years, IReadOnlyList<YearStat> yearList, IReadOnlyList<ArtistStat> artists)
+        Dictionary<int, PeriodAccumulator> years, IReadOnlyList<YearStat> yearList, IReadOnlyList<ArtistStat> artists,
+        Metric metric)
     {
         if (yearList.Count < 2)
             return new List<ArtistRanks>();
@@ -610,8 +614,13 @@ public static class AnalysisEngine
 
         for (int y = 0; y < yearList.Count; y++)
         {
+            var inYear = years[yearList[y].Year].Artists;
+            // Plays tie far more often than milliseconds do; the longer listen goes first, as with the leaders.
+            var ranked = metric == Metric.Plays
+                ? inYear.OrderByDescending(kv => kv.Value.Plays).ThenByDescending(kv => kv.Value.Ms)
+                : inYear.OrderByDescending(kv => kv.Value.Ms);
             int rank = 0;
-            foreach (var (artist, _) in years[yearList[y].Year].Artists.OrderByDescending(kv => kv.Value.Ms).Take(RankHistoryFloor))
+            foreach (var (artist, _) in ranked.Take(RankHistoryFloor))
             {
                 rank++;
                 if (ranks.TryGetValue(artist, out var row))

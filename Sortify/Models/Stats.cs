@@ -232,6 +232,9 @@ public sealed class AnalysisResult
     /// </summary>
     public IReadOnlyList<ArtistRanks> RankHistory { get; init; } = Array.Empty<ArtistRanks>();
 
+    /// <summary>The same, following the top artists by plays and ranking each year by plays.</summary>
+    public IReadOnlyList<ArtistRanks> RankHistoryByPlays { get; init; } = Array.Empty<ArtistRanks>();
+
     /// <summary>Per-calendar-month rollups with each month's top artist and track, oldest first.</summary>
     public IReadOnlyList<MonthStat> Months { get; init; } = Array.Empty<MonthStat>();
 
