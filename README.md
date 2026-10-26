@@ -13,6 +13,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 
 ## Features
 - Top tracks, artists and albums, ranked by listening time, play count, or the first time you played them.
+- A **Time / Plays** switch at the top of the sidebar that every chart, ranking and table follows: rank by how long you listened, or by how many times you played. Top lists and tables number their rows, and a column header's arrow shows which way its table is sorted.
 - Charts throughout the app: bar charts for top tracks, artists and albums, a donut showing each artist's share of your listening, a line chart of listening over time (daily, weekly or monthly), a day-of-week vs. hour-of-day heatmap, and breakdowns by hour and by day of the week.
 - An **Overview** tab that opens with your headline totals and your top five tracks, artists and albums.
 - A **Compare Periods** tab that puts two periods side by side (it starts with your last 12 months against the 12 before): listening time, plays, artists and the rest with how much each changed, your artists and tracks ranked in both with how far they climbed or fell, and the artists that are new in the second period or gone from it. One click swaps the periods, makes the first one the stretch just before the second, ends a period today, or moves it to the same days in another year of your history. Every sidebar filter except the date range applies to both.
@@ -40,8 +41,8 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
   - Minimum play duration. The default is five seconds, which drops skips.
   - Whether podcasts and audiobooks count toward your track, artist and album statistics. Off by default, since a few long shows will otherwise outrank your music. The Podcasts tab shows them either way.
   - **Combine remasters and deluxe editions**: counts "Song - 2011 Remaster" as "Song" and "Album (Deluxe Edition)" as "Album", so a favourite that Spotify moved to a re-release isn't split across rows. It folds remasters (with or without a year), mono, stereo, single and album versions, and deluxe, expanded, anniversary and bonus-track editions; live versions, remixes, radio edits and featured artists stay as they are. Off by default. An exclusion made while it's on names the combined title, so it won't match the separate editions once it's off again.
-  - Date range, typed in or picked with one click: all time, the last 30 days or 12 months of your history, or any single year. Right-click a year on the Years tab to filter everything to it.
-  - Search by track, artist or album name.
+  - Date range, set with year, month and day drop-downs or picked with one click: all time, the last 30 days or 12 months of your history, or any single year. Right-click a year on the Years tab to filter everything to it.
+  - Search by track, artist or album name. As you type, it suggests matching names from your history with their listening time and plays, as do the exclusion boxes and each table's filter box ([more on suggestions](docs/Search.md)).
   - Only these artists: narrow every tab to one artist or a handful. Type a name and pick a match, right-click rows in the Tracks, Artists or Albums table and choose **Show only this artist**, or use the button in an artist's detail view.
   - An exclude list for specific artists or tracks.
   - Time of day and day of week. Time ranges may cross midnight, for example 22:00 to 02:00.
