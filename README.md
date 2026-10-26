@@ -78,7 +78,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 1. Request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/) from Spotify. When it arrives, download the ZIP. There's no need to extract it.
 2. Download the latest `Sortify.exe` from the [releases page](https://github.com/IDGBAN/Sortify/releases/) and run it.
 3. Drag the ZIP onto the window, or click **Open Files** and pick it. An extracted folder works too: use **Open Folder**, or drop the folder or its JSON files onto the window.
-4. Browse the Overview, Tracks, Artists, Albums, Years, Podcasts, Trends, Insights, Compare and History tabs, adjust the filters on the left, and export your results if you want a copy.
+4. Browse the Overview, Tracks, Artists, Albums, Years, Podcasts, Trends, Insights, Compare Periods, Compare People and History tabs, adjust the filters on the left, and export your results if you want a copy.
 
 While you wait for the export, **Explore a sample history while you wait** on the start screen shows what Sortify does with two years of made-up listening.
 
