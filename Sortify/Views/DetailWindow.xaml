@@ -160,7 +160,7 @@
                             <TextBlock x:Name="ArtistsHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
                             <TextBlock Text="Artists" Style="{StaticResource SectionHeader}" Margin="0" />
                         </DockPanel>
-                        <DataGrid x:Name="ArtistsGrid" AutomationProperties.Name="Artists"
+                        <DataGrid views:RowNumbers.IsEnabled="True" x:Name="ArtistsGrid" AutomationProperties.Name="Artists"
                                   MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
@@ -180,11 +180,11 @@
                             <TextBlock x:Name="TracksHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
                             <TextBlock x:Name="TracksHeader" Text="Tracks" Style="{StaticResource SectionHeader}" Margin="0" />
                         </DockPanel>
-                        <DataGrid x:Name="TracksGrid" AutomationProperties.Name="Tracks"
+                        <DataGrid views:RowNumbers.IsEnabled="True" x:Name="TracksGrid" AutomationProperties.Name="Tracks"
                                   MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
-                                <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
+                                <DataGridTextColumn x:Name="TrackNameColumn" Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
+                                <DataGridTextColumn x:Name="TrackArtistColumn" Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
                                 <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
                                                     Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
                                 <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
@@ -203,7 +203,7 @@
                             <TextBlock x:Name="AlbumsHint" DockPanel.Dock="Right" Style="{StaticResource RowHint}" />
                             <TextBlock Text="Albums" Style="{StaticResource SectionHeader}" Margin="0" />
                         </DockPanel>
-                        <DataGrid x:Name="AlbumsGrid" AutomationProperties.Name="Albums"
+                        <DataGrid views:RowNumbers.IsEnabled="True" x:Name="AlbumsGrid" AutomationProperties.Name="Albums"
                                   MouseDoubleClick="OnRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />

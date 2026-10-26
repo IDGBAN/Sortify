@@ -38,18 +38,34 @@ public sealed partial class CompareArtistsViewModel : ObservableObject
     public ObservableCollection<string> Artists { get; } = new();
 
     [ObservableProperty] private string _query = string.Empty;
-    [ObservableProperty] private IReadOnlyList<string> _suggestions = Array.Empty<string>();
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SuggestionDetails))]
+    private IReadOnlyList<string> _suggestions = Array.Empty<string>();
+
     [ObservableProperty] private ChartData _chart = ChartData.Empty;
     [ObservableProperty] private string _hint = string.Empty;
 
+    /// <summary>Whether the lines show listening time or plays; follows the Time / Plays switch.</summary>
+    [ObservableProperty] private Metric _metric;
+
+    /// <summary>The suggested artists with their listening under the current filters, for the list under the box.</summary>
+    public IReadOnlyList<SearchSuggestion> SuggestionDetails => Suggestions
+        .Select(name => _known.First(a => a.Artist == name))
+        .Select(a => new SearchSuggestion("Artist", a.Artist, "", a.TotalMsPlayed, a.PlayCount, "Current filters"))
+        .ToArray();
+
     partial void OnQueryChanged(string value) => RefreshSuggestions();
+
+    partial void OnMetricChanged(Metric value) => Redraw();
 
     /// <summary>A different history is loaded, so the next results pick the artists again.</summary>
     public void StartOver() => _seeded = false;
 
     /// <summary>
-    /// Takes the artists of a new analysis, most listened first: the ones suggested while typing,
-    /// and the first few to start a fresh history with. Then redraws under the current filters.
+    /// Takes the artists of a new analysis, ranked as the Time / Plays switch ranks them: the
+    /// ones suggested while typing, and the first few to start a fresh history with. Then
+    /// redraws under the current filters.
     /// </summary>
     public async Task UpdateAsync(IReadOnlyList<ArtistStat> artists)
     {
@@ -67,7 +83,7 @@ public sealed partial class CompareArtistsViewModel : ObservableObject
     }
 
     /// <summary>Draws the chart again from the same numbers, for a new theme's colours.</summary>
-    public void Redraw() => Chart = ChartBuilder.ArtistTimelines(_timeline, _granularity);
+    public void Redraw() => Chart = ChartBuilder.ArtistTimelines(_timeline, _granularity, Metric);
 
     /// <summary>Switches between monthly and weekly buckets.</summary>
     public async Task SetGranularityAsync(ChartBuilder.TimeGranularity granularity)

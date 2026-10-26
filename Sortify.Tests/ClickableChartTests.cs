@@ -49,7 +49,7 @@ public class ClickableChartTests
     [Fact]
     public void EachYearColumnKnowsItsYear()
     {
-        var chart = OnUiThread(() => ChartBuilder.HoursPerYear(Result()));
+        var chart = OnUiThread(() => ChartBuilder.PerYear(Result()));
 
         Assert.Equal(new[] { 2023, 2024 }, chart.Items.Cast<YearStat>().Select(y => y.Year));
     }

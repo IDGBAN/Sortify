@@ -66,6 +66,12 @@ public sealed class DetailResult
     /// <summary>ms played indexed by hour of day 0-23.</summary>
     public long[] ByHour { get; init; } = new long[24];
 
+    /// <summary>Plays per calendar month, oldest first.</summary>
+    public IReadOnlyList<DateTimePoint> PlaysByMonth { get; init; } = Array.Empty<DateTimePoint>();
+
+    /// <summary>Plays indexed by hour of day 0-23.</summary>
+    public int[] PlaysByHour { get; init; } = new int[24];
+
     /// <summary>
     /// A Spotify URI seen on one of these plays ("spotify:track:..."), when the export
     /// carried one. Empty for older exports and for anything Spotify didn't tag.

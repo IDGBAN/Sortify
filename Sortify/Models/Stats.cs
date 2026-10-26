@@ -89,8 +89,14 @@ public sealed class YearStat
     public int PlayCount { get; set; }
     public int UniqueArtists { get; set; }
     public int UniqueTracks { get; set; }
+
+    /// <summary>The artist and track listened to longest this year.</summary>
     public string TopArtist { get; set; } = "-";
     public string TopTrack { get; set; } = "-";
+
+    /// <summary>The artist and track played the most times this year.</summary>
+    public string MostPlayedArtist { get; set; } = "-";
+    public string MostPlayedTrack { get; set; } = "-";
 
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
@@ -116,11 +122,19 @@ public sealed class MonthStat
     public long TotalMsPlayed { get; init; }
     public int PlayCount { get; init; }
 
+    // Led by listening time.
     public string TopArtist { get; init; } = "-";
     public long TopArtistMs { get; init; }
     public string TopTrack { get; init; } = "-";
     public string TopTrackArtist { get; init; } = "-";
     public long TopTrackMs { get; init; }
+
+    // Led by number of plays.
+    public string MostPlayedArtist { get; init; } = "-";
+    public int MostPlayedArtistPlays { get; init; }
+    public string MostPlayedTrack { get; init; } = "-";
+    public string MostPlayedTrackArtist { get; init; } = "-";
+    public int MostPlayedTrackPlays { get; init; }
 
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
@@ -255,6 +269,10 @@ public sealed class AnalysisResult
     /// <summary>Individual episodes and chapters, most listened first.</summary>
     public IReadOnlyList<EpisodeStat> Episodes { get; init; } = Array.Empty<EpisodeStat>();
 
+    // Pre-sorted by play count, like the music lists above.
+    public IReadOnlyList<ShowStat> ShowsByPlayCount { get; init; } = Array.Empty<ShowStat>();
+    public IReadOnlyList<EpisodeStat> EpisodesByPlayCount { get; init; } = Array.Empty<EpisodeStat>();
+
     public long PodcastMsPlayed { get; init; }
     public int PodcastPlays { get; init; }
 
@@ -294,6 +312,20 @@ public sealed class AnalysisResult
 
     /// <summary>ms played bucketed by [day of week 0=Sunday..6, hour of day 0-23] for the heatmap.</summary>
     public long[,] PlaytimeByDowHour { get; init; } = new long[7, 24];
+
+    // The same four breakdowns counted in plays rather than time.
+
+    /// <summary>Plays bucketed by calendar day (local time).</summary>
+    public IReadOnlyList<DateTimePoint> PlaysByDay { get; init; } = Array.Empty<DateTimePoint>();
+
+    /// <summary>Plays indexed by hour of day 0-23 (local time).</summary>
+    public int[] PlaysByHour { get; init; } = new int[24];
+
+    /// <summary>Plays indexed by day of week 0=Sunday..6=Saturday (local time).</summary>
+    public int[] PlaysByDayOfWeek { get; init; } = new int[7];
+
+    /// <summary>Plays bucketed by [day of week 0=Sunday..6, hour of day 0-23].</summary>
+    public int[,] PlaysByDowHour { get; init; } = new int[7, 24];
 
     /// <summary>
     /// Count of artists first heard in each calendar month (local time), every month from the

@@ -148,7 +148,9 @@ public partial class ChartTableWindow : ThemedWindow
             chart.Focusable = true;
             chart.IsTabStop = true;
             chart.FocusVisualStyle = ring;
-            AutomationProperties.SetName(chart, TitleFor(chart));
+            // A chart whose heading is bound, like the Years chart's, binds its name to the same text.
+            if (!BindingOperations.IsDataBound(chart, AutomationProperties.NameProperty))
+                AutomationProperties.SetName(chart, TitleFor(chart));
             AutomationProperties.SetHelpText(chart, "Press Enter for this chart's numbers as a table, or Shift+F10 for its menu.");
             chart.KeyDown += (_, e) =>
             {

@@ -2,7 +2,7 @@ using Sortify.Models;
 
 namespace Sortify.Services;
 
-/// <summary>Listening time per month (or week) for a few chosen artists, on one shared timeline.</summary>
+/// <summary>Listening time and plays per month (or week) for a few chosen artists, on one shared timeline.</summary>
 public sealed class ArtistTimeline
 {
     /// <summary>The start of every bucket from the first play to the last, with none skipped.</summary>
@@ -10,6 +10,9 @@ public sealed class ArtistTimeline
 
     /// <summary>Hours per bucket for each artist, in the order they were asked for.</summary>
     public IReadOnlyList<(string Artist, double[] Hours)> Series { get; init; } = Array.Empty<(string, double[])>();
+
+    /// <summary>Plays per bucket for each artist, in the same order as <see cref="Series"/>.</summary>
+    public IReadOnlyList<(string Artist, double[] Plays)> PlaySeries { get; init; } = Array.Empty<(string, double[])>();
 
     public static ArtistTimeline Empty { get; } = new();
 }
@@ -43,7 +46,7 @@ public static class ArtistComparison
         var index = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var artist in artists)
             index.TryAdd(artist, index.Count);
-        var perArtist = index.Keys.Select(_ => new Dictionary<DateTime, long>()).ToArray();
+        var perArtist = index.Keys.Select(_ => new Dictionary<DateTime, (long Ms, int Plays)>()).ToArray();
 
         DateTime? first = null, last = null;
         int counter = 0;
@@ -61,22 +64,31 @@ public static class ArtistComparison
                 continue;
 
             var bucket = TimeBuckets.Of(r.Timestamp, granularity, firstDay);
-            perArtist[i][bucket] = perArtist[i].GetValueOrDefault(bucket) + r.MsPlayed;
+            var (ms, plays) = perArtist[i].GetValueOrDefault(bucket);
+            perArtist[i][bucket] = (ms + r.MsPlayed, plays + 1);
             if (first is null || bucket < first) first = bucket;
             if (last is null || bucket > last) last = bucket;
         }
 
         if (first is not { } from || last is not { } to)
-            return new ArtistTimeline { Series = index.Keys.Select(a => (a, Array.Empty<double>())).ToList() };
+        {
+            var empty = index.Keys.Select(a => (a, Array.Empty<double>())).ToList();
+            return new ArtistTimeline { Series = empty, PlaySeries = empty };
+        }
 
         var buckets = TimeBuckets.Between(from, to, granularity, firstDay);
 
         var series = index.Keys
             .Select((artist, i) => (artist, buckets
-                .Select(b => Math.Round(perArtist[i].GetValueOrDefault(b) / 3_600_000d, 2))
+                .Select(b => Math.Round(perArtist[i].GetValueOrDefault(b).Ms / 3_600_000d, 2))
+                .ToArray()))
+            .ToList();
+        var playSeries = index.Keys
+            .Select((artist, i) => (artist, buckets
+                .Select(b => (double)perArtist[i].GetValueOrDefault(b).Plays)
                 .ToArray()))
             .ToList();
 
-        return new ArtistTimeline { Buckets = buckets, Series = series };
+        return new ArtistTimeline { Buckets = buckets, Series = series, PlaySeries = playSeries };
     }
 }

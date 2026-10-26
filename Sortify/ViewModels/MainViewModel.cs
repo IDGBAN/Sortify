@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -57,8 +58,14 @@ public sealed partial class MainViewModel : ObservableObject
 
     public FilterViewModel Filters { get; } = new();
 
-    /// <summary>The Compare tab.</summary>
+    [ObservableProperty] private IReadOnlyList<SearchSuggestion> _suggestions = Array.Empty<SearchSuggestion>();
+    [ObservableProperty] private IReadOnlyList<SearchSuggestion> _tableSuggestions = Array.Empty<SearchSuggestion>();
+
+    /// <summary>The Compare Periods tab.</summary>
     public CompareViewModel Compare { get; }
+
+    /// <summary>The Compare People tab.</summary>
+    public PeopleCompareViewModel ComparePeople { get; }
 
     /// <summary>The History tab.</summary>
     public HistoryViewModel History { get; }
@@ -82,8 +89,8 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<SkippedTrackStat> _skippedTracks = Array.Empty<SkippedTrackStat>();
     [ObservableProperty] private IReadOnlyList<ShowStat> _shows = Array.Empty<ShowStat>();
     [ObservableProperty] private IReadOnlyList<EpisodeStat> _episodes = Array.Empty<EpisodeStat>();
-    /// <summary>Each month's top artist and track, newest month first.</summary>
-    [ObservableProperty] private IReadOnlyList<MonthStat> _months = Array.Empty<MonthStat>();
+    /// <summary>Each month's top artist and track by the chosen metric, newest month first.</summary>
+    [ObservableProperty] private IReadOnlyList<MonthRow> _months = Array.Empty<MonthRow>();
     [ObservableProperty] private string _monthlyLeaderText = string.Empty;
     [ObservableProperty] private IReadOnlyList<Milestone> _milestones = Array.Empty<Milestone>();
     [ObservableProperty] private IReadOnlyList<RepeatStat> _onRepeat = Array.Empty<RepeatStat>();
@@ -150,6 +157,58 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _themeGlyph = "";
     [ObservableProperty] private string _themeTooltip = "Switch to the light theme";
 
+    /// <summary>
+    /// What every chart and list ranks and measures by: the Time / Plays switch in the sidebar.
+    /// The analysis already holds both, so switching only re-ranks and redraws.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsRankedByTime), nameof(IsRankedByPlays), nameof(RankSortMember),
+        nameof(RankedByText), nameof(ArtistShareTitle), nameof(PerYearTitle), nameof(MonthlyTopHint),
+        nameof(AmountHeader))]
+    private Metric _metric;
+
+    /// <summary>The Time half of the switch. Unchecking it does nothing; checking Plays does.</summary>
+    public bool IsRankedByTime
+    {
+        get => Metric == Metric.Time;
+        set
+        {
+            if (value)
+                Metric = Metric.Time;
+        }
+    }
+
+    /// <summary>The Plays half of the switch.</summary>
+    public bool IsRankedByPlays
+    {
+        get => Metric == Metric.Plays;
+        set
+        {
+            if (value)
+                Metric = Metric.Plays;
+        }
+    }
+
+    /// <summary>The column the ranked grids arrive sorted by, so that header can show the arrow.</summary>
+    public string RankSortMember => Metric == Metric.Plays ? nameof(TrackStat.PlayCount) : nameof(TrackStat.TotalMsPlayed);
+
+    /// <summary>Follows a ranked chart's title: "by listening time" or "by plays".</summary>
+    public string RankedByText => Metric == Metric.Plays ? "by plays" : "by listening time";
+
+    public string ArtistShareTitle => Metric == Metric.Plays
+        ? $"Top {ChartBuilder.ArtistShareSlices} Artists - Share of Plays"
+        : $"Top {ChartBuilder.ArtistShareSlices} Artists - Share of Listening Time";
+
+    public string PerYearTitle => Metric == Metric.Plays ? "Plays per Year" : "Listening Time per Year";
+
+    public string MonthlyTopHint => (Metric == Metric.Plays
+        ? "The artist and track you played most each month."
+        : "The artist and track you listened to longest each month.") +
+        " Double-click a month for its top artist; right-click for its top track.";
+
+    /// <summary>Header for a column holding a listening amount: "Hours" or "Plays".</summary>
+    public string AmountHeader => Metric == Metric.Plays ? "Plays" : "Hours";
+
     // Summary (overview) ------------------------------------------------------------------
     [ObservableProperty] private string _totalTimeText = "-";
     [ObservableProperty] private string _totalPlaysText = "-";
@@ -172,12 +231,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _hasPodcastData;
 
     // Charts ------------------------------------------------------------------------------
-    [ObservableProperty] private ChartData _tracksByTime = ChartData.Empty;
-    [ObservableProperty] private ChartData _tracksByCount = ChartData.Empty;
-    [ObservableProperty] private ChartData _artistsByTime = ChartData.Empty;
-    [ObservableProperty] private ChartData _artistsByCount = ChartData.Empty;
-    [ObservableProperty] private ChartData _albumsByTime = ChartData.Empty;
-    [ObservableProperty] private ChartData _albumsByCount = ChartData.Empty;
+    [ObservableProperty] private ChartData _tracksChart = ChartData.Empty;
+    [ObservableProperty] private ChartData _artistsChart = ChartData.Empty;
+    [ObservableProperty] private ChartData _albumsChart = ChartData.Empty;
     [ObservableProperty] private ChartData _skipped = ChartData.Empty;
     [ObservableProperty] private ChartData _byHour = ChartData.Empty;
     [ObservableProperty] private ChartData _byDayOfWeek = ChartData.Empty;
@@ -196,6 +252,10 @@ public sealed partial class MainViewModel : ObservableObject
         $"A gap means they were outside the top {AnalysisEngine.RankHistoryFloor} that year.";
 
     [ObservableProperty] private ISeries[] _artistShareSeries = Array.Empty<ISeries>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _artistShareLegend = Array.Empty<LegendEntry>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _reasonEndLegend = Array.Empty<LegendEntry>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _platformLegend = Array.Empty<LegendEntry>();
+    [ObservableProperty] private IReadOnlyList<LegendEntry> _countryLegend = Array.Empty<LegendEntry>();
     [ObservableProperty] private ISeries[] _reasonEndSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _platformSeries = Array.Empty<ISeries>();
     [ObservableProperty] private ISeries[] _countrySeries = Array.Empty<ISeries>();
@@ -241,15 +301,14 @@ public sealed partial class MainViewModel : ObservableObject
         History = new HistoryViewModel(() => HasData
             ? new HistoryViewModel.Source(Records, _resultOptions ?? Filters.ToOptions())
             : null);
-        Compare = new CompareViewModel(() => HasData
-            ? new CompareViewModel.Source(Records, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
-                PlayTimeZones.From(_settings))
-            : null);
+        Compare = new CompareViewModel(CompareSource);
+        ComparePeople = new PeopleCompareViewModel(CompareSource);
         CompareArtists = new CompareArtistsViewModel(() => HasData
             ? new CompareArtistsViewModel.Source(Records, Filters.ToOptions(), _settings.FirstDayOfWeek)
             : null);
         CompareArtists.Notice += (_, message) => SetStatus(message);
         SidebarVisible = _settings.SidebarVisible;
+        Metric = _settings.Metric;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
         RefreshRecentFolders();
         RefreshThemeButton();
@@ -301,6 +360,12 @@ public sealed partial class MainViewModel : ObservableObject
                       "The old file was kept as settings.unreadable.json in Sortify's data folder.", isError: true);
         }
     }
+
+    /// <summary>Your plays and the sidebar's filters, for the two Compare tabs; null until a history is open.</summary>
+    private CompareViewModel.Source? CompareSource() => HasData
+        ? new CompareViewModel.Source(Records, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
+            PlayTimeZones.From(_settings))
+        : null;
 
     // ---- Loading ---------------------------------------------------------------------------
 
@@ -624,10 +689,11 @@ public sealed partial class MainViewModel : ObservableObject
     /// Offers the quick date ranges, devices and countries that fit the history just loaded.
     /// Read off the raw records rather than the filtered results, so filtering to one year
     /// or one device doesn't take the other choices away. A different export from the one
-    /// before also starts the Compare tab over on its own periods.
+    /// before also starts the Compare Periods tab over on its own periods.
     /// </summary>
     private void OfferChoicesForHistory(bool newHistory)
     {
+        Suggestions = SearchSuggestions.Build(_rawRecords);
         DateTime? last = null;
         var years = new SortedSet<int>();
         var platformMs = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -684,7 +750,28 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         _overTimeGranularity = granularity;
         if (HasData)
-            OverTime = ChartBuilder.OverTime(_result, granularity, _settings.FirstDayOfWeek);
+            OverTime = ChartBuilder.OverTime(_result, granularity, Metric, _settings.FirstDayOfWeek);
+    }
+
+    partial void OnMetricChanged(Metric value)
+    {
+        if (_settings.Metric != value)
+        {
+            _settings.Metric = value;
+            _settings.Save();
+        }
+
+        Compare.Metric = value;
+        CompareArtists.Metric = value;
+        if (HasData)
+        {
+            UpdateCollections();
+            // The years keep their order but swap which leader columns they show; handing the
+            // grid a fresh list clears a sort on a column that just hid, which would otherwise
+            // go on ordering the rows with no arrow left to say so.
+            Years = _result.Years.ToList();
+            UpdateCharts();
+        }
     }
 
     // ---- Appearance and preferences ----------------------------------------------------------
@@ -713,7 +800,7 @@ public sealed partial class MainViewModel : ObservableObject
         Filters.SetFirstDayOfWeek(_settings.FirstDayOfWeek);
         RefreshActiveFilters();
         RefreshRecentFolders();
-        _ = Compare.ReadOtherAgainIfTimesChangedAsync();
+        _ = ComparePeople.ReadTheirsAgainIfTimesChangedAsync();
 
         // Play times are converted as an export is read, so a new time zone setting means
         // reading it again. The sample's times are made up in local time to begin with.
@@ -922,10 +1009,11 @@ public sealed partial class MainViewModel : ObservableObject
                   $"{Plural.Of(_result.UniqueArtists, "artist")} and {Plural.Of(_result.UniqueAlbums, "album")}.");
 
             Compare.Invalidate();
+            ComparePeople.Invalidate();
             History.Invalidate();
             if (ShowCohorts)
                 _ = RefreshCohortsAsync();
-            await CompareArtists.UpdateAsync(_result.Artists);
+            await CompareArtists.UpdateAsync(RankedArtists);
         }
         finally
         {
@@ -936,6 +1024,7 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void UpdateCollections()
     {
+        TableSuggestions = SearchSuggestions.FromResult(_result);
         ApplyTrackQuickFilter();
         ApplyArtistQuickFilter();
         ApplyAlbumQuickFilter();
@@ -945,22 +1034,30 @@ public sealed partial class MainViewModel : ObservableObject
         SkippedTracks = _result.SkippedTracks;
         ForgottenTracks = _result.ForgottenTracks;
         ForgottenArtists = _result.ForgottenArtists;
-        Months = _result.Months.Reverse().ToList();
-        MonthlyLeaderText = InsightText.MonthlyLeader(_result.Months);
+        Months = _result.Months.Reverse().Select(m => MonthRow.For(m, Metric)).ToList();
+        MonthlyLeaderText = InsightText.MonthlyLeader(_result.Months, Metric);
         Milestones = _result.Milestones;
         OnRepeat = _result.OnRepeat;
         HasPodcastData = _result.Shows.Count > 0;
 
-        TopTracks = _result.Tracks.Take(5)
-            .Select((t, i) => new RankedItem(i + 1, t.Track, t.Artist, TimeFormat.Friendly(t.TotalTime), t.PlayCount))
+        TopTracks = RankedTracks.Take(5)
+            .Select((t, i) => RankedItem.For(i + 1, t.Track, t.Artist, t.TotalTime, t.PlayCount, Metric))
             .ToList();
-        TopArtists = _result.Artists.Take(5)
-            .Select((a, i) => new RankedItem(i + 1, a.Artist, string.Empty, TimeFormat.Friendly(a.TotalTime), a.PlayCount))
+        TopArtists = RankedArtists.Take(5)
+            .Select((a, i) => RankedItem.For(i + 1, a.Artist, string.Empty, a.TotalTime, a.PlayCount, Metric))
             .ToList();
-        TopAlbums = _result.Albums.Take(5)
-            .Select((a, i) => new RankedItem(i + 1, a.Album, a.Artist, TimeFormat.Friendly(a.TotalTime), a.PlayCount))
+        TopAlbums = RankedAlbums.Take(5)
+            .Select((a, i) => RankedItem.For(i + 1, a.Album, a.Artist, a.TotalTime, a.PlayCount, Metric))
             .ToList();
     }
+
+    // The rows in the order the metric ranks them. Both orders come pre-sorted from the
+    // analysis, so switching never sorts tens of thousands of rows on the UI thread.
+    private IReadOnlyList<TrackStat> RankedTracks => Metric == Metric.Plays ? _result.TracksByPlayCount : _result.Tracks;
+    private IReadOnlyList<ArtistStat> RankedArtists => Metric == Metric.Plays ? _result.ArtistsByPlayCount : _result.Artists;
+    private IReadOnlyList<AlbumStat> RankedAlbums => Metric == Metric.Plays ? _result.AlbumsByPlayCount : _result.Albums;
+    private IReadOnlyList<ShowStat> RankedShows => Metric == Metric.Plays ? _result.ShowsByPlayCount : _result.Shows;
+    private IReadOnlyList<EpisodeStat> RankedEpisodes => Metric == Metric.Plays ? _result.EpisodesByPlayCount : _result.Episodes;
 
     // ---- Quick filters ------------------------------------------------------------------------
 
@@ -970,18 +1067,18 @@ public sealed partial class MainViewModel : ObservableObject
     partial void OnShowQuickFilterChanged(string value) => ApplyShowQuickFilter();
 
     private void ApplyTrackQuickFilter() =>
-        Tracks = Narrow(_result.Tracks, TrackQuickFilter, t => t.Track, t => t.Artist);
+        Tracks = Narrow(RankedTracks, TrackQuickFilter, t => t.Track, t => t.Artist);
 
     private void ApplyArtistQuickFilter() =>
-        Artists = Narrow(_result.Artists, ArtistQuickFilter, a => a.Artist);
+        Artists = Narrow(RankedArtists, ArtistQuickFilter, a => a.Artist);
 
     private void ApplyAlbumQuickFilter() =>
-        Albums = Narrow(_result.Albums, AlbumQuickFilter, a => a.Album, a => a.Artist);
+        Albums = Narrow(RankedAlbums, AlbumQuickFilter, a => a.Album, a => a.Artist);
 
     private void ApplyShowQuickFilter()
     {
-        Shows = Narrow(_result.Shows, ShowQuickFilter, s => s.Show);
-        Episodes = Narrow(_result.Episodes, ShowQuickFilter, e => e.Episode, e => e.Show);
+        Shows = Narrow(RankedShows, ShowQuickFilter, s => s.Show);
+        Episodes = Narrow(RankedEpisodes, ShowQuickFilter, e => e.Episode, e => e.Show);
     }
 
     /// <summary>
@@ -1177,24 +1274,28 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void UpdateCharts()
     {
-        ByHour = ChartBuilder.ByHour(_result);
-        ByDayOfWeek = ChartBuilder.ByDayOfWeek(_result, _settings.FirstDayOfWeek);
-        Heat = ChartBuilder.DowHourHeat(_result, _settings.FirstDayOfWeek);
-        OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity, _settings.FirstDayOfWeek);
-        ByYear = ChartBuilder.HoursPerYear(_result);
+        ByHour = ChartBuilder.ByHour(_result, Metric);
+        ByDayOfWeek = ChartBuilder.ByDayOfWeek(_result, Metric, _settings.FirstDayOfWeek);
+        Heat = ChartBuilder.DowHourHeat(_result, Metric, _settings.FirstDayOfWeek);
+        OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity, Metric, _settings.FirstDayOfWeek);
+        ByYear = ChartBuilder.PerYear(_result, Metric);
         RankChart = ChartBuilder.RankHistory(_result);
         HasRankHistory = _result.RankHistory.Count > 0;
         Discovery = ChartBuilder.NewArtistsByMonth(_result);
         Skipped = ChartBuilder.TopSkippedTracks(_result);
-        ArtistShareSeries = ChartBuilder.ArtistShare(_result);
+        ArtistShareSeries = ChartBuilder.ArtistShare(_result, Metric);
+        ArtistShareLegend = LegendEntry.For(ChartBuilder.ArtistShareSlicesOf(_result, Metric));
         ReasonEndSeries = ChartBuilder.ReasonEndShare(_result);
-        PlatformSeries = ChartBuilder.PlatformShare(_result);
-        CountrySeries = ChartBuilder.CountryShare(_result);
+        ReasonEndLegend = LegendEntry.For(ChartBuilder.ReasonEndSlicesOf(_result));
+        PlatformSeries = ChartBuilder.PlatformShare(_result, Metric);
+        PlatformLegend = LegendEntry.For(ChartBuilder.PlatformSlicesOf(_result, Metric));
+        CountrySeries = ChartBuilder.CountryShare(_result, Metric);
+        CountryLegend = LegendEntry.For(ChartBuilder.CountrySlicesOf(_result, Metric));
 
         // Size these to their content: most libraries hold only a handful of shows, and a
         // fixed-height chart would space three bars across half a screen.
-        ShowsChart = ChartBuilder.TopShows(_result);
-        EpisodesChart = ChartBuilder.TopEpisodes(_result);
+        ShowsChart = ChartBuilder.TopShows(_result, metric: Metric);
+        EpisodesChart = ChartBuilder.TopEpisodes(_result, metric: Metric);
         ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
         EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
         CompareArtists.Redraw();
@@ -1213,22 +1314,19 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void BuildTrackCharts()
     {
-        TracksByTime = ChartBuilder.TopTracksByTime(_result, _tracksShown);
-        TracksByCount = ChartBuilder.TopTracksByCount(_result, _tracksShown);
+        TracksChart = ChartBuilder.TopTracks(_result, _tracksShown, Metric);
         TracksChartHeight = BarHeight(_tracksShown);
     }
 
     private void BuildArtistCharts()
     {
-        ArtistsByTime = ChartBuilder.TopArtistsByTime(_result, _artistsShown);
-        ArtistsByCount = ChartBuilder.TopArtistsByCount(_result, _artistsShown);
+        ArtistsChart = ChartBuilder.TopArtists(_result, _artistsShown, Metric);
         ArtistsChartHeight = BarHeight(_artistsShown);
     }
 
     private void BuildAlbumCharts()
     {
-        AlbumsByTime = ChartBuilder.TopAlbumsByTime(_result, _albumsShown);
-        AlbumsByCount = ChartBuilder.TopAlbumsByCount(_result, _albumsShown);
+        AlbumsChart = ChartBuilder.TopAlbums(_result, _albumsShown, Metric);
         AlbumsChartHeight = BarHeight(_albumsShown);
     }
 
@@ -1368,10 +1466,85 @@ public sealed partial class MainViewModel : ObservableObject
     }
 }
 
-/// <summary>One row of an Overview top-five list.</summary>
-public sealed record RankedItem(int Rank, string Name, string Secondary, string Time, int Plays)
+/// <summary>
+/// One row of an Overview top-five list. <see cref="Value"/> is the amount it was ranked by,
+/// shown first; <see cref="Detail"/> is the other one.
+/// </summary>
+public sealed record RankedItem(int Rank, string Name, string Secondary, string Value, string Detail)
 {
-    public string PlaysText => Plural.Of(Plays, "play");
+    public static RankedItem For(int rank, string name, string secondary, TimeSpan time, int plays, Metric metric)
+    {
+        string timeText = TimeFormat.Friendly(time);
+        string playsText = Plural.Of(plays, "play");
+        return metric == Metric.Plays
+            ? new RankedItem(rank, name, secondary, playsText, timeText)
+            : new RankedItem(rank, name, secondary, timeText, playsText);
+    }
+}
+
+/// <summary>
+/// One month on the Trends tab's "#1 each month" list: the artist and track that led it by the
+/// chosen metric. Each amount comes as text to show and a number for the grid to sort by.
+/// </summary>
+public sealed class MonthRow
+{
+    /// <summary>The first day of the month.</summary>
+    public required DateTime Month { get; init; }
+    public required string TopArtist { get; init; }
+    public required string TopTrack { get; init; }
+    public required string TopTrackArtist { get; init; }
+
+    public double ArtistAmount { get; init; }
+    public string ArtistAmountText { get; init; } = string.Empty;
+    public double TrackAmount { get; init; }
+    public string TrackAmountText { get; init; } = string.Empty;
+    public double Total { get; init; }
+    public string TotalText { get; init; } = string.Empty;
+
+    public static MonthRow For(MonthStat m, Metric metric) => metric == Metric.Plays
+        ? new MonthRow
+        {
+            Month = m.Month,
+            TopArtist = m.MostPlayedArtist,
+            TopTrack = m.MostPlayedTrack,
+            TopTrackArtist = m.MostPlayedTrackArtist,
+            ArtistAmount = m.MostPlayedArtistPlays,
+            ArtistAmountText = m.MostPlayedArtistPlays.ToString("N0"),
+            TrackAmount = m.MostPlayedTrackPlays,
+            TrackAmountText = m.MostPlayedTrackPlays.ToString("N0"),
+            Total = m.PlayCount,
+            TotalText = Plural.Of(m.PlayCount, "play"),
+        }
+        : new MonthRow
+        {
+            Month = m.Month,
+            TopArtist = m.TopArtist,
+            TopTrack = m.TopTrack,
+            TopTrackArtist = m.TopTrackArtist,
+            ArtistAmount = m.TopArtistMs,
+            ArtistAmountText = m.TopArtistHours.ToString("N1"),
+            TrackAmount = m.TopTrackMs,
+            TrackAmountText = m.TopTrackHours.ToString("N1"),
+            Total = m.TotalMsPlayed,
+            TotalText = TimeFormat.HhMmSs(m.TotalTime),
+        };
+}
+
+/// <summary>
+/// One row of a donut's legend: the rank sits in its own column beside the name (blank for
+/// "Other"), with the slice's colour as a swatch.
+/// </summary>
+public sealed record LegendEntry(string Rank, string Name, string Share, Brush Swatch)
+{
+    public static IReadOnlyList<LegendEntry> For(IEnumerable<ChartBuilder.ShareSlice> slices) =>
+        slices.Select(From).ToList();
+
+    public static LegendEntry From(ChartBuilder.ShareSlice slice)
+    {
+        var brush = new SolidColorBrush(Color.FromRgb(slice.Color.Red, slice.Color.Green, slice.Color.Blue));
+        brush.Freeze();
+        return new LegendEntry(slice.Rank?.ToString() ?? string.Empty, slice.Name, $"{slice.Percent:0.#}%", brush);
+    }
 }
 
 /// <summary>

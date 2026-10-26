@@ -159,23 +159,25 @@ public sealed class InsightText
 
     /// <summary>
     /// Who topped the most months, and their longest run of back-to-back months on top. Ties
-    /// go to the artist with more listening in the months they led.
+    /// go to the artist with more listening (or more plays) in the months they led.
     /// </summary>
-    internal static string MonthlyLeader(IReadOnlyList<MonthStat> months)
+    internal static string MonthlyLeader(IReadOnlyList<MonthStat> months, Metric metric = Metric.Time)
     {
         if (months.Count == 0)
             return string.Empty;
 
+        bool plays = metric == Metric.Plays;
+        string TopOf(MonthStat m) => plays ? m.MostPlayedArtist : m.TopArtist;
         var leader = months
-            .GroupBy(m => m.TopArtist)
+            .GroupBy(TopOf)
             .OrderByDescending(g => g.Count())
-            .ThenByDescending(g => g.Sum(m => m.TopArtistMs))
+            .ThenByDescending(g => g.Sum(m => plays ? m.MostPlayedArtistPlays : m.TopArtistMs))
             .First();
 
         int best = 0, run = 0;
         DateTime? previous = null;
         DateTime runStart = default, bestStart = default, bestEnd = default;
-        foreach (var month in months.Where(m => m.TopArtist == leader.Key))
+        foreach (var month in months.Where(m => TopOf(m) == leader.Key))
         {
             run = previous is { } p && p.AddMonths(1) == month.Month ? run + 1 : 1;
             if (run == 1)

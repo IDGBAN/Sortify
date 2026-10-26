@@ -23,6 +23,9 @@ public partial class DetailWindow : ThemedWindow
 {
     private readonly DetailResult _detail;
 
+    /// <summary>What the charts measure and the lists rank by, as the main window had it when this opened.</summary>
+    private readonly Metric _metric;
+
     /// <summary>Builds the breakdown for a row opened from this one; null when it can't drill further.</summary>
     private readonly Func<DetailScope, string, string, Task<DetailResult?>>? _openDetail;
 
@@ -96,12 +99,16 @@ public partial class DetailWindow : ThemedWindow
     /// Builds the breakdown for a track, album, artist or episode double-clicked in this
     /// window, under the same filters. Without it the rows are display only.
     /// </param>
-    public DetailWindow(DetailResult detail, Func<DetailScope, string, string, Task<DetailResult?>>? openDetail)
+    /// <param name="metric">Whether the charts and lists go by listening time or by plays.</param>
+    public DetailWindow(
+        DetailResult detail, Func<DetailScope, string, string, Task<DetailResult?>>? openDetail,
+        Metric metric = Metric.Time)
     {
         InitializeComponent();
         ChartTableWindow.MakeChartsReachable(this);
         _detail = detail;
         _openDetail = openDetail;
+        _metric = metric;
 
         TitleText.Text = detail.Title;
         SubtitleText.Inlines.Add(new Run(ScopeLabel(detail)));
@@ -140,19 +147,25 @@ public partial class DetailWindow : ThemedWindow
         FirstPlayedText.Text = detail.FirstPlayed is { } f ? TimeFormat.Timestamp(f) : "-";
         LastPlayedText.Text = detail.LastPlayed is { } l ? TimeFormat.Timestamp(l) : "-";
 
-        var month = ChartBuilder.DetailByMonth(detail);
+        var month = ChartBuilder.DetailByMonth(detail, metric);
         MonthChart.Series = month.Series;
         MonthChart.XAxes = month.XAxes;
         MonthChart.YAxes = month.YAxes;
 
-        var hour = ChartBuilder.DetailByHour(detail);
+        var hour = ChartBuilder.DetailByHour(detail, metric);
         HourChart.Series = hour.Series;
         HourChart.XAxes = hour.XAxes;
         HourChart.YAxes = hour.YAxes;
 
-        TracksGrid.ItemsSource = detail.Tracks;
-        AlbumsGrid.ItemsSource = detail.Albums;
-        ArtistsGrid.ItemsSource = detail.Artists;
+        // The breakdown lists its rows by listening time; one entity's rows are few enough to
+        // re-sort here when the main window ranks by plays.
+        bool byPlays = metric == Metric.Plays;
+        string sortedBy = byPlays ? nameof(TrackStat.PlayCount) : nameof(TrackStat.TotalMsPlayed);
+        foreach (var grid in new[] { TracksGrid, AlbumsGrid, ArtistsGrid })
+            GridSort.SetPresortedBy(grid, sortedBy);
+        TracksGrid.ItemsSource = byPlays ? detail.Tracks.OrderByDescending(t => t.PlayCount).ToList() : detail.Tracks;
+        AlbumsGrid.ItemsSource = byPlays ? detail.Albums.OrderByDescending(a => a.PlayCount).ToList() : detail.Albums;
+        ArtistsGrid.ItemsSource = byPlays ? detail.Artists.OrderByDescending(a => a.PlayCount).ToList() : detail.Artists;
         ShowStanding(detail);
         ShowPlays(detail);
 
@@ -168,8 +181,8 @@ public partial class DetailWindow : ThemedWindow
         {
             bool book = detail.Kind == ContentKind.Audiobook;
             TracksHeader.Text = book ? "Chapters" : "Episodes";
-            TracksGrid.Columns[0].Header = book ? "Chapter" : "Episode";
-            TracksGrid.Columns[1].Header = book ? "Audiobook" : "Show";
+            TrackNameColumn.Header = book ? "Chapter" : "Episode";
+            TrackArtistColumn.Header = book ? "Audiobook" : "Show";
         }
 
         // Spotify has nothing to open for a whole year.
@@ -286,6 +299,7 @@ public partial class DetailWindow : ThemedWindow
         EpisodeStat e => (DetailScope.Episode, e.Episode, e.Show),
         SkippedTrackStat s => (DetailScope.Track, s.Track, s.Artist),
         MonthStat m => (DetailScope.Artist, m.TopArtist, string.Empty),
+        MonthRow m => (DetailScope.Artist, m.TopArtist, string.Empty),
         Milestone m => (DetailScope.Track, m.Track.Track, m.Track.Artist),
         RepeatStat r => (DetailScope.Track, r.Track.Track, r.Track.Artist),
         CalendarDay c => (DetailScope.Day, c.DateText, string.Empty),
@@ -359,7 +373,7 @@ public partial class DetailWindow : ThemedWindow
         if (detail is not { PlayCount: > 0 })
             return;
 
-        var child = new DetailWindow(detail, _openDetail)
+        var child = new DetailWindow(detail, _openDetail, _metric)
         {
             Owner = this,
             OpenYearReview = _openYearReview,

@@ -42,7 +42,7 @@ public class WeekStartTests
     [Fact]
     public void TheArtistComparison_BucketsWeeksFromTheChosenDay()
     {
-        var bucket = TimeBuckets.Of(Wednesday, ChartBuilder.TimeGranularity.Weekly, DayOfWeek.Monday);
+        var bucket = TimeBuckets.Of(Wednesday, ChartBuilder.TimeGranularity.Weekly, firstDay: DayOfWeek.Monday);
 
         Assert.Equal(new DateTime(2024, 3, 11), bucket);
     }
@@ -103,7 +103,7 @@ public class WeekStartChartTests
     [Fact]
     public void TheDayOfWeekChart_StartsFromTheChosenDay()
     {
-        var chart = OnUiThread(() => ChartBuilder.ByDayOfWeek(Result(), DayOfWeek.Monday));
+        var chart = OnUiThread(() => ChartBuilder.ByDayOfWeek(Result(), firstDay: DayOfWeek.Monday));
         var axis = Assert.IsType<Axis>(chart.XAxes[0]);
         var values = (double[])((LiveChartsCore.SkiaSharpView.ColumnSeries<double>)chart.Series[0]).Values!;
 
@@ -116,7 +116,7 @@ public class WeekStartChartTests
     [Fact]
     public void EveryHeatmapSquare_KnowsItsDayAndHour()
     {
-        var chart = OnUiThread(() => ChartBuilder.DowHourHeat(Result(), DayOfWeek.Monday));
+        var chart = OnUiThread(() => ChartBuilder.DowHourHeat(Result(), firstDay: DayOfWeek.Monday));
 
         Assert.Equal(7 * 24, chart.Items.Count);
         Assert.Equal(new ChartBuilder.HeatSlot(DayOfWeek.Monday, 0), chart.Items[0]);
@@ -127,7 +127,7 @@ public class WeekStartChartTests
     [Fact]
     public void WeeklyTotals_BeginOnTheChosenDay()
     {
-        var chart = OnUiThread(() => ChartBuilder.OverTime(Result(), ChartBuilder.TimeGranularity.Weekly, DayOfWeek.Monday));
+        var chart = OnUiThread(() => ChartBuilder.OverTime(Result(), ChartBuilder.TimeGranularity.Weekly, firstDay: DayOfWeek.Monday));
         var points = ((LiveChartsCore.SkiaSharpView.LineSeries<LiveChartsCore.Defaults.DateTimePoint>)chart.Series[0]).Values!.ToList();
 
         // Monday the 11th and Sunday the 17th fall in the same week when it starts on a Monday.

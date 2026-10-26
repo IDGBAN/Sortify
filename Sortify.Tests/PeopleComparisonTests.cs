@@ -2,321 +2,268 @@ using System.IO;
 using Sortify.Models;
 using Sortify.Services;
 using Sortify.ViewModels;
-using Sortify.Views;
 using Xunit;
 
 namespace Sortify.Tests;
 
-/// <summary>The loaded history next to someone else's.</summary>
+/// <summary>Two people's histories, side by side.</summary>
 public class PeopleComparisonTests
 {
-    private static PlayRecord Play(string track, string artist, int minutes, int day = 1) => new()
+    private static PlayRecord Play(string track, string artist, int minutes, DateTime? when = null) => new()
     {
         TrackName = track,
         ArtistName = artist,
-        AlbumName = artist + " LP",
+        AlbumName = "Album",
         MsPlayed = minutes * 60_000,
-        Timestamp = new DateTime(2024, 5, day, 12, 0, 0),
+        Timestamp = when ?? new DateTime(2024, 6, 1, 12, 0, 0),
     };
 
-    // Shared takes 75% of your time and 50% of theirs, so the overlap is 50%. Bit is under
-    // the hour an artist needs to count as only theirs.
+    // You: 560 minutes. Them: 400 minutes.
     private static readonly List<PlayRecord> Yours = new()
     {
-        Play("Hit", "Shared", 360),
-        Play("Mine", "Only Mine", 120),
+        Play("Anthem", "Shared Band", 300),
+        Play("Ballad", "Shared Band", 100),
+        Play("Solo", "Your Pick", 120),
+        Play("Shy", "Barely Yours", 40),
     };
 
     private static readonly List<PlayRecord> Theirs = new()
     {
-        Play("Hit", "Shared", 120),
-        Play("Theirs", "Only Theirs", 70),
-        Play("Blip", "Bit", 50),
+        Play("Anthem", "Shared Band", 100),
+        Play("Other", "Shared Band", 100),
+        Play("Theirs", "Their Pick", 200, new DateTime(2020, 1, 1)),
     };
 
-    private static Task<PeriodComparisonResult> Compare(FilterOptions? filter = null) =>
-        PeriodComparison.ComparePeopleAsync(Yours, Theirs, filter ?? new FilterOptions());
+    private static Task<PeopleComparisonResult> Compare(FilterOptions? filter = null) =>
+        PeopleComparison.CompareAsync(Yours, Theirs, filter ?? new FilterOptions());
 
     [Fact]
-    public async Task TheOverlap_CountsEachArtistForTheSmallerShare()
+    public async Task SharedArtists_CarryBothRanksAndTimes()
     {
         var result = await Compare();
 
-        Assert.Equal(50, result.OverlapPercent, precision: 6);
-        Assert.Equal(1, result.ArtistsInCommon);
         var shared = Assert.Single(result.SharedArtists);
-        Assert.Equal(("Shared", 360 * 60_000L, 120 * 60_000L), (shared.Name, shared.MsB, shared.MsA));
+        Assert.Equal("Shared Band", shared.Name);
+        Assert.Equal((1, 1), (shared.RankA, shared.RankB));
+        Assert.Equal((400, 200), (shared.HoursA * 60, shared.HoursB * 60));
+        Assert.IsType<ArtistStat>(shared.Item);
+        Assert.Equal(1, result.SharedArtistCount);
     }
 
     [Fact]
-    public async Task IdenticalListening_Overlaps_Completely_AndNoneInCommon_NotAtAll()
+    public async Task SharedTracks_MatchOnTrackAndArtist()
     {
-        var same = await PeriodComparison.ComparePeopleAsync(Yours, Yours, new FilterOptions());
-        Assert.Equal(100, same.OverlapPercent, precision: 6);
+        var result = await Compare();
 
-        var apart = await PeriodComparison.ComparePeopleAsync(
-            new[] { Play("A", "Mine Alone", 60) }, new[] { Play("B", "Theirs Alone", 60) }, new FilterOptions());
-        Assert.Equal((0d, 0), (apart.OverlapPercent, apart.ArtistsInCommon));
+        var anthem = Assert.Single(result.SharedTracks);
+        Assert.Equal(("Anthem", "Shared Band"), (anthem.Name, anthem.Secondary));
+    }
+
+    [Fact]
+    public async Task Match_IsTheListeningTimeYouHaveInCommon()
+    {
+        var result = await Compare();
+
+        // Shared Band: 400/560 of yours, 200/400 of theirs; the smaller is 50%.
+        Assert.Equal(50, result.ArtistMatch, 3);
+        // Anthem: 300/560 of yours, 100/400 of theirs.
+        Assert.Equal(25, result.TrackMatch, 3);
+    }
+
+    [Fact]
+    public void Match_IsWholeForTheSameHistoryAndZeroForNothingShared()
+    {
+        var same = PeopleComparison.Build(AnalysisEngine.Analyze(Yours, new FilterOptions()), AnalysisEngine.Analyze(Yours, new FilterOptions()));
+        Assert.Equal(100, same.ArtistMatch, 3);
+
+        var apart = PeopleComparison.Build(AnalysisEngine.Analyze(Yours, new FilterOptions()),
+            AnalysisEngine.Analyze(new List<PlayRecord> { Play("X", "Stranger", 60) }, new FilterOptions()));
+        Assert.Equal(0, apart.ArtistMatch);
         Assert.Empty(apart.SharedArtists);
     }
 
     [Fact]
-    public async Task TheTables_RankByYourListening_WithTheirsAfter()
+    public async Task OnlyOneOfYou_NeedsAnHourOfListening()
     {
         var result = await Compare();
 
-        Assert.Equal(new[] { "Shared", "Only Mine", "Only Theirs", "Bit" }, result.Artists.Select(r => r.Name));
-        Assert.Equal((1, 1), (result.Artists[0].RankB, result.Artists[0].RankA));
-        Assert.Equal((null, 2), (result.Artists[2].RankB, result.Artists[2].RankA));
+        Assert.Equal(new[] { "Your Pick" }, result.OnlyYou.Select(r => r.Name));
+        Assert.Equal(new[] { "Their Pick" }, result.OnlyThem.Select(r => r.Name));
+        Assert.Equal(2, result.OnlyThem[0].RankB);
     }
 
     [Fact]
-    public async Task OnlyYouAndOnlyThem_AreTheArtistsTheOtherNeverPlayed()
+    public async Task SidebarFiltersApplyToBothPeople()
+    {
+        var filter = new FilterOptions { StartDate = new DateTime(2023, 1, 1) };
+        filter.ExcludedArtists.Add("Your Pick");
+
+        var result = await Compare(filter);
+
+        Assert.Empty(result.OnlyYou);
+        Assert.Empty(result.OnlyThem);
+        Assert.Equal(200, result.Them.TotalMsPlayed / 60_000);
+    }
+
+    [Fact]
+    public async Task Metrics_PutYouInAAndThemInB()
     {
         var result = await Compare();
+        var metrics = result.Metrics.ToDictionary(m => m.Metric);
 
-        Assert.Equal("Only Mine", Assert.Single(result.NewInB).Name);
-        Assert.Equal("Only Theirs", Assert.Single(result.GoneSinceA).Name);
+        Assert.Equal("-29%", metrics["Listening time"].Change);
+        Assert.Equal(("Shared Band", "Shared Band", "same"),
+            (metrics["Top artist"].A, metrics["Top artist"].B, metrics["Top artist"].Change));
+        Assert.Equal("different", metrics["Top track"].Change);
     }
 
     [Fact]
-    public async Task TheirRows_OpenNothing_SinceBreakdownsReadYourHistory()
+    public async Task BetweenTwoPeople_NothingIsNew()
     {
-        var result = await Compare();
+        var result = await Compare(new FilterOptions { StartDate = new DateTime(2025, 1, 1) });
 
-        Assert.Null(result.Artists.Single(r => r.Name == "Only Theirs").Item);
-        Assert.Null(result.GoneSinceA[0].Item);
-        Assert.NotNull(result.Artists.Single(r => r.Name == "Shared").Item);
-        Assert.Null(DetailWindow.TargetFor(result.GoneSinceA[0]));
-        Assert.Equal((DetailScope.Artist, "Only Mine", string.Empty), DetailWindow.TargetFor(result.NewInB[0]));
-    }
-
-    [Fact]
-    public async Task TheFigures_SayDifferentRatherThanChanged()
-    {
-        var result = await Compare();
-
-        var top = result.Metrics.Single(m => m.Metric == "Top artist");
-        Assert.Equal(("Shared", "Shared", "same"), (top.B, top.A, top.Change));
-        var time = result.Metrics.Single(m => m.Metric == "Listening time");
-        Assert.Equal("+100%", time.Change);
-
-        var nothing = await PeriodComparison.ComparePeopleAsync(Yours, Theirs, new FilterOptions { StartDate = new DateTime(2025, 1, 1) });
-        Assert.Equal("same", nothing.Metrics.Single(m => m.Metric == "Plays").Change);
-
-        var differentTop = PeriodComparison.Build(
-            AnalysisEngine.Analyze(new[] { Play("X", "Them Top", 60) }, new FilterOptions()),
-            AnalysisEngine.Analyze(Yours, new FilterOptions()), ComparisonKind.People);
-        Assert.Equal("different", differentTop.Metrics.Single(m => m.Metric == "Top artist").Change);
-        Assert.Equal("changed", PeriodComparison.Build(differentTop.A, differentTop.B).Metrics.Single(m => m.Metric == "Top artist").Change);
-    }
-
-    [Fact]
-    public async Task EveryFilter_AppliesToBoth_DatesIncluded()
-    {
-        var filter = new FilterOptions { EndDate = new DateTime(2024, 5, 1, 23, 59, 59) };
-        filter.ExcludedArtists.Add("Shared");
-
-        var result = await PeriodComparison.ComparePeopleAsync(
-            Yours.Append(Play("Later", "Only Mine", 600, day: 20)).ToList(), Theirs, filter);
-
-        Assert.Equal(120 * 60_000L, result.B.TotalMsPlayed);
-        Assert.Equal(120 * 60_000L, result.A.TotalMsPlayed);
-        Assert.Equal(0, result.ArtistsInCommon);
+        Assert.Equal("same", result.Metrics.Single(m => m.Metric == "Plays").Change);
     }
 }
 
-/// <summary>Opening someone else's export on the Compare tab.</summary>
-[Collection(DataFolderCollection.Name)]
-public class PeopleCompareViewModelTests : IDisposable
+/// <summary>The Compare People tab's own behaviour.</summary>
+public class PeopleCompareViewModelTests
 {
-    private const string TheirExport = """
-        [
-            { "ts": "2024-05-01T12:00:00Z", "ms_played": 3600000, "master_metadata_track_name": "Hit",
-              "master_metadata_album_artist_name": "Shared", "master_metadata_album_album_name": "LP" },
-            { "ts": "2024-05-03T12:00:00Z", "ms_played": 3600000, "master_metadata_track_name": "Theirs",
-              "master_metadata_album_artist_name": "Only Theirs", "master_metadata_album_album_name": "LP" }
-        ]
-        """;
-
-    private readonly string _dir = Path.Combine(Path.GetTempPath(), "SortifyPeople_" + Guid.NewGuid().ToString("N"));
-
-    public PeopleCompareViewModelTests() => Directory.CreateDirectory(_dir);
-
-    public void Dispose()
+    private static readonly List<PlayRecord> Plays = new()
     {
-        try { Directory.Delete(_dir, recursive: true); } catch { }
-    }
-
-    private string Export(string json = TheirExport)
-    {
-        var folder = Path.Combine(_dir, "their_export");
-        Directory.CreateDirectory(folder);
-        File.WriteAllText(Path.Combine(folder, "Streaming_History_Audio_2024.json"), json);
-        return folder;
-    }
-
-    private static readonly List<PlayRecord> Yours = new()
-    {
-        new() { TrackName = "Hit", ArtistName = "Shared", AlbumName = "LP", MsPlayed = 10_800_000, Timestamp = new DateTime(2024, 5, 2, 12, 0, 0) },
-        new() { TrackName = "Mine", ArtistName = "Only Mine", AlbumName = "LP", MsPlayed = 3_600_000, Timestamp = new DateTime(2024, 5, 4, 12, 0, 0) },
+        new PlayRecord { TrackName = "Song", ArtistName = "Band", AlbumName = "Album", MsPlayed = 3_600_000, Timestamp = new DateTime(2024, 1, 2) },
     };
 
-    private static CompareViewModel Model(IReadOnlyList<string>? yourFiles = null) =>
-        new(() => new CompareViewModel.Source(Yours, new FilterOptions(), TimeSpan.FromMinutes(30), yourFiles))
-        {
-            IsPeopleMode = true,
-        };
-
-    private static Task Load(CompareViewModel vm, string folder) =>
-        vm.LoadOtherAsync(() => HistoryParser.FindHistoryFiles(folder), Path.GetFileName(folder));
+    private static CompareViewModel.Source? YourHistory() => new CompareViewModel.Source(Plays, new FilterOptions(), TimeSpan.FromMinutes(30));
 
     [Fact]
-    public async Task TheirExport_LoadsIntoMemory_AndNeverIntoTheCache()
+    public async Task WithNoOneLoaded_NothingIsCompared()
     {
-        string folder = Export();
-        var vm = Model();
-        Assert.True(vm.CanOpenOther);
+        var vm = new PeopleCompareViewModel(YourHistory);
 
-        await Load(vm, folder);
-
-        Assert.True(vm.HasOther);
-        Assert.False(vm.CanOpenOther);
-        Assert.Equal("Their history: 2 plays from 2024-05-01 to 2024-05-03, read from their_export.", vm.OtherSummary);
-        Assert.Null(RecordCache.TryLoad(HistoryParser.FindHistoryFiles(folder)));
-    }
-
-    [Fact]
-    public async Task OnceLoaded_TheTabShowsTheOverlap()
-    {
-        var vm = Model();
-        await Load(vm, Export());
-
-        vm.IsVisible = true;
         await vm.RefreshAsync();
 
-        Assert.Equal("1 artist in common", vm.InCommonText);
-        Assert.Equal("50%", vm.OverlapText);
-        Assert.Equal("Shared", Assert.Single(vm.SharedArtists).Name);
-        Assert.Equal("Only Theirs", Assert.Single(vm.GoneSinceA).Name);
+        Assert.False(vm.HasResults);
         Assert.Equal(string.Empty, vm.Message);
+        Assert.False(vm.RemoveCommand.CanExecute(null));
     }
 
     [Fact]
-    public async Task AFolderWithoutHistory_SaysSo()
+    public async Task TheirHistory_IsComparedOnceTheTabIsShown()
     {
-        var empty = Path.Combine(_dir, "empty");
-        Directory.CreateDirectory(empty);
-        var vm = Model();
+        int asked = 0;
+        var vm = new PeopleCompareViewModel(() =>
+        {
+            asked++;
+            return YourHistory();
+        });
 
-        await Load(vm, empty);
+        vm.SetTheirs(Plays, "Sam");
+        Assert.Equal(0, asked);
 
-        Assert.False(vm.HasOther);
-        Assert.StartsWith("No Spotify history was found there.", vm.Message);
+        vm.IsVisible = true;
+        await Task.Delay(200);
+
+        Assert.Equal(1, asked);
+        Assert.True(vm.HasResults);
+        Assert.Equal("100%", vm.ArtistMatch);
+        Assert.Equal("Sam", vm.TheirName);
+        Assert.Equal("Only Sam, Not You", vm.OnlyThemTitle);
+        Assert.Contains("1 play loaded, 2024-01-02 to 2024-01-02", vm.LoadedText);
+    }
+
+    [Fact]
+    public async Task WithoutYourOwnHistory_SaysToOpenItFirst()
+    {
+        var vm = new PeopleCompareViewModel(() => null);
+        vm.SetTheirs(Plays);
+
+        await vm.RefreshAsync();
+
+        Assert.Contains("Open your own Spotify history first", vm.Message);
+        Assert.False(vm.HasResults);
+    }
+
+    [Fact]
+    public async Task Remove_ForgetsThem()
+    {
+        var vm = new PeopleCompareViewModel(YourHistory);
+        vm.SetTheirs(Plays);
+        await vm.RefreshAsync();
+
+        vm.RemoveCommand.Execute(null);
+
+        Assert.False(vm.HasTheirs);
+        Assert.False(vm.HasResults);
+        Assert.Empty(vm.SharedArtists);
+    }
+
+    [Fact]
+    public async Task ALoadThatFindsNothing_KeepsWhoWasThereAndSaysSo()
+    {
+        var vm = new PeopleCompareViewModel(YourHistory);
+        vm.SetTheirs(Plays, "Sam");
+
+        await vm.LoadTheirsAsync(() => Array.Empty<string>(), "Someone Else");
+
+        Assert.Contains("No Spotify history was found", vm.LoadError);
+        Assert.True(vm.HasTheirs);
+        Assert.Equal("Sam", vm.TheirName);
+    }
+
+    [Fact]
+    public async Task Loading_ParsesTheirFiles()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "sortify-people-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string file = Path.Combine(dir, "StreamingHistory0.json");
+            File.WriteAllText(file,
+                """[{"endTime":"2024-03-01 10:00","artistName":"Band","trackName":"Song","msPlayed":200000}]""");
+            var vm = new PeopleCompareViewModel(YourHistory);
+
+            await vm.LoadTheirsAsync(() => HistoryParser.FindHistoryFiles(dir), "Alex");
+
+            Assert.True(vm.HasTheirs);
+            Assert.Equal("Alex", vm.TheirName);
+            Assert.Equal(string.Empty, vm.LoadError);
+            Assert.StartsWith("1 play loaded", vm.LoadedText);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
     }
 
     [Fact]
     public async Task YourOwnExport_IsTurnedAway()
     {
-        string folder = Export();
-        var vm = Model(yourFiles: HistoryParser.FindHistoryFiles(folder));
-
-        await Load(vm, folder);
-
-        Assert.False(vm.HasOther);
-        Assert.Equal("That's the export already open as yours. Pick the other person's.", vm.Message);
-    }
-
-    [Fact]
-    public async Task FilesWithNoPlays_LeaveNothingOpen()
-    {
-        var vm = Model();
-
-        await Load(vm, Export("[]"));
-
-        Assert.False(vm.HasOther);
-        Assert.StartsWith("No listening data was found in their files.", vm.Message);
-    }
-
-    [Fact]
-    public async Task ClosingTheirHistory_ClearsTheComparison()
-    {
-        var vm = Model();
-        await Load(vm, Export());
-        vm.IsVisible = true;
-        await vm.RefreshAsync();
-
-        vm.CloseOtherCommand.Execute(null);
-
-        Assert.False(vm.HasOther);
-        Assert.True(vm.CanOpenOther);
-        Assert.Empty(vm.Artists);
-        Assert.Equal(("-", string.Empty), (vm.OverlapText, vm.InCommonText));
-    }
-
-    [Fact]
-    public async Task ClosingTheirHistory_MidComparison_StopsSayingItIsWorking()
-    {
-        // On the UI thread, so the comparison can't finish before the close lands.
-        await WpfTestHost.RunAsync(async () =>
+        string dir = Path.Combine(Path.GetTempPath(), "sortify-people-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
         {
-            var vm = Model();
-            await Load(vm, Export());
+            File.WriteAllText(Path.Combine(dir, "StreamingHistory0.json"),
+                """[{"endTime":"2024-03-01 10:00","artistName":"Band","trackName":"Song","msPlayed":200000}]""");
+            var yourFiles = HistoryParser.FindHistoryFiles(dir);
+            var vm = new PeopleCompareViewModel(() =>
+                new CompareViewModel.Source(Plays, new FilterOptions(), TimeSpan.FromMinutes(30), yourFiles));
 
-            var comparing = vm.RefreshAsync();
-            Assert.True(vm.IsWorking);
-            vm.CloseOtherCommand.Execute(null);
-            await comparing;
+            await vm.LoadTheirsAsync(() => HistoryParser.FindHistoryFiles(dir), "Alex");
 
-            Assert.False(vm.IsWorking);
-        });
-    }
-
-    [Fact]
-    public async Task SwitchingToPeople_MidComparison_StopsSayingItIsWorking()
-    {
-        await WpfTestHost.RunAsync(async () =>
+            Assert.False(vm.HasTheirs);
+            Assert.Equal("That's the export already open as yours. Pick the other person's.", vm.LoadError);
+        }
+        finally
         {
-            var vm = Model();
-            vm.IsPeriodsMode = true;
-            vm.IsVisible = true;
-
-            var comparing = vm.RefreshAsync();
-            Assert.True(vm.IsWorking);
-            vm.IsPeopleMode = true;
-            await comparing;
-
-            Assert.False(vm.IsWorking);
-        });
+            Directory.Delete(dir, recursive: true);
+        }
     }
 
-    [Fact]
-    public async Task SwitchingModes_StartsTheResultsAfresh()
-    {
-        var vm = Model();
-        await Load(vm, Export());
-        vm.IsVisible = true;
-        await vm.RefreshAsync();
-        Assert.NotEmpty(vm.SharedArtists);
-
-        // Hidden, so the switch doesn't start a period comparison that would refill the lists.
-        vm.IsVisible = false;
-        vm.IsPeriodsMode = true;
-
-        Assert.False(vm.IsPeopleMode);
-        Assert.Empty(vm.SharedArtists);
-        Assert.True(vm.HasOther);
-    }
-
-    [Fact]
-    public async Task WithoutTheirHistory_ThePeopleViewIsEmpty()
-    {
-        var vm = Model();
-        vm.IsVisible = true;
-
-        await vm.RefreshAsync();
-
-        Assert.Empty(vm.Metrics);
-        Assert.Equal(string.Empty, vm.Message);
-    }
+    [Theory]
+    [InlineData(@"C:\exports\Alex", "Alex")]
+    [InlineData(@"C:\exports\my_spotify_data.zip", null)]
+    [InlineData(@"C:\exports\Spotify Extended Streaming History\", null)]
+    public void NameFrom_OnlySuggestsAPersonsName(string path, string? expected) =>
+        Assert.Equal(expected, PeopleCompareViewModel.NameFrom(path));
 }

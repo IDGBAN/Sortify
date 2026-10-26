@@ -68,7 +68,7 @@ public class ChartTableTests
     [Fact]
     public void TheYearsChart_NamesEachYear()
     {
-        var table = Table(OnUiThread(() => ChartBuilder.HoursPerYear(Result)));
+        var table = Table(OnUiThread(() => ChartBuilder.PerYear(Result)));
 
         Assert.Equal("Year", table.Columns[0]);
         Assert.Equal(new[] { "2023", "2024" }, table.Rows.Select(r => r[0]));

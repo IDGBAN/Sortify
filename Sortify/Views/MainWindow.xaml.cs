@@ -130,10 +130,10 @@ public partial class MainWindow : ThemedWindow
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
-        // Ctrl+1..9 jump straight to a tab, and Ctrl+0 to the tenth.
+        // Ctrl+1..9 jump straight to a tab, and Ctrl+0 to the last one, History.
         if (ctrl && e.Key is >= Key.D0 and <= Key.D9)
         {
-            int index = e.Key == Key.D0 ? 9 : e.Key - Key.D1;
+            int index = e.Key == Key.D0 ? Tabs.Items.Count - 1 : e.Key - Key.D1;
             if (index < Tabs.Items.Count)
             {
                 Tabs.SelectedIndex = index;
@@ -159,7 +159,8 @@ public partial class MainWindow : ThemedWindow
         if (e.Key == Key.Escape && Keyboard.FocusedElement is TextBox { Text.Length: > 0 } box &&
             IsQuickFilter(box))
         {
-            box.Clear();
+            if (!SearchCompletion.Dismiss(box))
+                box.Clear();
             e.Handled = true;
             return;
         }
@@ -190,7 +191,7 @@ public partial class MainWindow : ThemedWindow
         2 => ArtistQuickFilter,
         3 => AlbumQuickFilter,
         5 => ShowQuickFilter,
-        9 => HistoryQuickFilter,
+        10 => HistoryQuickFilter,
         _ => null,
     };
 
@@ -279,23 +280,16 @@ public partial class MainWindow : ThemedWindow
         await ShowDetailAsync(result.Item);
     }
 
-    /// <summary>Below this width the Compare tab's paired tables go one above the other.</summary>
+    /// <summary>Below this width the Compare tabs' paired tables go one above the other.</summary>
     private const double CompareSideBySideMinWidth = 960;
-
-    /// <summary>Width of the taste overlap card beside the headline figures.</summary>
-    private const double OverlapCardWidth = 300;
 
     private void OnCompareSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        bool narrow = e.NewSize.Width < CompareSideBySideMinWidth;
-        CompareRankings.Columns = narrow ? 1 : 2;
-        CompareNewGone.Columns = narrow ? 1 : 2;
-        PeopleRankings.Columns = narrow ? 1 : 2;
-        PeopleLists.Columns = narrow ? 1 : 3;
-
-        // The overlap sits beside the headline figures, or above them when there's no room.
-        DockPanel.SetDock(OverlapCard, narrow ? Dock.Top : Dock.Left);
-        OverlapCard.Width = narrow ? double.NaN : OverlapCardWidth;
+        int columns = e.NewSize.Width < CompareSideBySideMinWidth ? 1 : 2;
+        CompareRankings.Columns = columns;
+        CompareNewGone.Columns = columns;
+        PeopleShared.Columns = columns;
+        PeopleOnlyOne.Columns = columns;
     }
 
     /// <summary>Below this width the Overview's five headline figures go three to a row.</summary>
@@ -348,10 +342,11 @@ public partial class MainWindow : ThemedWindow
         if (sender is not TabControl tabs)
             return;
 
-        // The comparison and the play list are only worked out while someone is looking at them.
+        // The comparisons and the play list are only worked out while someone is looking at them.
         if (ViewModel is { } vm)
         {
             vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
+            vm.ComparePeople.IsVisible = ReferenceEquals(tabs.SelectedItem, ComparePeopleTab);
             vm.History.IsVisible = ReferenceEquals(tabs.SelectedItem, HistoryTab);
         }
 
@@ -725,13 +720,13 @@ public partial class MainWindow : ThemedWindow
 
     private async void OnOpenMonthArtist(object sender, RoutedEventArgs e)
     {
-        if (MonthsGrid.SelectedItem is MonthStat m)
+        if (MonthsGrid.SelectedItem is MonthRow m)
             await ShowDetailAsync(new ArtistStat { Artist = m.TopArtist });
     }
 
     private async void OnOpenMonthTrack(object sender, RoutedEventArgs e)
     {
-        if (MonthsGrid.SelectedItem is MonthStat m)
+        if (MonthsGrid.SelectedItem is MonthRow m)
             await ShowDetailAsync(new TrackStat { Track = m.TopTrack, Artist = m.TopTrackArtist });
     }
 
@@ -840,7 +835,7 @@ public partial class MainWindow : ThemedWindow
             return;
         }
 
-        new DetailWindow(detail, vm.BuildDetailAsync)
+        new DetailWindow(detail, vm.BuildDetailAsync, vm.Metric)
         {
             Owner = this,
             OpenYearReview = ShowYearReviewAsync,

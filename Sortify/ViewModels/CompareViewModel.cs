@@ -1,24 +1,23 @@
 using System.Collections.ObjectModel;
-using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using Microsoft.Win32;
 using Sortify.Models;
 using Sortify.Services;
 
 namespace Sortify.ViewModels;
 
 /// <summary>
-/// The Compare tab: two date ranges of the loaded history side by side, under the sidebar's
-/// other filters, or the loaded history next to someone else's. Only works anything out while
-/// the tab is on screen; changes made while it is hidden are picked up when it is shown again.
+/// The Compare Periods tab: two date ranges of the loaded history side by side, under the sidebar's
+/// other filters. Only works anything out while the tab is on screen; changes made while it
+/// is hidden are picked up when it is shown again.
 /// </summary>
 public sealed partial class CompareViewModel : ObservableObject
 {
     /// <summary>
     /// What a comparison runs over: the plays, the sidebar filters, the session gap, the
-    /// files the plays were read from (so the same export can't be opened as someone else's)
-    /// and how play times are converted, which someone else's export is read with too.
+    /// files the plays were read from (so the same export can't be opened as someone else's
+    /// on the Compare People tab) and how play times are converted, which someone else's
+    /// export is read with too.
     /// </summary>
     public readonly record struct Source(
         IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap,
@@ -28,16 +27,7 @@ public sealed partial class CompareViewModel : ObservableObject
     private CancellationTokenSource? _cts;
     private bool _stale = true;
     private bool _settingPeriods;
-
-    /// <summary>Someone else's plays, held for the session and never cached or saved.</summary>
-    private List<PlayRecord>? _other;
-    private CancellationTokenSource? _otherCts;
-
-    // Where their plays came from and how their times were converted, to read them again
-    // when the time zone setting changes.
-    private Func<IReadOnlyList<string>>? _otherFiles;
-    private string _otherName = string.Empty;
-    private string? _otherTimeZones;
+    private IReadOnlyList<int> _years = Array.Empty<int>();
 
     public CompareViewModel(Func<Source?> source) => _source = source;
 
@@ -45,9 +35,6 @@ public sealed partial class CompareViewModel : ObservableObject
     [ObservableProperty] private DateTime? _endA;
     [ObservableProperty] private DateTime? _startB;
     [ObservableProperty] private DateTime? _endB;
-
-    public ObservableCollection<DateRangeOption> RangesA { get; } = new();
-    public ObservableCollection<DateRangeOption> RangesB { get; } = new();
 
     [ObservableProperty] private bool _isWorking;
     [ObservableProperty] private string _message = string.Empty;
@@ -60,56 +47,42 @@ public sealed partial class CompareViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<ComparisonRow> _newInB = Array.Empty<ComparisonRow>();
     [ObservableProperty] private IReadOnlyList<ComparisonRow> _goneSinceA = Array.Empty<ComparisonRow>();
 
-    /// <summary>True when the tab sets the loaded history next to someone else's instead of comparing two periods.</summary>
+    /// <summary>
+    /// What the tables rank by; follows the main window's Time / Plays switch. Changing it
+    /// re-ranks the last comparison rather than analysing both periods again.
+    /// </summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsPeriodsMode))]
-    private bool _isPeopleMode;
+    [NotifyPropertyChangedFor(nameof(RankingHint), nameof(NewInBHint), nameof(GoneSinceAHint),
+        nameof(NewInBSortMember), nameof(GoneSinceASortMember))]
+    private Metric _metric;
 
-    public bool IsPeriodsMode
+    /// <summary>The two periods last analysed, kept so a change of metric only has to re-rank them.</summary>
+    private PeriodComparisonResult? _last;
+
+    public string RankingHint => Metric == Metric.Plays
+        ? "Ranked by plays in period B. ▲ climbed since A, ▼ fell, new wasn't played in A, out isn't played in B."
+        : "Ranked by listening time in period B. ▲ climbed since A, ▼ fell, new wasn't played in A, out isn't played in B.";
+
+    public string NewInBHint => Metric == Metric.Plays
+        ? "Artists you listened to for at least an hour in B and not at all in A, most played first."
+        : "Artists you listened to for at least an hour in B and not at all in A.";
+
+    public string GoneSinceAHint => Metric == Metric.Plays
+        ? "Artists you listened to for at least an hour in A and not at all in B, most played first."
+        : "Artists you listened to for at least an hour in A and not at all in B.";
+
+    // The column the new and gone lists arrive sorted by, so their headers can show the arrow.
+    public string NewInBSortMember => Metric == Metric.Plays ? nameof(ComparisonRow.PlaysB) : nameof(ComparisonRow.MsB);
+    public string GoneSinceASortMember => Metric == Metric.Plays ? nameof(ComparisonRow.PlaysA) : nameof(ComparisonRow.MsA);
+
+    partial void OnMetricChanged(Metric value)
     {
-        get => !IsPeopleMode;
-        set => IsPeopleMode = !value;
+        if (_last is { } last)
+            Show(PeriodComparison.Build(last.A, last.B, value));
     }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanOpenOther))]
-    private bool _hasOther;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(CanOpenOther))]
-    [NotifyCanExecuteChangedFor(nameof(CancelOtherCommand))]
-    private bool _isLoadingOther;
-
-    /// <summary>True while there is no other history, open or on its way, so the buttons to open one show.</summary>
-    public bool CanOpenOther => !HasOther && !IsLoadingOther;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(IsOtherProgressUnknown))]
-    private double _otherProgress;
-
-    /// <summary>True until a file has been read: one big file gives no progress until it is done.</summary>
-    public bool IsOtherProgressUnknown => OtherProgress <= 0;
-
-    [ObservableProperty] private string _otherStatus = string.Empty;
-
-    /// <summary>"Their history: 12,345 plays from 2019-03-02 to 2024-06-01, read from my_spotify_data.zip."</summary>
-    [ObservableProperty] private string _otherSummary = string.Empty;
-
-    [ObservableProperty] private string _overlapText = "-";
-    [ObservableProperty] private string _inCommonText = string.Empty;
-    [ObservableProperty] private IReadOnlyList<ComparisonRow> _sharedArtists = Array.Empty<ComparisonRow>();
-
-    /// <summary>Set by the window as the Compare tab comes and goes.</summary>
+    /// <summary>Set by the window as the Compare Periods tab comes and goes.</summary>
     [ObservableProperty] private bool _isVisible;
-
-    partial void OnIsPeopleModeChanged(bool value)
-    {
-        // A comparison still running for the other mode would land in this one's tables.
-        _cts?.Cancel();
-        Message = string.Empty;
-        ClearResults();
-        Invalidate();
-    }
 
     partial void OnIsVisibleChanged(bool value)
     {
@@ -122,12 +95,53 @@ public sealed partial class CompareViewModel : ObservableObject
     partial void OnStartBChanged(DateTime? value) => PeriodsChanged();
     partial void OnEndBChanged(DateTime? value) => PeriodsChanged();
 
+    /// <summary>Period B's days in each other year, offered one click away under period A.</summary>
+    public ObservableCollection<DateRangeOption> SameDaysA { get; } = new();
+
+    /// <summary>Period A's days in each other year, offered one click away under period B.</summary>
+    public ObservableCollection<DateRangeOption> SameDaysB { get; } = new();
+
+    [ObservableProperty] private bool _hasSameDaysA;
+    [ObservableProperty] private bool _hasSameDaysB;
+
+    /// <summary>The year picked in period A's dropdown, or null while A is not one of them.</summary>
+    [ObservableProperty] private DateRangeOption? _selectedSameDaysA;
+
+    /// <summary>The year picked in period B's dropdown, or null while B is not one of them.</summary>
+    [ObservableProperty] private DateRangeOption? _selectedSameDaysB;
+
+    partial void OnSelectedSameDaysAChanged(DateRangeOption? value)
+    {
+        if (value is not null && !value.IsActive)
+            ApplyRangeA(value);
+    }
+
+    partial void OnSelectedSameDaysBChanged(DateRangeOption? value)
+    {
+        if (value is not null && !value.IsActive)
+            ApplyRangeB(value);
+    }
+
+    private static void Fill(ObservableCollection<DateRangeOption> target, IReadOnlyList<DateRangeOption> options, DateTime? start, DateTime? end)
+    {
+        if (!target.Select(o => (o.Start, o.End)).SequenceEqual(options.Select(o => (o.Start, o.End))))
+        {
+            target.Clear();
+            foreach (var option in options)
+                target.Add(option);
+        }
+        foreach (var option in target)
+            option.IsActive = option.Matches(start, end);
+    }
+
     private void PeriodsChanged()
     {
-        foreach (var option in RangesA)
-            option.IsActive = option.Matches(StartA, EndA);
-        foreach (var option in RangesB)
-            option.IsActive = option.Matches(StartB, EndB);
+        Fill(SameDaysA, SameDaysInOtherYears(forA: true), StartA, EndA);
+        Fill(SameDaysB, SameDaysInOtherYears(forA: false), StartB, EndB);
+        HasSameDaysA = SameDaysA.Count > 0;
+        HasSameDaysB = SameDaysB.Count > 0;
+        SelectedSameDaysA = SameDaysA.FirstOrDefault(o => o.IsActive);
+        SelectedSameDaysB = SameDaysB.FirstOrDefault(o => o.IsActive);
         PeriodALabel = Describe("Period A", StartA, EndA);
         PeriodBLabel = Describe("Period B", StartB, EndB);
         if (!_settingPeriods)
@@ -143,18 +157,14 @@ public sealed partial class CompareViewModel : ObservableObject
     };
 
     /// <summary>
-    /// Offers quick ranges for the loaded history and, the first time, starts with the last 12
-    /// months against the 12 before them: two full stretches of the same length, where "this
-    /// year against last" would put a few months against a whole year.
+    /// Notes the years the loaded history covers, for <see cref="SameDaysInOtherYears"/>, and,
+    /// the first time, starts with the last 12 months against the 12 before them: two full
+    /// stretches of the same length, where "this year against last" would put a few months
+    /// against a whole year.
     /// </summary>
     public void SetHistory(DateTime? lastListen, IReadOnlyList<int> years, bool resetPeriods)
     {
-        RangesA.Clear();
-        RangesB.Clear();
-        foreach (var option in DateRangeOption.For(lastListen, years))
-            RangesA.Add(option);
-        foreach (var option in DateRangeOption.For(lastListen, years))
-            RangesB.Add(option);
+        _years = years.Distinct().OrderByDescending(y => y).ToList();
 
         if (resetPeriods && lastListen is { } last)
         {
@@ -207,6 +217,47 @@ public sealed partial class CompareViewModel : ObservableObject
             SetPeriods(StartA, EndA, option.Start, option.End);
     }
 
+    /// <summary>Ends period A today.</summary>
+    [RelayCommand]
+    private void EndANow() => SetPeriods(StartA, DateTime.Today, StartB, EndB);
+
+    /// <summary>Ends period B today.</summary>
+    [RelayCommand]
+    private void EndBNow() => SetPeriods(StartA, EndA, StartB, DateTime.Today);
+
+    /// <summary>
+    /// The other period's days moved into each other year of the history, keeping their month
+    /// and day, newest year first: what period A (or B) can be set to so it covers the same
+    /// stretch of another year. Each is labelled by the year it ends in. A period that runs to
+    /// the end of a month keeps doing so, so February takes in the 29th in a leap year. Empty
+    /// until the other period has both a start and an end.
+    /// </summary>
+    public IReadOnlyList<DateRangeOption> SameDaysInOtherYears(bool forA)
+    {
+        var (start, end) = forA ? (StartB, EndB) : (StartA, EndA);
+        if (start is not { } s || end is not { } e || e < s)
+            return Array.Empty<DateRangeOption>();
+
+        s = s.Date;
+        e = e.Date;
+        // Not e.AddDays(1): an end of 31 December 9999 has no next day.
+        bool toMonthEnd = e.Day == DateTime.DaysInMonth(e.Year, e.Month);
+        var options = new List<DateRangeOption>();
+        foreach (int year in _years)
+        {
+            // A period that runs to 9999 to mean "no end" can't move back so far that it
+            // would have to start before year 1.
+            if (year == e.Year || s.Year + year - e.Year < 1)
+                continue;
+            var newStart = s.AddYears(year - e.Year);
+            var newEnd = e.AddYears(year - e.Year);
+            if (toMonthEnd)
+                newEnd = new DateTime(newEnd.Year, newEnd.Month, DateTime.DaysInMonth(newEnd.Year, newEnd.Month));
+            options.Add(new(year.ToString(), newStart, newEnd, $"{TimeFormat.Day(newStart)} to {TimeFormat.Day(newEnd)}"));
+        }
+        return options;
+    }
+
     [RelayCommand]
     private void Swap() => SetPeriods(StartB, EndB, StartA, EndA);
 
@@ -249,24 +300,15 @@ public sealed partial class CompareViewModel : ObservableObject
         if (_source() is not { } source)
             return;
 
-        // Cancelled before the checks below, so a comparison of the old periods can't finish
-        // after them and fill the tables they just cleared.
+        // Cancelled before the check below, so a comparison of the old periods can't finish
+        // after them and fill the tables it just cleared.
         var previous = _cts;
         var cts = new CancellationTokenSource();
         _cts = cts;
         previous?.Cancel();
         var token = cts.Token;
 
-        var other = _other;
-        if (IsPeopleMode && other is null)
-        {
-            ClearResults();
-            IsWorking = false;
-            _stale = false;
-            return;
-        }
-
-        if (!IsPeopleMode && (StartA > EndA || StartB > EndB))
+        if (StartA > EndA || StartB > EndB)
         {
             Message = "A period starts after it ends. Swap its dates, or clear one of them.";
             ClearResults();
@@ -278,32 +320,19 @@ public sealed partial class CompareViewModel : ObservableObject
         IsWorking = true;
         try
         {
-            bool people = other is not null && IsPeopleMode;
-            var result = people
-                ? await PeriodComparison.ComparePeopleAsync(source.Records, other!, source.Filter, source.SessionGap, token)
-                : await PeriodComparison.CompareAsync(source.Records, source.Filter,
-                    StartA, EndA, StartB, EndB, source.SessionGap, token);
+            var metric = Metric;
+            var result = await PeriodComparison.CompareAsync(source.Records, source.Filter,
+                StartA, EndA, StartB, EndB, metric, source.SessionGap, token);
             if (token.IsCancellationRequested)
                 return;
 
-            Metrics = result.Metrics;
-            Artists = result.Artists;
-            Tracks = result.Tracks;
-            NewInB = result.NewInB;
-            GoneSinceA = result.GoneSinceA;
-            SharedArtists = result.SharedArtists;
-            OverlapText = Percent(result.OverlapPercent);
-            InCommonText = result.ArtistsInCommon == 0
-                ? "No artists in common"
-                : $"{Plural.Of(result.ArtistsInCommon, "artist")} in common";
-            Message = (people, result.A.TotalPlays, result.B.TotalPlays) switch
+            // The switch may have been flipped while both periods were being worked out.
+            Show(metric == Metric ? result : PeriodComparison.Build(result.A, result.B, Metric));
+            Message = (result.A.TotalPlays, result.B.TotalPlays) switch
             {
-                (true, 0, 0) => "Neither history has any plays under the current filters.",
-                (true, 0, _) => "Their history has no plays under the current filters. Dates set in the sidebar may not cover any of their listening.",
-                (true, _, 0) => "Your history has no plays under the current filters.",
-                (false, 0, 0) => "Neither period has any plays under the current filters.",
-                (false, 0, _) => "Period A has no plays under the current filters, so everything in B shows as new.",
-                (false, _, 0) => "Period B has no plays under the current filters, so everything in A shows as gone.",
+                (0, 0) => "Neither period has any plays under the current filters.",
+                (0, _) => "Period A has no plays under the current filters, so everything in B shows as new.",
+                (_, 0) => "Period B has no plays under the current filters, so everything in A shows as gone.",
                 _ => string.Empty,
             };
             _stale = false;
@@ -314,167 +343,31 @@ public sealed partial class CompareViewModel : ObservableObject
         }
         finally
         {
-            // Closing their history or switching modes cancels without starting another
-            // comparison, so whichever ran last says it has stopped.
+            // Whichever comparison ran last says it has stopped, even one cancelled without
+            // another taking over.
             if (ReferenceEquals(_cts, cts))
                 IsWorking = false;
             previous?.Dispose();
         }
     }
 
+    private void Show(PeriodComparisonResult result)
+    {
+        _last = result;
+        Metrics = result.Metrics;
+        Artists = result.Artists;
+        Tracks = result.Tracks;
+        NewInB = result.NewInB;
+        GoneSinceA = result.GoneSinceA;
+    }
+
     private void ClearResults()
     {
+        _last = null;
         Metrics = Array.Empty<ComparisonMetric>();
         Artists = Array.Empty<ComparisonRow>();
         Tracks = Array.Empty<ComparisonRow>();
         NewInB = Array.Empty<ComparisonRow>();
         GoneSinceA = Array.Empty<ComparisonRow>();
-        SharedArtists = Array.Empty<ComparisonRow>();
-        OverlapText = "-";
-        InCommonText = string.Empty;
-    }
-
-    private static string Percent(double value) => value switch
-    {
-        0 => "0%",
-        < 1 => "<1%",
-        _ => $"{value:0}%",
-    };
-
-    // ---- Someone else's history --------------------------------------------------------------
-
-    [RelayCommand]
-    private async Task OpenOtherFilesAsync()
-    {
-        var dialog = new OpenFileDialog
-        {
-            Title = "Select their Spotify history: the export ZIP or its JSON files",
-            Filter = "Spotify history (*.json, *.zip)|*.json;*.zip|JSON files (*.json)|*.json|" +
-                     "ZIP files (*.zip)|*.zip|All files (*.*)|*.*",
-            Multiselect = true,
-        };
-        if (dialog.ShowDialog() != true)
-            return;
-
-        var picked = dialog.FileNames;
-        IReadOnlyList<string> FindFiles() => picked
-            .SelectMany(f => ArchivePath.IsArchive(f) ? HistoryParser.FindHistoryFiles(f) : new[] { f })
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        await LoadOtherAsync(FindFiles, picked.Length == 1 ? Path.GetFileName(picked[0]) : $"{picked.Length} files");
-    }
-
-    [RelayCommand]
-    private async Task OpenOtherFolderAsync()
-    {
-        var dialog = new OpenFolderDialog { Title = "Select the folder that holds their Spotify streaming history" };
-        if (dialog.ShowDialog() != true)
-            return;
-
-        string folder = dialog.FolderName;
-        string name = Path.GetFileName(folder.TrimEnd('\\', '/'));
-        await LoadOtherAsync(() => HistoryParser.FindHistoryFiles(folder), name.Length > 0 ? name : folder);
-    }
-
-    /// <summary>
-    /// Reads someone else's export for the comparison, from the files <paramref name="findFiles"/>
-    /// turns up. <paramref name="name"/> says where it came from. It stays in memory only: the
-    /// record cache holds a single history, and theirs would push out the one loaded.
-    /// </summary>
-    public async Task LoadOtherAsync(Func<IReadOnlyList<string>> findFiles, string name)
-    {
-        if (IsLoadingOther)
-            return;
-
-        _otherCts?.Dispose();
-        _otherCts = new CancellationTokenSource();
-        var token = _otherCts.Token;
-
-        IsLoadingOther = true;
-        Message = string.Empty;
-        OtherProgress = 0;
-        OtherStatus = "Looking for their Spotify history...";
-        try
-        {
-            var files = await Task.Run(findFiles, token);
-            if (files.Count == 0)
-            {
-                Message = "No Spotify history was found there. Pick the ZIP Spotify sent them, the folder it unpacks to, or its JSON files.";
-                return;
-            }
-            if (_source()?.Files is { Count: > 0 } yours && yours.SequenceEqual(files, StringComparer.OrdinalIgnoreCase))
-            {
-                Message = "That's the export already open as yours. Pick the other person's.";
-                return;
-            }
-
-            var progress = new Progress<ParseProgress>(p =>
-            {
-                OtherProgress = p.Percent;
-                OtherStatus = p.Message;
-            });
-            var timeZones = _source()?.TimeZones;
-            var parsed = await new HistoryParser(timeZones).ParseAsync(files, progress, token);
-            token.ThrowIfCancellationRequested();
-            if (parsed.Records.Count == 0)
-            {
-                Message = parsed.Warnings.Count > 0
-                    ? $"No listening data was found in their files. {parsed.Warnings[0]}"
-                    : "No listening data was found in their files.";
-                return;
-            }
-
-            _other = parsed.Records;
-            _otherFiles = findFiles;
-            _otherName = name;
-            _otherTimeZones = (timeZones ?? PlayTimeZones.ThisPc).CacheKey;
-            OtherSummary = Summarise(parsed.Records, name);
-            HasOther = true;
-            Invalidate();
-        }
-        catch (OperationCanceledException)
-        {
-            // Cancelled from the button; whatever was open before stays open.
-        }
-        finally
-        {
-            IsLoadingOther = false;
-            OtherProgress = 0;
-        }
-    }
-
-    [RelayCommand(CanExecute = nameof(IsLoadingOther))]
-    private void CancelOther() => _otherCts?.Cancel();
-
-    /// <summary>Reads their export again if play times are now converted differently from when it was read.</summary>
-    public Task ReadOtherAgainIfTimesChangedAsync()
-    {
-        string now = (_source()?.TimeZones ?? PlayTimeZones.ThisPc).CacheKey;
-        return HasOther && _otherFiles is { } files && now != _otherTimeZones
-            ? LoadOtherAsync(files, _otherName)
-            : Task.CompletedTask;
-    }
-
-    /// <summary>Forgets the other history, which frees its memory.</summary>
-    [RelayCommand]
-    private void CloseOther()
-    {
-        _otherCts?.Cancel();
-        _cts?.Cancel();
-        _other = null;
-        _otherFiles = null;
-        HasOther = false;
-        OtherSummary = string.Empty;
-        Message = string.Empty;
-        ClearResults();
-    }
-
-    private static string Summarise(List<PlayRecord> records, string name)
-    {
-        var (first, last) = PlayRecord.DateSpan(records);
-        string plays = Plural.Of(records.Count, "play");
-        return first is { } f && last is { } l
-            ? $"Their history: {plays} from {TimeFormat.Day(f)} to {TimeFormat.Day(l)}, read from {name}."
-            : $"Their history: {plays}, read from {name}.";
     }
 }
