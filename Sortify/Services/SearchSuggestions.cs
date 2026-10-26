@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Sortify.Models;
 using Sortify.ViewModels;
 
@@ -11,6 +12,9 @@ public sealed record SearchSuggestion(string Kind, string Name, string Secondary
 
 public static class SearchSuggestions
 {
+    /// <summary>How many suggestions a box shows at once.</summary>
+    public const int MaxShown = 8;
+
     public static IReadOnlyList<SearchSuggestion> Build(IEnumerable<PlayRecord> records)
     {
         var totals = new Dictionary<(string Kind, string Name, string Secondary), (long Ms, int Plays)>();
@@ -32,9 +36,9 @@ public static class SearchSuggestions
             {
                 if (string.IsNullOrWhiteSpace(name))
                     return;
-                var key = (kind, name, secondary);
-                totals.TryGetValue(key, out var total);
-                totals[key] = (total.Ms + record.MsPlayed, total.Plays + 1);
+                ref var total = ref CollectionsMarshal.GetValueRefOrAddDefault(totals, (kind, name, secondary), out _);
+                total.Ms += record.MsPlayed;
+                total.Plays++;
             }
         }
         return totals.Select(x => new SearchSuggestion(x.Key.Kind, x.Key.Name, x.Key.Secondary, x.Value.Ms, x.Value.Plays)).ToArray();
@@ -54,12 +58,12 @@ public static class SearchSuggestions
         if (query.Length == 0)
             return Array.Empty<SearchSuggestion>();
         string[] allowedKinds = kinds.Split(',');
-        return source.Where(x => kinds.Length == 0 || allowedKinds.Contains(x.Kind))
-            .Select(x => (Item: x, Rank: Rank(x)))
-            .Where(x => x.Rank >= 0)
-            .OrderBy(x => x.Rank).ThenByDescending(x => x.Item.Milliseconds)
-            .ThenBy(x => x.Item.Name, StringComparer.OrdinalIgnoreCase)
-            .Take(8).Select(x => x.Item).ToArray();
+        return NameMatch.Best(source.Where(x => kinds.Length == 0 || allowedKinds.Contains(x.Kind)), Rank, MaxShown,
+            static (a, b) =>
+            {
+                int byTime = b.Milliseconds.CompareTo(a.Milliseconds);
+                return byTime != 0 ? byTime : StringComparer.OrdinalIgnoreCase.Compare(a.Name, b.Name);
+            });
 
         int Rank(SearchSuggestion item)
         {

@@ -685,15 +685,8 @@ public sealed partial class FilterViewModel : ObservableObject
         string query = NewIncludedArtist.Trim();
         IncludeSuggestions = query.Length == 0
             ? Array.Empty<string>()
-            : _knownArtists
-                .Where(a => !IncludedArtists.Contains(a, StringComparer.OrdinalIgnoreCase))
-                .Select((a, order) => (Name: a, Rank: NameMatch.Rank(a, query), Order: order))
-                .Where(x => x.Rank >= 0)
-                .OrderBy(x => x.Rank)
-                .ThenBy(x => x.Order)
-                .Take(IncludeSuggestionCount)
-                .Select(x => x.Name)
-                .ToList();
+            : NameMatch.Best(_knownArtists.Where(a => !IncludedArtists.Contains(a, StringComparer.OrdinalIgnoreCase)),
+                a => NameMatch.Rank(a, query), IncludeSuggestionCount);
     }
 
     /// <summary>

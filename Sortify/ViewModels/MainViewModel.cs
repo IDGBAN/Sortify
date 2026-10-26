@@ -1258,13 +1258,8 @@ public sealed partial class MainViewModel : ObservableObject
             .Select(e => new JumpResult("Episode", e.Episode, e.Show, TimeFormat.Friendly(e.TotalTime), e)));
         return results;
 
-        IEnumerable<T> Best<T>(IReadOnlyList<T> items, Func<T, string> name, Func<T, long> ms) => items
-            .Select(item => (Item: item, Rank: NameMatch.Rank(name(item), query)))
-            .Where(x => x.Rank >= 0)
-            .OrderBy(x => x.Rank)
-            .ThenByDescending(x => ms(x.Item))
-            .Take(perKind)
-            .Select(x => x.Item);
+        List<T> Best<T>(IReadOnlyList<T> items, Func<T, string> name, Func<T, long> ms) =>
+            NameMatch.Best(items, item => NameMatch.Rank(name(item), query), perKind, (a, b) => ms(b).CompareTo(ms(a)));
     }
 
     // ---- Summary text -------------------------------------------------------------------------

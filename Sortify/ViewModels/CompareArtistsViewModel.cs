@@ -50,10 +50,7 @@ public sealed partial class CompareArtistsViewModel : ObservableObject
     [ObservableProperty] private Metric _metric;
 
     /// <summary>The suggested artists with their listening under the current filters, for the list under the box.</summary>
-    public IReadOnlyList<SearchSuggestion> SuggestionDetails => Suggestions
-        .Select(name => _known.First(a => a.Artist == name))
-        .Select(a => new SearchSuggestion("Artist", a.Artist, "", a.TotalMsPlayed, a.PlayCount, "Current filters"))
-        .ToArray();
+    public IReadOnlyList<SearchSuggestion> SuggestionDetails { get; private set; } = Array.Empty<SearchSuggestion>();
 
     partial void OnQueryChanged(string value) => RefreshSuggestions();
 
@@ -121,20 +118,17 @@ public sealed partial class CompareArtistsViewModel : ObservableObject
         await RefreshAsync();
     }
 
+    /// <summary>Equally good matches keep the order the switch ranks the artists in.</summary>
     private void RefreshSuggestions()
     {
         string query = Query.Trim();
-        Suggestions = query.Length == 0
-            ? Array.Empty<string>()
-            : _known
-                .Where(a => !Artists.Contains(a.Artist))
-                .Select(a => (a.Artist, Rank: NameMatch.Rank(a.Artist, query), a.TotalMsPlayed))
-                .Where(x => x.Rank >= 0)
-                .OrderBy(x => x.Rank)
-                .ThenByDescending(x => x.TotalMsPlayed)
-                .Take(SuggestionCount)
-                .Select(x => x.Artist)
-                .ToList();
+        var matches = query.Length == 0
+            ? new List<ArtistStat>()
+            : NameMatch.Best(_known.Where(a => !Artists.Contains(a.Artist)), a => NameMatch.Rank(a.Artist, query), SuggestionCount);
+        SuggestionDetails = matches
+            .Select(a => new SearchSuggestion("Artist", a.Artist, "", a.TotalMsPlayed, a.PlayCount, "Current filters"))
+            .ToArray();
+        Suggestions = matches.ConvertAll(a => a.Artist);
         RefreshHint();
     }
 

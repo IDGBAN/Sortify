@@ -59,6 +59,43 @@ public class CompareArtistsTests
     }
 
     [Fact]
+    public async Task EquallyGoodMatches_AreSuggestedInTheOrderTheSwitchRanks()
+    {
+        // The three busiest artists start on the chart; "Moon Long" has more listening time
+        // and "Moon Many" more plays.
+        var records = new[] { "Sun A", "Sun B", "Sun C" }
+            .SelectMany(name => Plays(name, 20, 1_000_000))
+            .Concat(Plays("Moon Long", 2, 1_000_000))
+            .Concat(Plays("Moon Many", 10, 60_000))
+            .ToList();
+        var result = AnalysisEngine.Analyze(records, new FilterOptions());
+
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var vm = new CompareArtistsViewModel(() => new CompareArtistsViewModel.Source(records, new FilterOptions(), DayOfWeek.Sunday));
+
+            await vm.UpdateAsync(result.ArtistsByPlayCount);
+            vm.Query = "moon";
+            Assert.Equal(new[] { "Moon Many", "Moon Long" }, vm.Suggestions);
+            Assert.Equal(vm.Suggestions, vm.SuggestionDetails.Select(s => s.Name));
+            Assert.Equal(10, vm.SuggestionDetails[0].Plays);
+
+            await vm.UpdateAsync(result.Artists);
+            Assert.Equal(new[] { "Moon Long", "Moon Many" }, vm.Suggestions);
+        });
+
+        static IEnumerable<PlayRecord> Plays(string artist, int count, int ms) => Enumerable.Range(0, count)
+            .Select(day => new PlayRecord
+            {
+                TrackName = "Song",
+                ArtistName = artist,
+                AlbumName = "LP",
+                MsPlayed = ms,
+                Timestamp = new DateTime(2024, 1, 1).AddDays(day),
+            });
+    }
+
+    [Fact]
     public async Task AFullChart_SaysSoInsteadOfTakingAnother()
     {
         await WpfTestHost.RunAsync(async () =>
