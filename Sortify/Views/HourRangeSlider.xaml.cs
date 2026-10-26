@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -26,6 +27,7 @@ public partial class HourRangeSlider : UserControl
     public HourRangeSlider()
     {
         InitializeComponent();
+        NameThumbs();
     }
 
     public int Start
@@ -43,7 +45,18 @@ public partial class HourRangeSlider : UserControl
     private static object CoerceHour(DependencyObject d, object value) => Math.Clamp((int)value, 0, MaxHour);
 
     private static void OnValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
-        => ((HourRangeSlider)d).UpdateLayoutOfParts();
+    {
+        var slider = (HourRangeSlider)d;
+        slider.NameThumbs();
+        slider.UpdateLayoutOfParts();
+    }
+
+    // The hour goes in the name so a screen reader says where a thumb landed after each key.
+    private void NameThumbs()
+    {
+        AutomationProperties.SetName(StartThumb, $"Start hour, {Start:00}:00");
+        AutomationProperties.SetName(EndThumb, $"End hour, {End:00}:59");
+    }
 
     private void OnSizeChanged(object sender, SizeChangedEventArgs e) => UpdateLayoutOfParts();
 
