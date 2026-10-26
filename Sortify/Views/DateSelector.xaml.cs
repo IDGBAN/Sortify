@@ -121,14 +121,19 @@ public partial class DateSelector : UserControl
             SelectedDate = date;
     }
 
-    /// <summary>"Any", then the newest year first, back to <see cref="FirstYear"/> (or further for an older date).</summary>
+    /// <summary>
+    /// "Any", then this year back to <see cref="FirstYear"/>, newest first. A date outside those
+    /// years adds its own year alone: a To date of 31 December 9999, which stands for no end,
+    /// would otherwise fill the list with every year in between.
+    /// </summary>
     internal static List<DatePart> YearOptions(int? include)
     {
-        var newest = Math.Max(DateTime.Today.Year, include ?? 0);
-        var oldest = Math.Min(FirstYear, include ?? FirstYear);
+        var years = Enumerable.Range(FirstYear, DateTime.Today.Year - FirstYear + 1).ToList();
+        if (include is { } year && !years.Contains(year))
+            years.Add(year);
+
         var options = new List<DatePart> { new(0, "Any") };
-        for (var y = newest; y >= oldest; y--)
-            options.Add(new DatePart(y, y.ToString(CultureInfo.CurrentCulture)));
+        options.AddRange(years.OrderDescending().Select(y => new DatePart(y, y.ToString(CultureInfo.CurrentCulture))));
         return options;
     }
 

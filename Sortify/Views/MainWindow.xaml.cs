@@ -184,21 +184,16 @@ public partial class MainWindow : ThemedWindow
         base.OnMouseUp(e);
     }
 
-    /// <summary>The row filter belonging to the tab currently on screen, if it has one.</summary>
-    private TextBox? CurrentQuickFilter() => Tabs.SelectedIndex switch
-    {
-        1 => TrackQuickFilter,
-        2 => ArtistQuickFilter,
-        3 => AlbumQuickFilter,
-        5 => ShowQuickFilter,
-        10 => HistoryQuickFilter,
-        _ => null,
-    };
+    private IEnumerable<TextBox> QuickFilters() =>
+        new[] { TrackQuickFilter, ArtistQuickFilter, AlbumQuickFilter, ShowQuickFilter, HistoryQuickFilter };
 
-    private bool IsQuickFilter(TextBox box) =>
-        ReferenceEquals(box, TrackQuickFilter) || ReferenceEquals(box, ArtistQuickFilter) ||
-        ReferenceEquals(box, AlbumQuickFilter) || ReferenceEquals(box, ShowQuickFilter) ||
-        ReferenceEquals(box, HistoryQuickFilter);
+    /// <summary>
+    /// The row filter belonging to the tab currently on screen, if it has one. Only the selected
+    /// tab's content is shown, so it is the one visible box, wherever that tab sits in the row.
+    /// </summary>
+    private TextBox? CurrentQuickFilter() => QuickFilters().FirstOrDefault(box => box.IsVisible);
+
+    private bool IsQuickFilter(TextBox box) => QuickFilters().Contains(box);
 
     private void FocusQuickFilter()
     {
