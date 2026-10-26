@@ -436,35 +436,10 @@ public partial class DetailWindow : ThemedWindow
     /// <summary>Copies the header figures as plain text, for pasting somewhere else.</summary>
     private void OnCopySummary(object sender, RoutedEventArgs e)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine(_detail.Subtitle.Length > 0
-            ? $"{_detail.Title} - {_detail.Subtitle}"
-            : _detail.Title);
-        sb.AppendLine($"Time listened: {TimeFormat.Friendly(_detail.TotalTime)}");
-        sb.AppendLine($"Plays: {_detail.PlayCount:N0}");
-        sb.AppendLine($"Active days: {_detail.ActiveDays:N0}");
-        if (_detail.FirstPlayed is { } first)
-            sb.AppendLine($"First played: {TimeFormat.Timestamp(first)}");
-        if (_detail.LastPlayed is { } last)
-            sb.AppendLine($"Last played: {TimeFormat.Timestamp(last)}");
-        if (_detail.Rank is { } rank)
-        {
-            sb.AppendLine($"Rank: #{rank:N0} of {RankedAmong(_detail)}");
-            sb.AppendLine($"Share of listening: {_detail.SharePercent:0.#}%");
-        }
-        if (_detail.SkipEligiblePlays > 0)
-            sb.AppendLine($"Skip rate: {_detail.SkipRate:0.#}% ({_detail.Skips:N0} of {Plural.Of(_detail.SkipEligiblePlays, "play")})");
-        if (_detail.BusiestMonth is { } month)
-            sb.AppendLine($"Busiest month: {TimeFormat.Month(month)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(_detail.BusiestMonthMs))})");
-        if (_detail.LongestStreakDays > 0)
-            sb.AppendLine($"Longest streak: {Plural.Of(_detail.LongestStreakDays, "day")} ({StreakHint.Text})");
-        if (_detail.TopDevice.Length > 0)
-            sb.AppendLine($"Mostly on: {_detail.TopDevice} ({_detail.TopDevicePercent:0}%)");
-
         bool copied;
         try
         {
-            Clipboard.SetDataObject(sb.ToString());
+            Clipboard.SetDataObject(SummaryText());
             copied = true;
         }
         catch (ExternalException)
@@ -484,6 +459,36 @@ public partial class DetailWindow : ThemedWindow
         }, Dispatcher);
         _copyNotice.Stop();
         _copyNotice.Start();
+    }
+
+    /// <summary>The header figures as plain text, measured by time or plays as the window shows them.</summary>
+    internal string SummaryText()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(_detail.Subtitle.Length > 0
+            ? $"{_detail.Title} - {_detail.Subtitle}"
+            : _detail.Title);
+        sb.AppendLine($"Time listened: {TimeFormat.Friendly(_detail.TotalTime)}");
+        sb.AppendLine($"Plays: {_detail.PlayCount:N0}");
+        sb.AppendLine($"Active days: {_detail.ActiveDays:N0}");
+        if (_detail.FirstPlayed is { } first)
+            sb.AppendLine($"First played: {TimeFormat.Timestamp(first)}");
+        if (_detail.LastPlayed is { } last)
+            sb.AppendLine($"Last played: {TimeFormat.Timestamp(last)}");
+        if (_detail.Rank is { } rank)
+        {
+            sb.AppendLine($"Rank: #{rank:N0} of {RankedAmong(_detail)}");
+            sb.AppendLine($"{(_metric == Metric.Plays ? "Share of plays" : "Share of listening")}: {_detail.SharePercent:0.#}%");
+        }
+        if (_detail.SkipEligiblePlays > 0)
+            sb.AppendLine($"Skip rate: {_detail.SkipRate:0.#}% ({_detail.Skips:N0} of {Plural.Of(_detail.SkipEligiblePlays, "play")})");
+        if (_detail.BusiestMonth is { } month)
+            sb.AppendLine($"Busiest month: {TimeFormat.Month(month)} ({BusiestHint.Text})");
+        if (_detail.LongestStreakDays > 0)
+            sb.AppendLine($"Longest streak: {Plural.Of(_detail.LongestStreakDays, "day")} ({StreakHint.Text})");
+        if (_detail.TopDevice.Length > 0)
+            sb.AppendLine($"Mostly on: {_detail.TopDevice} ({_detail.TopDevicePercent:0}%)");
+        return sb.ToString();
     }
 
     /// <summary>How long the Copy summary button says whether it worked.</summary>

@@ -220,6 +220,24 @@ public class DetailStandingWindowTests
         });
     }
 
+    [Theory]
+    [InlineData(Metric.Time, "Share of listening: 100%", "Busiest month: 2024-01 (5m 0s)")]
+    [InlineData(Metric.Plays, "Share of plays: 100%", "Busiest month: 2024-01 (2 plays)")]
+    public void TheCopiedSummary_MeasuresAsTheWindowDoes(Metric metric, string share, string busiest)
+    {
+        WpfTestHost.Run(() =>
+        {
+            var records = Records();
+            var d = DetailEngine.Build(records, new FilterOptions(), DetailScope.Artist, "Band", string.Empty,
+                AnalysisEngine.Analyze(records, new FilterOptions()), metric);
+
+            var lines = new DetailWindow(d, null, metric).SummaryText().Split(Environment.NewLine);
+
+            Assert.Contains(share, lines);
+            Assert.Contains(busiest, lines);
+        });
+    }
+
     [Fact]
     public void ATrack_LeavesTheTrackColumnOut_AndNoPlaysHidesTheList()
     {
