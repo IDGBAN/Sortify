@@ -71,6 +71,31 @@ public class LoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task ASearchThatFails_IsReportedInTheStatusBar_AndKeepsWhatWasOpen()
+    {
+        var folder = Export("export", TwoPlays);
+
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var vm = new MainViewModel(new AppSettings());
+            await vm.LoadAsync(() => throw new DirectoryNotFoundException("The drive went away."), null, "Nothing found.");
+
+            Assert.True(vm.StatusIsError);
+            Assert.Contains("The drive went away.", vm.StatusText);
+            Assert.False(vm.HasData);
+            Assert.False(vm.IsBusy);
+
+            await vm.OpenFolderPathAsync(folder);
+            await vm.LoadAsync(() => throw new UnauthorizedAccessException("Access denied."), null, "Nothing found.");
+
+            Assert.True(vm.StatusIsError);
+            Assert.Contains("still open", vm.StatusText);
+            Assert.Equal("2", vm.TotalPlaysText);
+            Assert.False(vm.IsBusy);
+        });
+    }
+
+    [Fact]
     public void SettingsThatCouldntBeRead_AreMentionedInTheStatusBar()
     {
         WpfTestHost.Run(() =>

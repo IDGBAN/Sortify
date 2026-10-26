@@ -543,7 +543,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// the parse, since walking a big folder can take a while. <paramref name="nothingFound"/>
     /// is the error shown when it finds no files; null says nothing.
     /// </summary>
-    private async Task LoadAsync(Func<IReadOnlyList<string>> findFiles, string? folder, string? nothingFound)
+    internal async Task LoadAsync(Func<IReadOnlyList<string>> findFiles, string? folder, string? nothingFound)
     {
         if (_isLoading)
             return;
@@ -631,6 +631,13 @@ public sealed partial class MainViewModel : ObservableObject
         catch (OperationCanceledException)
         {
             SetStatus("Loading cancelled.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Each file's own problems are caught as it is read; this is the search for them
+            // failing, such as a folder deleted or a network drive dropping out partway through.
+            string problem = $"Couldn't read your Spotify history: {ex.Message}";
+            SetStatus(HasData ? $"{problem} Your current history is still open." : problem, isError: true);
         }
         finally
         {
