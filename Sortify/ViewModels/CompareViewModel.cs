@@ -16,12 +16,13 @@ public sealed partial class CompareViewModel : ObservableObject
     /// <summary>
     /// What a comparison runs over: the plays, the sidebar filters, the session gap, the
     /// files the plays were read from (so the same export can't be opened as someone else's
-    /// on the Compare People tab) and how play times are converted, which someone else's
-    /// export is read with too.
+    /// on the Compare People tab), how play times are converted, which someone else's export
+    /// is read with too, and whether re-releases are folded together, as they already are in
+    /// <paramref name="Records"/> when it is true.
     /// </summary>
     public readonly record struct Source(
         IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap,
-        IReadOnlyList<string>? Files = null, PlayTimeZones? TimeZones = null);
+        IReadOnlyList<string>? Files = null, PlayTimeZones? TimeZones = null, bool CombineReleases = false);
 
     private readonly Func<Source?> _source;
     private CancellationTokenSource? _cts;

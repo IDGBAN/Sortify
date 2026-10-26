@@ -162,7 +162,7 @@ public class PeopleCompareViewModelTests
         Assert.Equal(0, asked);
 
         vm.IsVisible = true;
-        await Task.Delay(200);
+        await Wait.UntilAsync(() => vm.HasResults);
 
         Assert.Equal(1, asked);
         Assert.True(vm.HasResults);
@@ -170,6 +170,70 @@ public class PeopleCompareViewModelTests
         Assert.Equal("Sam", vm.TheirName);
         Assert.Equal("Only Sam, Not You", vm.OnlyThemTitle);
         Assert.Contains("1 play loaded, 2024-01-02 to 2024-01-02", vm.LoadedText);
+    }
+
+    [Fact]
+    public async Task WithReleasesCombined_TheirRemastersMeetYourOriginals()
+    {
+        var theirs = new List<PlayRecord>
+        {
+            new() { TrackName = "Song - 2011 Remaster", ArtistName = "Band", AlbumName = "Album (Deluxe Edition)", MsPlayed = 3_600_000, Timestamp = new DateTime(2024, 1, 3) },
+        };
+        bool combine = false;
+        var vm = new PeopleCompareViewModel(() =>
+            new CompareViewModel.Source(Plays, new FilterOptions(), TimeSpan.FromMinutes(30), CombineReleases: combine));
+        vm.SetTheirs(theirs);
+
+        await vm.RefreshAsync();
+        Assert.Empty(vm.SharedTracks);
+
+        combine = true;
+        await vm.RefreshAsync();
+        Assert.Equal("Song", Assert.Single(vm.SharedTracks).Name);
+        Assert.Equal("Song - 2011 Remaster", theirs[0].TrackName);
+    }
+
+    [Fact]
+    public async Task ASliverInCommon_ReadsAsUnderOnePercent()
+    {
+        var yours = new List<PlayRecord>
+        {
+            new() { TrackName = "Big", ArtistName = "Mostly Mine", AlbumName = "A", MsPlayed = 360_000_000, Timestamp = new DateTime(2024, 1, 2) },
+            new() { TrackName = "Small", ArtistName = "Shared", AlbumName = "B", MsPlayed = 1_800_000, Timestamp = new DateTime(2024, 1, 2) },
+        };
+        var vm = new PeopleCompareViewModel(() => new CompareViewModel.Source(yours, new FilterOptions(), TimeSpan.FromMinutes(30)));
+        vm.SetTheirs(new List<PlayRecord> { yours[1] });
+
+        await vm.RefreshAsync();
+
+        Assert.Equal("<1%", vm.ArtistMatch);
+    }
+
+    [Fact]
+    public async Task ACancelledLoad_KeepsWhoWasThere()
+    {
+        var vm = new PeopleCompareViewModel(YourHistory);
+        vm.SetTheirs(Plays, "Sam");
+        using var looking = new ManualResetEventSlim();
+        using var carryOn = new ManualResetEventSlim();
+
+        // Finding nothing after the cancel would otherwise say so as if it were the answer.
+        var load = vm.LoadTheirsAsync(() =>
+        {
+            looking.Set();
+            carryOn.Wait();
+            return Array.Empty<string>();
+        }, "Alex");
+        looking.Wait();
+        Assert.True(vm.CancelLoadCommand.CanExecute(null));
+        vm.CancelLoadCommand.Execute(null);
+        carryOn.Set();
+        await load;
+
+        Assert.False(vm.IsLoading);
+        Assert.True(vm.HasTheirs);
+        Assert.Equal("Sam", vm.TheirName);
+        Assert.Equal(string.Empty, vm.LoadError);
     }
 
     [Fact]

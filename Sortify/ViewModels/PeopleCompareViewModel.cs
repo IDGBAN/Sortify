@@ -22,6 +22,11 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     private bool _stale = true;
     private IReadOnlyList<PlayRecord> _theirRecords = Array.Empty<PlayRecord>();
 
+    /// <summary>Their plays with re-releases folded in, worked out the first time the sidebar asks for it.</summary>
+    private IReadOnlyList<PlayRecord>? _theirCombined;
+
+    private CancellationTokenSource? _loadCts;
+
     // Where their plays came from and how their times were converted, to read them again
     // when the time zone setting changes.
     private Func<IReadOnlyList<string>>? _theirFiles;
@@ -37,8 +42,18 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     private bool _hasTheirs;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(OpenTheirFolderCommand), nameof(OpenTheirFilesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenTheirFolderCommand), nameof(OpenTheirFilesCommand), nameof(CancelLoadCommand))]
     private bool _isLoading;
+
+    /// <summary>How far through their files a load has got, 0 to 100.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLoadProgressUnknown))]
+    private double _loadProgress;
+
+    /// <summary>True until a file has been read: one big file gives no progress until it is done.</summary>
+    public bool IsLoadProgressUnknown => LoadProgress <= 0;
+
+    [ObservableProperty] private string _loadStatus = string.Empty;
 
     [ObservableProperty] private string _loadedText = string.Empty;
     [ObservableProperty] private string _loadError = string.Empty;
@@ -134,6 +149,7 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     {
         _cts?.Cancel();
         _theirRecords = Array.Empty<PlayRecord>();
+        _theirCombined = null;
         _theirFiles = null;
         HasTheirs = false;
         LoadedText = string.Empty;
@@ -161,19 +177,26 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
 
     /// <summary>
     /// Finds and parses the other person's history files off the UI thread, converting play
-    /// times the same way as your own. A load that finds no plays, or finds your own export,
-    /// leaves whatever was loaded before in place.
+    /// times the same way as your own. A load that finds no plays, finds your own export or is
+    /// cancelled leaves whatever was loaded before in place.
     /// </summary>
     internal async Task LoadTheirsAsync(Func<IReadOnlyList<string>> findFiles, string? suggestedName)
     {
         if (IsLoading)
             return;
 
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token;
+
         IsLoading = true;
         LoadError = string.Empty;
+        LoadProgress = 0;
+        LoadStatus = "Looking for their Spotify history...";
         try
         {
-            var files = await Task.Run(findFiles);
+            var files = await Task.Run(findFiles, token);
+            token.ThrowIfCancellationRequested();
             if (files.Count == 0)
             {
                 LoadError = "No Spotify history was found there. Pick the ZIP Spotify sent, the folder it unpacks to, or its JSON files.";
@@ -186,8 +209,13 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
                 return;
             }
 
+            var progress = new Progress<ParseProgress>(p =>
+            {
+                LoadProgress = p.Percent;
+                LoadStatus = p.Message;
+            });
             var timeZones = _source()?.TimeZones;
-            var parsed = await new HistoryParser(timeZones).ParseAsync(files);
+            var parsed = await new HistoryParser(timeZones).ParseAsync(files, progress, token);
             if (parsed.Records.Count == 0)
             {
                 LoadError = parsed.Warnings.Count > 0
@@ -201,7 +229,11 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
             _theirTimeZones = (timeZones ?? PlayTimeZones.ThisPc).CacheKey;
             int skipped = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             if (skipped > 0)
-                LoadedText += $" ({skipped} file(s) skipped)";
+                LoadedText += $" ({Plural.Of(skipped, "file")} skipped)";
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled from the button.
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -210,8 +242,12 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+            LoadProgress = 0;
         }
     }
+
+    [RelayCommand(CanExecute = nameof(IsLoading))]
+    private void CancelLoad() => _loadCts?.Cancel();
 
     /// <summary>Reads their export again if play times are now converted differently from when it was read.</summary>
     public Task ReadTheirsAgainIfTimesChangedAsync()
@@ -226,14 +262,16 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     internal void SetTheirs(IReadOnlyList<PlayRecord> records, string? suggestedName = null)
     {
         _theirRecords = records;
+        _theirCombined = null;
         HasTheirs = true;
         if (string.IsNullOrWhiteSpace(TheirName) && suggestedName is not null)
             TheirName = suggestedName;
 
-        var dated = records.Where(r => r.Timestamp != DateTime.MinValue).Select(r => r.Timestamp).ToList();
-        LoadedText = dated.Count == 0
-            ? $"{records.Count:N0} play{(records.Count == 1 ? "" : "s")} loaded."
-            : $"{records.Count:N0} play{(records.Count == 1 ? "" : "s")} loaded, {TimeFormat.Day(dated.Min())} to {TimeFormat.Day(dated.Max())}.";
+        var (first, last) = PlayRecord.DateSpan(records);
+        string plays = Plural.Of(records.Count, "play");
+        LoadedText = first is { } f && last is { } l
+            ? $"{plays} loaded, {TimeFormat.Day(f)} to {TimeFormat.Day(l)}."
+            : $"{plays} loaded.";
         Invalidate();
     }
 
@@ -263,6 +301,16 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
         IsWorking = true;
         try
         {
+            // Your plays arrive with re-releases already folded when the sidebar asks for it;
+            // theirs need the same, or "Song - Remastered" on one side never meets "Song".
+            if (source.CombineReleases)
+            {
+                var raw = theirs;
+                theirs = _theirCombined ?? await Task.Run(() => ReleaseNames.Combine(raw), token);
+                if (ReferenceEquals(raw, _theirRecords))
+                    _theirCombined = theirs;
+            }
+
             var result = await PeopleComparison.CompareAsync(source.Records, theirs, source.Filter,
                 source.SessionGap, token);
             if (token.IsCancellationRequested)
@@ -273,8 +321,8 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
             SharedTracks = result.SharedTracks;
             OnlyYou = result.OnlyYou;
             OnlyThem = result.OnlyThem;
-            ArtistMatch = $"{result.ArtistMatch:0}%";
-            TrackMatch = $"{result.TrackMatch:0}%";
+            ArtistMatch = Percent(result.ArtistMatch);
+            TrackMatch = Percent(result.TrackMatch);
             SharedArtistCount = result.SharedArtistCount.ToString("N0");
             SharedTrackCount = result.SharedTrackCount.ToString("N0");
             HasResults = true;
@@ -298,6 +346,14 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
             previous?.Dispose();
         }
     }
+
+    // A sliver of overlap reads as "<1%" rather than rounding away to nothing in common.
+    private static string Percent(double value) => value switch
+    {
+        <= 0 => "0%",
+        < 1 => "<1%",
+        _ => $"{value:0}%",
+    };
 
     private void ClearResults()
     {

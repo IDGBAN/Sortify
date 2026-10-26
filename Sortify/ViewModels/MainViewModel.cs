@@ -364,7 +364,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>Your plays and the sidebar's filters, for the two Compare tabs; null until a history is open.</summary>
     private CompareViewModel.Source? CompareSource() => HasData
         ? new CompareViewModel.Source(Records, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
-            PlayTimeZones.From(_settings))
+            PlayTimeZones.From(_settings), Filters.CombineReleases)
         : null;
 
     // ---- Loading ---------------------------------------------------------------------------
