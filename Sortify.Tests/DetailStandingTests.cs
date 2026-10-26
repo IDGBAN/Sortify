@@ -121,6 +121,33 @@ public class DetailStandingTests
     }
 
     [Fact]
+    public void ByPlays_ATie_GoesToTheLongerListen()
+    {
+        // March and May have two plays each, and May the longer listen. In May, the 10th and
+        // the 11th have one play each, and the 11th the longer one.
+        var may = new DateTime(2024, 5, 10, 12, 0, 0);
+        var records = new List<PlayRecord>
+        {
+            Play("A1", "Alpha", Start),
+            Play("A1", "Alpha", Start.AddHours(1)),
+            Play("A1", "Alpha", may, ms: 300_000),
+            Play("A1", "Alpha", may.AddDays(1), ms: 500_000),
+        };
+        var overall = AnalysisEngine.Analyze(records, new FilterOptions());
+        var filter = new FilterOptions();
+
+        var alpha = DetailEngine.Build(records, filter, DetailScope.Artist, "Alpha", string.Empty, overall, Metric.Plays);
+        Assert.Equal(new DateTime(2024, 5, 1), alpha.BusiestMonth);
+        Assert.Equal(2, alpha.BusiestMonthPlays);
+
+        var tenth = DetailEngine.Build(records, filter, DetailScope.Day, "2024-05-10", string.Empty, overall, Metric.Plays);
+        var eleventh = DetailEngine.Build(records, filter, DetailScope.Day, "2024-05-11", string.Empty, overall, Metric.Plays);
+        Assert.Equal(3, tenth.Rank);
+        Assert.Equal(2, eleventh.Rank);
+        Assert.Equal(3, eleventh.RankOutOf);
+    }
+
+    [Fact]
     public void TracksAlbumsAndYears_AreRankedAmongTheirOwnKind()
     {
         var records = Library();

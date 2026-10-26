@@ -174,9 +174,13 @@ public static class DetailEngine
 
         var months = byMonth.OrderBy(kv => kv.Key).ToList();
         var (streakDays, streakStart, streakEnd) = AnalysisEngine.LongestStreak(days.Order().ToList());
+        // Plays tie far more often than milliseconds do, so a tie on plays goes to the longer
+        // listen, as with each month's leaders.
         var busiest = months.Count == 0
             ? (KeyValuePair<DateTime, (long Ms, int Plays)>?)null
-            : months.MaxBy(kv => metric == Metric.Plays ? kv.Value.Plays : kv.Value.Ms);
+            : metric == Metric.Plays
+                ? months.MaxBy(kv => (kv.Value.Plays, kv.Value.Ms))
+                : months.MaxBy(kv => kv.Value.Ms);
         var topDevice = deviceMs.Count == 0 ? (KeyValuePair<string, long>?)null : deviceMs.MaxBy(kv => kv.Value);
         long deviceTotal = deviceMs.Values.Sum();
         var (rank, rankOutOf, share) = Standing(overall, scope, title, subtitle, totalMs, playCount, metric);
@@ -245,8 +249,7 @@ public static class DetailEngine
             DetailScope.Show => IndexOf(plays ? overall.ShowsByPlayCount : overall.Shows, s => s.Show == title),
             DetailScope.Episode => IndexOf(plays ? overall.EpisodesByPlayCount : overall.Episodes,
                 e => e.Episode == title && e.Show == subtitle),
-            DetailScope.Day => IndexOf((plays ? overall.PlaysByDay : overall.PlaytimeByDay).OrderByDescending(p => p.Value).ToList(),
-                p => TimeFormat.Day(p.Date) == title),
+            DetailScope.Day => DayIndex(overall, title, plays),
             _ => -1,
         };
         int outOf = scope switch
@@ -271,6 +274,22 @@ public static class DetailEngine
         long amount = plays ? playCount : totalMs;
         double share = whole > 0 ? Math.Min(100, amount * 100.0 / whole) : 0;
         return (index >= 0 ? index + 1 : null, outOf, share);
+    }
+
+    /// <summary>
+    /// Where the day <paramref name="title"/> names ranks among the days with listening. By plays,
+    /// a tie goes to the longer listen, as it does for a year; the analysis lists the same days
+    /// in the same order for both measures.
+    /// </summary>
+    private static int DayIndex(AnalysisResult overall, string title, bool plays)
+    {
+        var ranked = plays
+            ? overall.PlaysByDay.Zip(overall.PlaytimeByDay, (count, time) => (count.Date, Plays: count.Value, Hours: time.Value))
+                .OrderByDescending(d => d.Plays)
+                .ThenByDescending(d => d.Hours)
+                .Select(d => d.Date)
+            : overall.PlaytimeByDay.OrderByDescending(p => p.Value).Select(p => p.Date);
+        return IndexOf(ranked.ToList(), date => TimeFormat.Day(date) == title);
     }
 
     private static int IndexOf<T>(IReadOnlyList<T> items, Func<T, bool> match)
