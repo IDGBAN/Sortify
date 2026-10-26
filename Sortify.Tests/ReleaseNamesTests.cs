@@ -176,12 +176,16 @@ public class CombineReleasesViewTests
             await vm.OpenSampleCommand.ExecuteAsync(null);
             int albumsApart = vm.Albums.Count;
             Assert.Contains(vm.Tracks, t => t.Track.EndsWith(" Remaster", StringComparison.Ordinal));
+            Assert.Contains(vm.Suggestions, s => s.Name.EndsWith(" Remaster", StringComparison.Ordinal));
 
             vm.Filters.CombineReleases = true;
-            await Wait.UntilAsync(() => vm.Albums.Count < albumsApart);
+            await Wait.UntilAsync(() => vm.Albums.Count < albumsApart
+                && !vm.Suggestions.Any(s => s.Name.EndsWith(" Remaster", StringComparison.Ordinal)));
 
             Assert.True(vm.Albums.Count < albumsApart);
             Assert.DoesNotContain(vm.Tracks, t => t.Track.EndsWith(" Remaster", StringComparison.Ordinal));
+            // The sidebar's search and exclusion boxes offer only the names still on screen.
+            Assert.DoesNotContain(vm.Suggestions, s => s.Name.EndsWith(" Remaster", StringComparison.Ordinal));
 
             // A breakdown opened from a combined row finds every edition's plays.
             var top = vm.Albums[0];

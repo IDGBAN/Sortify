@@ -6,7 +6,7 @@ namespace Sortify.Services;
 public sealed record SearchSuggestion(string Kind, string Name, string Secondary, long Milliseconds, int Plays, string Scope = "All history")
 {
     public string Details => $"{Kind} · {Secondary}".TrimEnd(' ', '·');
-    public string Summary => $"{Scope}: {TimeFormat.Friendly(TimeSpan.FromMilliseconds(Milliseconds))} · {Plays:N0} plays";
+    public string Summary => $"{Scope}: {TimeFormat.Friendly(TimeSpan.FromMilliseconds(Milliseconds))} · {Plural.Of(Plays, "play")}";
 }
 
 public static class SearchSuggestions

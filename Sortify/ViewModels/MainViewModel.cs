@@ -693,7 +693,6 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void OfferChoicesForHistory(bool newHistory)
     {
-        Suggestions = SearchSuggestions.Build(_rawRecords);
         DateTime? last = null;
         var years = new SortedSet<int>();
         var platformMs = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -967,6 +966,7 @@ public sealed partial class MainViewModel : ObservableObject
                     _combinedRecords ??= combined;
             }
 
+            var suggesting = RefreshSuggestionsAsync();
             AnalysisResult result;
             try
             {
@@ -991,6 +991,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (!ShowCohorts)
                 _cohorts = CohortBreakdown.Empty;
 
+            TableSuggestions = SearchSuggestions.FromResult(_result);
             UpdateCollections();
             UpdateSummary();
             Insights = InsightText.For(_result);
@@ -1014,6 +1015,7 @@ public sealed partial class MainViewModel : ObservableObject
             if (ShowCohorts)
                 _ = RefreshCohortsAsync();
             await CompareArtists.UpdateAsync(RankedArtists);
+            await suggesting;
         }
         finally
         {
@@ -1022,9 +1024,28 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The plays <see cref="Suggestions"/> were last built from.</summary>
+    private IReadOnlyList<PlayRecord>? _suggestedFrom;
+
+    /// <summary>
+    /// Builds the sidebar's name suggestions off the UI thread from the plays the views read, so
+    /// with re-releases combined a remaster isn't offered under a name no play has any more.
+    /// Only a new history or a change to that option builds them again.
+    /// </summary>
+    private async Task RefreshSuggestionsAsync()
+    {
+        var records = Records;
+        if (ReferenceEquals(records, _suggestedFrom))
+            return;
+
+        _suggestedFrom = records;
+        var built = await Task.Run(() => SearchSuggestions.Build(records));
+        if (ReferenceEquals(records, _suggestedFrom))
+            Suggestions = built;
+    }
+
     private void UpdateCollections()
     {
-        TableSuggestions = SearchSuggestions.FromResult(_result);
         ApplyTrackQuickFilter();
         ApplyArtistQuickFilter();
         ApplyAlbumQuickFilter();
