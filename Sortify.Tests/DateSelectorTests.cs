@@ -79,4 +79,14 @@ public class DateSelectorTests
         Assert.Contains(DateSelector.YearOptions(2001), p => p.Value == 2001);
         Assert.Equal(DateSelector.FirstYear, DateSelector.YearOptions(null)[^1].Value);
     }
+
+    [Fact]
+    public void ANoEndDate_AddsItsYearAlone()
+    {
+        var years = DateSelector.YearOptions(9999);
+
+        Assert.Equal(9999, years[1].Value);
+        Assert.Equal(DateTime.Today.Year, years[2].Value);
+        Assert.Equal(DateTime.Today.Year - DateSelector.FirstYear + 3, years.Count);
+    }
 }

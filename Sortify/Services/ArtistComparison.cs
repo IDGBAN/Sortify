@@ -25,17 +25,20 @@ public static class ArtistComparison
 
     public static Task<ArtistTimeline> BuildAsync(
         IReadOnlyList<PlayRecord> records, FilterOptions filter, IReadOnlyList<string> artists,
-        ChartBuilder.TimeGranularity granularity, CancellationToken cancellationToken = default)
-        => Task.Run(() => Build(records, filter, artists, granularity, cancellationToken), cancellationToken);
+        ChartBuilder.TimeGranularity granularity, DayOfWeek firstDay = DayOfWeek.Sunday,
+        CancellationToken cancellationToken = default)
+        => Task.Run(() => Build(records, filter, artists, granularity, firstDay, cancellationToken), cancellationToken);
 
     /// <summary>
     /// One filtered pass over the plays of the given artists. A bucket an artist has no plays
     /// in counts as zero rather than being left out, so a line drops to the floor in a quiet
     /// month instead of drawing straight across it.
     /// </summary>
+    /// <param name="firstDay">The day a weekly bucket starts on.</param>
     public static ArtistTimeline Build(
         IReadOnlyList<PlayRecord> records, FilterOptions filter, IReadOnlyList<string> artists,
-        ChartBuilder.TimeGranularity granularity, CancellationToken cancellationToken = default)
+        ChartBuilder.TimeGranularity granularity, DayOfWeek firstDay = DayOfWeek.Sunday,
+        CancellationToken cancellationToken = default)
     {
         if (artists.Count == 0)
             return ArtistTimeline.Empty;
@@ -60,7 +63,7 @@ public static class ArtistComparison
             if (!index.TryGetValue(r.DisplayArtist, out int i))
                 continue;
 
-            var bucket = BucketOf(r.Timestamp, granularity);
+            var bucket = TimeBuckets.Of(r.Timestamp, granularity, firstDay);
             var (ms, plays) = perArtist[i].GetValueOrDefault(bucket);
             perArtist[i][bucket] = (ms + r.MsPlayed, plays + 1);
             if (first is null || bucket < first) first = bucket;
@@ -73,9 +76,7 @@ public static class ArtistComparison
             return new ArtistTimeline { Series = empty, PlaySeries = empty };
         }
 
-        var buckets = new List<DateTime>();
-        for (var b = from; b <= to; b = Next(b, granularity))
-            buckets.Add(b);
+        var buckets = TimeBuckets.Between(from, to, granularity, firstDay);
 
         var series = index.Keys
             .Select((artist, i) => (artist, buckets
@@ -90,19 +91,4 @@ public static class ArtistComparison
 
         return new ArtistTimeline { Buckets = buckets, Series = series, PlaySeries = playSeries };
     }
-
-    /// <summary>The first day of the month, or the Sunday the week starts on, as the over-time chart buckets.</summary>
-    internal static DateTime BucketOf(DateTime when, ChartBuilder.TimeGranularity granularity) => granularity switch
-    {
-        ChartBuilder.TimeGranularity.Weekly => when.Date.AddDays(-(int)when.DayOfWeek),
-        ChartBuilder.TimeGranularity.Daily => when.Date,
-        _ => new DateTime(when.Year, when.Month, 1),
-    };
-
-    private static DateTime Next(DateTime bucket, ChartBuilder.TimeGranularity granularity) => granularity switch
-    {
-        ChartBuilder.TimeGranularity.Weekly => bucket.AddDays(7),
-        ChartBuilder.TimeGranularity.Daily => bucket.AddDays(1),
-        _ => bucket.AddMonths(1),
-    };
 }

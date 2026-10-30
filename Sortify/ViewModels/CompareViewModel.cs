@@ -13,8 +13,16 @@ namespace Sortify.ViewModels;
 /// </summary>
 public sealed partial class CompareViewModel : ObservableObject
 {
-    /// <summary>What a comparison runs over: the plays, the sidebar filters and the session gap.</summary>
-    public readonly record struct Source(IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap);
+    /// <summary>
+    /// What a comparison runs over: the plays, the sidebar filters, the session gap, the
+    /// files the plays were read from (so the same export can't be opened as someone else's
+    /// on the Compare People tab), how play times are converted, which someone else's export
+    /// is read with too, and whether re-releases are folded together, as they already are in
+    /// <paramref name="Records"/> when it is true.
+    /// </summary>
+    public readonly record struct Source(
+        IReadOnlyList<PlayRecord> Records, FilterOptions Filter, TimeSpan SessionGap,
+        IReadOnlyList<string>? Files = null, PlayTimeZones? TimeZones = null, bool CombineReleases = false);
 
     private readonly Func<Source?> _source;
     private CancellationTokenSource? _cts;
@@ -233,11 +241,14 @@ public sealed partial class CompareViewModel : ObservableObject
 
         s = s.Date;
         e = e.Date;
-        bool toMonthEnd = e.AddDays(1).Day == 1;
+        // Not e.AddDays(1): an end of 31 December 9999 has no next day.
+        bool toMonthEnd = e.Day == DateTime.DaysInMonth(e.Year, e.Month);
         var options = new List<DateRangeOption>();
         foreach (int year in _years)
         {
-            if (year == e.Year)
+            // A period that runs to 9999 to mean "no end" can't move back so far that it
+            // would have to start before year 1.
+            if (year == e.Year || s.Year + year - e.Year < 1)
                 continue;
             var newStart = s.AddYears(year - e.Year);
             var newEnd = e.AddYears(year - e.Year);
@@ -267,17 +278,22 @@ public sealed partial class CompareViewModel : ObservableObject
 
         start = start.Date;
         end = end.Date;
-        var endA = start.AddDays(-1);
-        bool wholeMonths = start.Day == 1 && end.AddDays(1).Day == 1;
-        if (wholeMonths)
+        bool wholeMonths = start.Day == 1 && end.Day == DateTime.DaysInMonth(end.Year, end.Month);
+        int months = (end.Year - start.Year) * 12 + end.Month - start.Month + 1;
+        int days = (end - start).Days + 1;
+
+        // A B that runs to 9999 to mean "no end" leaves no room for as long a stretch before it.
+        bool fits = wholeMonths
+            ? (start.Year - 1) * 12 + start.Month - 1 >= months
+            : (start - DateTime.MinValue).Days >= days;
+        if (!fits)
         {
-            int months = (end.Year - start.Year) * 12 + end.Month - start.Month + 1;
-            SetPeriods(start.AddMonths(-months), endA, StartB, EndB);
+            Message = "There's no room before period B for a stretch as long as it. Set period A by hand instead.";
+            return;
         }
-        else
-        {
-            SetPeriods(endA.AddDays(-(end - start).Days), endA, StartB, EndB);
-        }
+
+        var startA = wholeMonths ? start.AddMonths(-months) : start.AddDays(-days);
+        SetPeriods(startA, start.AddDays(-1), StartB, EndB);
     }
 
     public async Task RefreshAsync()
@@ -285,18 +301,22 @@ public sealed partial class CompareViewModel : ObservableObject
         if (_source() is not { } source)
             return;
 
+        // Cancelled before the check below, so a comparison of the old periods can't finish
+        // after them and fill the tables it just cleared.
+        var previous = _cts;
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+        previous?.Cancel();
+        var token = cts.Token;
+
         if (StartA > EndA || StartB > EndB)
         {
             Message = "A period starts after it ends. Swap its dates, or clear one of them.";
             ClearResults();
+            IsWorking = false;
             _stale = false;
             return;
         }
-
-        var previous = _cts;
-        _cts = new CancellationTokenSource();
-        previous?.Cancel();
-        var token = _cts.Token;
 
         IsWorking = true;
         try
@@ -324,7 +344,9 @@ public sealed partial class CompareViewModel : ObservableObject
         }
         finally
         {
-            if (!token.IsCancellationRequested)
+            // Whichever comparison ran last says it has stopped, even one cancelled without
+            // another taking over.
+            if (ReferenceEquals(_cts, cts))
                 IsWorking = false;
             previous?.Dispose();
         }

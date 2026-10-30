@@ -81,14 +81,11 @@ public static class PeriodComparison
         DateTime? startA, DateTime? endA, DateTime? startB, DateTime? endB,
         Metric metric = Metric.Time, TimeSpan? sessionGap = null, CancellationToken cancellationToken = default)
     {
-        var a = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startA, EndOfDay(endA)), sessionGap, cancellationToken);
-        var b = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startB, EndOfDay(endB)), sessionGap, cancellationToken);
+        var a = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startA, FilterOptions.EndOfDay(endA)), sessionGap, cancellationToken);
+        var b = AnalysisEngine.AnalyzeAsync(records, filter.WithDateRange(startB, FilterOptions.EndOfDay(endB)), sessionGap, cancellationToken);
         await Task.WhenAll(a, b).ConfigureAwait(false);
         return Build(a.Result, b.Result, metric);
     }
-
-    /// <summary>A period's last day is included in full, as the sidebar's To date is.</summary>
-    private static DateTime? EndOfDay(DateTime? end) => end?.Date.AddDays(1).AddTicks(-1);
 
     /// <summary>
     /// Joins two analysed periods. Rankings follow <paramref name="metric"/>; an artist still
@@ -194,9 +191,7 @@ public static class PeriodComparison
             Numeric("Average per listening day", PerDay(a), PerDay(b), ms => TimeFormat.Friendly(TimeSpan.FromMilliseconds(ms))),
         };
 
-        double skipA = SkipRate(a), skipB = SkipRate(b);
-        metrics.Add(new ComparisonMetric("Skip rate", $"{skipA:0.#}%", $"{skipB:0.#}%",
-            $"{skipB - skipA:+0.#;-0.#;0} points", Direction(skipA, skipB)));
+        metrics.Add(Points("Skip rate", SkipRate(a), SkipRate(b)));
 
         string topA = artistsA.Count > 0 ? artistsA[0].Artist : "-";
         string topB = artistsB.Count > 0 ? artistsB[0].Artist : "-";
@@ -205,13 +200,40 @@ public static class PeriodComparison
         return metrics;
     }
 
-    internal static ComparisonMetric Numeric(string name, double a, double b, Func<double, string> format)
+    /// <param name="people">
+    /// True when the two sides are two people rather than two periods: between them nothing is
+    /// new, so a side with nothing to measure gets a dash instead.
+    /// </param>
+    internal static ComparisonMetric Numeric(string name, double a, double b, Func<double, string> format, bool people = false)
     {
-        string change = a == 0
-            ? b == 0 ? "no change" : "new"
-            : $"{(b - a) * 100 / a:+0;-0;0}%";
-        return new ComparisonMetric(name, format(a), format(b), change, a == 0 && b > 0 ? Trend.New : Direction(a, b));
+        if (a == 0)
+        {
+            string change = b == 0 ? people ? "same" : "no change" : people ? "-" : "new";
+            return new ComparisonMetric(name, format(a), format(b), change, b > 0 ? Trend.New : Trend.Same);
+        }
+
+        double percent = Shown((b - a) * 100 / a, decimals: 0);
+        return new ComparisonMetric(name, format(a), format(b), $"{percent:+0;-0;0}%", Direction(0, percent));
     }
 
-    internal static Trend Direction(double a, double b) => b > a ? Trend.Up : b < a ? Trend.Down : Trend.Same;
+    /// <summary>A percentage on both sides, such as the skip rate, and how many points apart they are.</summary>
+    internal static ComparisonMetric Points(string name, double a, double b)
+    {
+        double points = Shown(b - a, decimals: 1);
+        return new ComparisonMetric(name, $"{a:0.#}%", $"{b:0.#}%",
+            $"{points:+0.#;-0.#;0} {(Math.Abs(points) == 1 ? "point" : "points")}", Direction(0, points));
+    }
+
+    /// <summary>
+    /// A change as the table prints it, so its colour agrees with its figure: a fall too small
+    /// to show as -1% reads 0% and isn't marked as a fall. Rounded away from zero, as a format
+    /// string rounds, and never negative zero.
+    /// </summary>
+    private static double Shown(double change, int decimals)
+    {
+        double rounded = Math.Round(change, decimals, MidpointRounding.AwayFromZero);
+        return rounded == 0 ? 0 : rounded;
+    }
+
+    private static Trend Direction(double a, double b) => b > a ? Trend.Up : b < a ? Trend.Down : Trend.Same;
 }

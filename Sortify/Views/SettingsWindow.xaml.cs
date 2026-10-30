@@ -31,11 +31,18 @@ public partial class SettingsWindow : ThemedWindow
             _ => 0,
         };
         AnimateBox.IsChecked = _settings.AnimateCharts;
+        WeekStartBox.SelectedIndex = Math.Max(0, Array.IndexOf(Weeks.Starts, _settings.FirstDayOfWeek));
         ReopenBox.IsChecked = _settings.ReopenLastFolder;
         GapSlider.Minimum = AppSettings.MinSessionGapMinutes;
         GapSlider.Maximum = AppSettings.MaxSessionGapMinutes;
         GapSlider.Value = _settings.SessionGapMinutes;
         GapValue.Text = _settings.SessionGapMinutes.ToString();
+        FollowCountryBox.IsChecked = _settings.FollowCountryTimeZones;
+        var zones = TimeZoneInfo.GetSystemTimeZones();
+        string fallback = _settings.FallbackTimeZoneId ?? TimeZoneInfo.Local.Id;
+        FallbackZoneBox.ItemsSource = zones;
+        FallbackZoneBox.SelectedItem = zones.FirstOrDefault(z => z.Id == fallback)
+                                       ?? zones.FirstOrDefault(z => z.Id == TimeZoneInfo.Local.Id);
 
         FolderText.Text = AppPaths.DataDirectory;
         VersionText.Text = $"Sortify {Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?"}";
@@ -65,6 +72,35 @@ public partial class SettingsWindow : ThemedWindow
     {
         if (_loading) return;
         _settings.AnimateCharts = AnimateBox.IsChecked == true;
+        _settings.Save();
+        NeedsRefresh = true;
+    }
+
+    private void OnWeekStartChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || WeekStartBox.SelectedItem is not ComboBoxItem { Tag: string tag } || !Enum.TryParse<DayOfWeek>(tag, out var day))
+            return;
+
+        _settings.FirstDayOfWeek = day;
+        _settings.Save();
+        NeedsRefresh = true;
+    }
+
+    private void OnFollowCountryChanged(object sender, RoutedEventArgs e)
+    {
+        if (_loading) return;
+        _settings.FollowCountryTimeZones = FollowCountryBox.IsChecked == true;
+        _settings.Save();
+        NeedsRefresh = true;
+    }
+
+    private void OnFallbackZoneChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading || FallbackZoneBox.SelectedItem is not TimeZoneInfo zone)
+            return;
+
+        // This PC's own zone is kept as no choice at all, so it moves with the PC.
+        _settings.FallbackTimeZoneId = zone.Id == TimeZoneInfo.Local.Id ? null : zone.Id;
         _settings.Save();
         NeedsRefresh = true;
     }
@@ -144,7 +180,7 @@ public partial class SettingsWindow : ThemedWindow
         int count = _settings.RecentFolders.Count;
         RecentText.Text = count == 0
             ? "No exports are remembered."
-            : $"{count} export{(count == 1 ? "" : "s")} in the Recent menu.";
+            : $"{Plural.Of(count, "export")} in the Recent menu.";
         ClearRecentButton.IsEnabled = count > 0;
     }
 }

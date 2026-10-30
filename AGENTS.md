@@ -50,13 +50,18 @@ tests can reach internal members). MVVM via CommunityToolkit.Mvvm (`[ObservableP
 
 1. **`Services/HistoryParser.cs`** — finds and parses the Spotify export JSON files (both the
    modern extended-history format and the older legacy `StreamingHistory*.json` format) into
-   normalized `Models/PlayRecord.cs` objects.
+   normalized `Models/PlayRecord.cs` objects. It reads the ZIP Spotify sends without unpacking it
+   (an entry inside is addressed as `archive.zip|entry`, see `Services/ArchivePath.cs`), drops plays
+   that two loaded files both hold (`Services/OverlapFilter.cs`), and only then converts the UTC
+   times to local ones (`Services/PlayTimeZones.cs`: this PC's zone, or each play's country's).
 2. **`Services/RecordCache.cs`** — a binary cache of parsed records, keyed by the exact set of
    source file paths + sizes + write times (`%LOCALAPPDATA%\Sortify\records.cache`). Reopening an
    unchanged export skips JSON parsing entirely; any change to the file set invalidates the key.
 3. **`Services/FilterEngine.cs`** — applies the current `Models/FilterOptions` (date range, min
    play duration, search text, excluded artists/tracks, time-of-day/day-of-week windows, whether
-   podcasts count) as a streaming filter over raw records.
+   podcasts count) as a streaming filter over raw records. With "Combine remasters and deluxe
+   editions" on, `MainViewModel` hands every view a copy of the plays with re-release names folded
+   into the original (`Services/ReleaseNames.cs`).
 4. **`Services/AnalysisEngine.cs`** — the aggregation core. Consumes filtered records and produces
    one `AnalysisResult` (`Models/Stats.cs`): per-track/artist/album/year stats, skip/completion
    rates, sessions, streaks, hour/day-of-week breakdowns, podcast stats, playback-context
@@ -72,25 +77,39 @@ tests can reach internal members). MVVM via CommunityToolkit.Mvvm (`[ObservableP
    is double-clicked; reruns aggregation scoped to one entity under the current filters.
 7. **`Services/ExportService.cs`** — writes the current `AnalysisResult` out as txt/Markdown/JSON/CSV.
 
+Some views run their own pass over the filtered plays instead of reading `AnalysisResult`:
+`Services/PeriodComparison.cs` (Compare Periods), `Services/PeopleComparison.cs` (Compare People:
+someone else's export, which is held in memory and never cached), `Services/ArtistComparison.cs`
+(Compare Artists on Trends), `Services/DiscoveryCohorts.cs` (the Years chart split by year found) and
+`Services/YearReviewBuilder.cs` (the year-in-review and summary card images). The charts over time
+share `Services/TimeBuckets.cs`, which gives a day, week or month with no listening a zero so the
+line drops to the floor instead of sloping across a break.
+
 Supporting services: `Services/AppSettings.cs` (JSON-persisted preferences — recent folders, theme,
 session-gap minutes, chart animation toggle, the Time/Plays metric — failures degrade to defaults
 rather than surfacing errors), `Services/ThemeService.cs` (swaps the palette `ResourceDictionary`
 at a fixed slot in `App.xaml`'s merged dictionaries so every DynamicResource-bound style repaints;
 raises `Changed`), `Services/ImageExporter.cs` (copy/save a chart as PNG, wired to chart
-right-click), `Services/SearchSuggestions.cs` (the names a search, exclusion or table-filter box
+right-click), `Services/ChartTables.cs` (the "Show the numbers" table behind any chart, shown by
+`Views/ChartTableWindow.xaml`), `Services/SampleHistory.cs` (the made-up two-year history the start
+screen offers), `Services/SearchSuggestions.cs` (the names a search, exclusion or table-filter box
 suggests as you type, attached to a `TextBox` by `Views/SearchCompletion.cs`; behaviour described
 in `docs/Search.md`), `Views/Converters.cs`.
 
 **UI structure**: `Views/MainWindow.xaml(.cs)` is the main shell (tabs: Overview, Tracks, Artists,
-Albums, Years, Podcasts, Trends, Insights, Compare Periods, Compare People) bound to `MainViewModel`.
-Compare Periods (`ViewModels/CompareViewModel.cs`, `Services/PeriodComparison.cs`) puts two date
-ranges of the loaded history side by side; Compare People (`ViewModels/PeopleCompareViewModel.cs`,
-`Services/PeopleComparison.cs`) puts someone else's export next to yours, holding their plays in
-memory only (never in the record cache or Recent). `Views/FilterPanel.xaml(.cs)`
-+ `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises `FiltersChanged` on any
-change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before re-running analysis.
-Its dates are picked with `Views/DateSelector.xaml` (year, month and day drop-downs) and its time
-of day with `Views/HourRangeSlider.xaml`.
+Albums, Years, Podcasts, Trends, Insights, Compare Periods, Compare People, History) bound to
+`MainViewModel`. Compare Periods (`ViewModels/CompareViewModel.cs`, `Services/PeriodComparison.cs`)
+puts two date ranges of the loaded history side by side; Compare People
+(`ViewModels/PeopleCompareViewModel.cs`, `Services/PeopleComparison.cs`) puts someone else's export
+next to yours, holding their plays in memory only (never in the record cache or Recent).
+`Views/FilterPanel.xaml(.cs)` + `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises
+`FiltersChanged` on any change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before
+re-running analysis. Its dates are picked with `Views/DateSelector.xaml` (year, month and day
+drop-downs) and its time of day with `Views/HourRangeSlider.xaml`. The two Compare tabs, the History tab, the listening calendar and Compare
+Artists have view models of their own (`CompareViewModel`, `PeopleCompareViewModel`,
+`HistoryViewModel`, `CalendarViewModel`, `CompareArtistsViewModel`) that `MainViewModel` creates and
+refreshes after each analysis pass; the Compare and History tabs only do any work while on screen.
+`ViewModels/InsightText.cs` words the Insights and Podcasts figures.
 `Views/DetailWindow.xaml(.cs)` is the per-row drill-down. `Views/SettingsWindow.xaml(.cs)` covers
 theme/animation/session-gap/cache-clearing preferences. Every window derives from
 `Views/ThemedWindow.cs`, which swaps the native title bar for a palette-coloured one via `WindowChrome`
@@ -105,19 +124,20 @@ raise a `CollectionChanged` per row and freeze the UI. Large horizontal bar char
 every bar up front.
 
 **Time / Plays**: the segmented switch at the top of the filter sidebar (`Views/FilterPanel.xaml`,
-bound to the window's view model rather than the panel's `FilterViewModel`) sets `MainViewModel.Metric` (`Models/Metric.cs`,
-remembered in settings), which every chart and ranked list follows: bars, donuts, the over-time,
-hour, weekday, heatmap and per-year charts, the Overview top fives, the Tracks/Artists/Albums/podcast
-grids, each month's and year's leaders, the Compare Periods tab (`CompareViewModel.Metric`) and the
-detail window. Compare People still ranks by listening time either way. `AnalysisResult` already
-carries both measures (`Plays*` breakdowns, `*ByPlayCount` lists, `MostPlayed*` leaders), so
-switching re-ranks and rebuilds charts without re-running analysis; new charts take a `Metric` in
-`ChartBuilder`. Grid column headers draw a sort arrow (header template in
+bound to the window's view model rather than the panel's `FilterViewModel`) sets
+`MainViewModel.Metric` (`Models/Metric.cs`, remembered in settings), which every chart and ranked
+list follows: bars, donuts, the over-time, hour, weekday, heatmap and per-year charts (the
+year-found split and Rank History included), the Overview top fives, the
+Tracks/Artists/Albums/podcast grids, each month's and year's leaders, both Compare tabs
+(`CompareViewModel.Metric`, `PeopleCompareViewModel.Metric`), Compare Artists
+(`CompareArtistsViewModel.Metric`) and the detail window. `AnalysisResult` already carries both
+measures (`Plays*` breakdowns, `*ByPlayCount` lists, `MostPlayed*` leaders, `RankHistoryByPlays`),
+so switching re-ranks and rebuilds charts without re-running analysis; new charts take a `Metric`
+in `ChartBuilder`. Grid column headers draw a sort arrow (header template in
 `Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather than sorted by the grid,
 `Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they arrive sorted by. Top lists,
 tables and ranked bar charts number their rows; a grid gets its "#" column from
-`Views/RowNumbers.cs`.
-Grid columns, which can't see the DataContext, bind headers and visibility through
+`Views/RowNumbers.cs`. Grid columns, which can't see the DataContext, bind headers and visibility through
 `Views/BindingProxy.cs` (the `Vm` resource in MainWindow).
 
 The logo's source is `Sortify/Assets/sortify-logo.svg`. `Themes/Logo.xaml` is the same drawing as a

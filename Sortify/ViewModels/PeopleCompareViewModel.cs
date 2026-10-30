@@ -22,6 +22,16 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     private bool _stale = true;
     private IReadOnlyList<PlayRecord> _theirRecords = Array.Empty<PlayRecord>();
 
+    /// <summary>Their plays with re-releases folded in, worked out the first time the sidebar asks for it.</summary>
+    private IReadOnlyList<PlayRecord>? _theirCombined;
+
+    private CancellationTokenSource? _loadCts;
+
+    // Where their plays came from and how their times were converted, to read them again
+    // when the time zone setting changes.
+    private Func<IReadOnlyList<string>>? _theirFiles;
+    private string? _theirTimeZones;
+
     public PeopleCompareViewModel(Func<CompareViewModel.Source?> source) => _source = source;
 
     /// <summary>What the other person is called on this tab. Editable; blank reads as "Them".</summary>
@@ -32,8 +42,18 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     private bool _hasTheirs;
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(OpenTheirFolderCommand), nameof(OpenTheirFilesCommand))]
+    [NotifyCanExecuteChangedFor(nameof(OpenTheirFolderCommand), nameof(OpenTheirFilesCommand), nameof(CancelLoadCommand))]
     private bool _isLoading;
+
+    /// <summary>How far through their files a load has got, 0 to 100.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsLoadProgressUnknown))]
+    private double _loadProgress;
+
+    /// <summary>True until a file has been read: one big file gives no progress until it is done.</summary>
+    public bool IsLoadProgressUnknown => LoadProgress <= 0;
+
+    [ObservableProperty] private string _loadStatus = string.Empty;
 
     [ObservableProperty] private string _loadedText = string.Empty;
     [ObservableProperty] private string _loadError = string.Empty;
@@ -56,13 +76,45 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     /// <summary>Set by the window as the Compare People tab comes and goes.</summary>
     [ObservableProperty] private bool _isVisible;
 
+    /// <summary>
+    /// What the tables rank by and the match figures measure; follows the main window's Time /
+    /// Plays switch. Changing it re-ranks the last comparison rather than analysing both again.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(OnlyYouHint), nameof(OnlyThemHint), nameof(SharedHint),
+        nameof(ArtistMatchHint), nameof(TrackMatchHint))]
+    private Metric _metric;
+
+    /// <summary>The two histories last analysed, kept so a change of metric only has to re-rank them.</summary>
+    private PeopleComparisonResult? _last;
+
+    partial void OnMetricChanged(Metric value)
+    {
+        if (_last is { } last)
+            Show(PeopleComparison.Build(last.You, last.Them, value));
+    }
+
     /// <summary>The other person's name as headings use it.</summary>
     public string DisplayName => string.IsNullOrWhiteSpace(TheirName) ? DefaultName : TheirName.Trim();
 
+    private string MostPlayedFirst => Metric == Metric.Plays ? ", most played first" : string.Empty;
+
     public string OnlyYouTitle => $"Only You, Not {DisplayName}";
     public string OnlyThemTitle => $"Only {DisplayName}, Not You";
-    public string OnlyYouHint => $"Artists you listened to for at least an hour that {DisplayName} never played.";
-    public string OnlyThemHint => $"Artists {DisplayName} listened to for at least an hour that you never played.";
+    public string OnlyYouHint => $"Artists you listened to for at least an hour that {DisplayName} never played{MostPlayedFirst}.";
+    public string OnlyThemHint => $"Artists {DisplayName} listened to for at least an hour that you never played{MostPlayedFirst}.";
+
+    public string SharedHint => Metric == Metric.Plays
+        ? "Artists you both play, the ones you're most alike on first, with where each of you ranks them by plays. Double-click a row for your breakdown."
+        : "Artists you both play, the ones you're most alike on first, with where each of you ranks them by listening time. Double-click a row for your breakdown.";
+
+    public string ArtistMatchHint => Metric == Metric.Plays
+        ? "How many of your plays and theirs go to the same artists"
+        : "How much of your listening time and theirs goes to the same artists";
+
+    public string TrackMatchHint => Metric == Metric.Plays
+        ? "How many of your plays and theirs go to the same tracks"
+        : "How much of your listening time and theirs goes to the same tracks";
 
     partial void OnTheirNameChanged(string value)
     {
@@ -129,6 +181,8 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     {
         _cts?.Cancel();
         _theirRecords = Array.Empty<PlayRecord>();
+        _theirCombined = null;
+        _theirFiles = null;
         HasTheirs = false;
         LoadedText = string.Empty;
         LoadError = string.Empty;
@@ -154,26 +208,46 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Finds and parses the other person's history files off the UI thread. A load that
-    /// finds no plays leaves whatever was loaded before in place.
+    /// Finds and parses the other person's history files off the UI thread, converting play
+    /// times the same way as your own. A load that finds no plays, finds your own export or is
+    /// cancelled leaves whatever was loaded before in place.
     /// </summary>
     internal async Task LoadTheirsAsync(Func<IReadOnlyList<string>> findFiles, string? suggestedName)
     {
         if (IsLoading)
             return;
 
+        _loadCts?.Dispose();
+        _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token;
+
         IsLoading = true;
         LoadError = string.Empty;
+        LoadProgress = 0;
+        LoadStatus = "Looking for their Spotify history...";
         try
         {
-            var files = await Task.Run(findFiles);
+            var files = await Task.Run(findFiles, token);
+            token.ThrowIfCancellationRequested();
             if (files.Count == 0)
             {
                 LoadError = "No Spotify history was found there. Pick the ZIP Spotify sent, the folder it unpacks to, or its JSON files.";
                 return;
             }
 
-            var parsed = await new HistoryParser().ParseAsync(files);
+            if (_source()?.Files is { Count: > 0 } yours && yours.SequenceEqual(files, StringComparer.OrdinalIgnoreCase))
+            {
+                LoadError = "That's the export already open as yours. Pick the other person's.";
+                return;
+            }
+
+            var progress = new Progress<ParseProgress>(p =>
+            {
+                LoadProgress = p.Percent;
+                LoadStatus = p.Message;
+            });
+            var timeZones = _source()?.TimeZones;
+            var parsed = await new HistoryParser(timeZones).ParseAsync(files, progress, token);
             if (parsed.Records.Count == 0)
             {
                 LoadError = parsed.Warnings.Count > 0
@@ -183,9 +257,15 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
             }
 
             SetTheirs(parsed.Records, suggestedName);
+            _theirFiles = findFiles;
+            _theirTimeZones = (timeZones ?? PlayTimeZones.ThisPc).CacheKey;
             int skipped = parsed.Warnings.Count + parsed.SkippedFiles.Count;
             if (skipped > 0)
-                LoadedText += $" ({skipped} file(s) skipped)";
+                LoadedText += $" ({Plural.Of(skipped, "file")} skipped)";
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled from the button.
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -194,21 +274,36 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
         finally
         {
             IsLoading = false;
+            LoadProgress = 0;
         }
+    }
+
+    [RelayCommand(CanExecute = nameof(IsLoading))]
+    private void CancelLoad() => _loadCts?.Cancel();
+
+    /// <summary>Reads their export again if play times are now converted differently from when it was read.</summary>
+    public Task ReadTheirsAgainIfTimesChangedAsync()
+    {
+        string now = (_source()?.TimeZones ?? PlayTimeZones.ThisPc).CacheKey;
+        return HasTheirs && _theirFiles is { } files && now != _theirTimeZones
+            ? LoadTheirsAsync(files, null)
+            : Task.CompletedTask;
     }
 
     /// <summary>Makes <paramref name="records"/> the other person's history and compares again.</summary>
     internal void SetTheirs(IReadOnlyList<PlayRecord> records, string? suggestedName = null)
     {
         _theirRecords = records;
+        _theirCombined = null;
         HasTheirs = true;
         if (string.IsNullOrWhiteSpace(TheirName) && suggestedName is not null)
             TheirName = suggestedName;
 
-        var dated = records.Where(r => r.Timestamp != DateTime.MinValue).Select(r => r.Timestamp).ToList();
-        LoadedText = dated.Count == 0
-            ? $"{records.Count:N0} play{(records.Count == 1 ? "" : "s")} loaded."
-            : $"{records.Count:N0} play{(records.Count == 1 ? "" : "s")} loaded, {TimeFormat.Day(dated.Min())} to {TimeFormat.Day(dated.Max())}.";
+        var (first, last) = PlayRecord.DateSpan(records);
+        string plays = Plural.Of(records.Count, "play");
+        LoadedText = first is { } f && last is { } l
+            ? $"{plays} loaded, {TimeFormat.Day(f)} to {TimeFormat.Day(l)}."
+            : $"{plays} loaded.";
         Invalidate();
     }
 
@@ -238,21 +333,24 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
         IsWorking = true;
         try
         {
-            var result = await PeopleComparison.CompareAsync(source.Records, theirs, source.Filter,
+            // Your plays arrive with re-releases already folded when the sidebar asks for it;
+            // theirs need the same, or "Song - Remastered" on one side never meets "Song".
+            if (source.CombineReleases)
+            {
+                var raw = theirs;
+                theirs = _theirCombined ?? await Task.Run(() => ReleaseNames.Combine(raw), token);
+                if (ReferenceEquals(raw, _theirRecords))
+                    _theirCombined = theirs;
+            }
+
+            var metric = Metric;
+            var result = await PeopleComparison.CompareAsync(source.Records, theirs, source.Filter, metric,
                 source.SessionGap, token);
             if (token.IsCancellationRequested)
                 return;
 
-            Metrics = result.Metrics;
-            SharedArtists = result.SharedArtists;
-            SharedTracks = result.SharedTracks;
-            OnlyYou = result.OnlyYou;
-            OnlyThem = result.OnlyThem;
-            ArtistMatch = $"{result.ArtistMatch:0}%";
-            TrackMatch = $"{result.TrackMatch:0}%";
-            SharedArtistCount = result.SharedArtistCount.ToString("N0");
-            SharedTrackCount = result.SharedTrackCount.ToString("N0");
-            HasResults = true;
+            // The switch may have been flipped while both histories were being worked out.
+            Show(metric == Metric ? result : PeopleComparison.Build(result.You, result.Them, Metric));
             Message = (result.You.TotalPlays, result.Them.TotalPlays) switch
             {
                 (0, 0) => "Neither of you has any plays under the current filters.",
@@ -274,8 +372,32 @@ public sealed partial class PeopleCompareViewModel : ObservableObject
         }
     }
 
+    // A sliver of overlap reads as "<1%" rather than rounding away to nothing in common.
+    private static string Percent(double value) => value switch
+    {
+        <= 0 => "0%",
+        < 1 => "<1%",
+        _ => $"{value:0}%",
+    };
+
+    private void Show(PeopleComparisonResult result)
+    {
+        _last = result;
+        Metrics = result.Metrics;
+        SharedArtists = result.SharedArtists;
+        SharedTracks = result.SharedTracks;
+        OnlyYou = result.OnlyYou;
+        OnlyThem = result.OnlyThem;
+        ArtistMatch = Percent(result.ArtistMatch);
+        TrackMatch = Percent(result.TrackMatch);
+        SharedArtistCount = result.SharedArtistCount.ToString("N0");
+        SharedTrackCount = result.SharedTrackCount.ToString("N0");
+        HasResults = true;
+    }
+
     private void ClearResults()
     {
+        _last = null;
         Metrics = Array.Empty<ComparisonMetric>();
         SharedArtists = Array.Empty<ComparisonRow>();
         SharedTracks = Array.Empty<ComparisonRow>();

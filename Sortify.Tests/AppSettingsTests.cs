@@ -5,6 +5,7 @@ using Xunit;
 
 namespace Sortify.Tests;
 
+[Collection(DataFolderCollection.Name)]
 public class AppSettingsTests
 {
     [Fact]
@@ -134,6 +135,32 @@ public class AppSettingsTests
         Assert.Equal(45, loaded.SessionGapMinutes);
         Assert.Equal("Gym", Assert.Single(loaded.FilterPresets).Name);
         Assert.False(File.Exists(Path.Combine(AppPaths.DataDirectory, "settings.json.tmp")));
+    }
+
+    [Fact]
+    public void ASettingsFileThatCantBeRead_IsMovedAside_AndOutlastsTheNextSave()
+    {
+        string file = Path.Combine(AppPaths.DataDirectory, "settings.json");
+        Directory.CreateDirectory(AppPaths.DataDirectory);
+        File.WriteAllText(file, """{ "FilterPresets": [ { "Name": "Gym" """);
+        try
+        {
+            var settings = AppSettings.Load();
+
+            Assert.True(settings.WasUnreadable);
+            Assert.Empty(settings.FilterPresets);
+            Assert.Contains("Gym", File.ReadAllText(AppSettings.UnreadableFile));
+
+            settings.Save();
+
+            Assert.False(AppSettings.Load().WasUnreadable);
+            Assert.Contains("Gym", File.ReadAllText(AppSettings.UnreadableFile));
+        }
+        finally
+        {
+            File.Delete(file);
+            File.Delete(AppSettings.UnreadableFile);
+        }
     }
 
     [Fact]

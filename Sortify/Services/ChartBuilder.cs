@@ -5,8 +5,7 @@ using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
 using Sortify.Models;
-// Both namespaces define a DateTimePoint; alias each so neither is referred to unqualified.
-using DateTimePoint = Sortify.Models.DateTimePoint;
+// Sortify.Models has a DateTimePoint too, so LiveCharts' goes by another name.
 using LcDateTimePoint = LiveChartsCore.Defaults.DateTimePoint;
 
 namespace Sortify.Services;
@@ -52,27 +51,6 @@ public static class ChartBuilder
     private const double ArtistDonutInnerRadius = 75;
     private const double ContextDonutInnerRadius = 60;
 
-    /// <summary>Friendly display names for Spotify "reason_end" codes.</summary>
-    private static readonly Dictionary<string, string> ReasonLabels = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["trackdone"] = "Track finished",
-        ["fwdbtn"] = "Skipped (next)",
-        ["backbtn"] = "Back button",
-        ["endplay"] = "Playback stopped",
-        ["logout"] = "Logged out",
-        ["trackerror"] = "Track error",
-        ["remote"] = "Remote control",
-        ["appload"] = "App reloaded",
-        ["popup"] = "Popup",
-        ["uriopen"] = "Opened elsewhere",
-        ["clickrow"] = "Picked another track",
-        ["playbtn"] = "Play button",
-        ["clickside"] = "Sidebar click",
-        ["unexpected-exit"] = "App exited",
-        ["unexpected-exit-while-paused"] = "Exited while paused",
-        ["unknown"] = "Unknown",
-    };
-
     private static SolidColorPaint Label() => new(ChartPalette.Text);
 
     private static SolidColorPaint RankLabel() => new(ChartPalette.Text)
@@ -103,66 +81,30 @@ public static class ChartBuilder
     // ---- Horizontal bar charts (RowSeries) -------------------------------------------------
 
     public static ChartData TopTracks(AnalysisResult r, int take, Metric metric) =>
-        metric == Metric.Plays ? TopTracksByCount(r, take) : TopTracksByTime(r, take);
+        Ranked(metric == Metric.Plays ? r.TracksByPlayCount : r.Tracks, take, metric, t => t.Track, t => t.TotalHours, t => t.PlayCount);
 
     public static ChartData TopArtists(AnalysisResult r, int take, Metric metric) =>
-        metric == Metric.Plays ? TopArtistsByCount(r, take) : TopArtistsByTime(r, take);
+        Ranked(metric == Metric.Plays ? r.ArtistsByPlayCount : r.Artists, take, metric, a => a.Artist, a => a.TotalHours, a => a.PlayCount);
 
     public static ChartData TopAlbums(AnalysisResult r, int take, Metric metric) =>
-        metric == Metric.Plays ? TopAlbumsByCount(r, take) : TopAlbumsByTime(r, take);
+        Ranked(metric == Metric.Plays ? r.AlbumsByPlayCount : r.Albums, take, metric, a => a.Album, a => a.TotalHours, a => a.PlayCount);
 
-    public static ChartData TopTracksByTime(AnalysisResult r, int take)
+    /// <summary>
+    /// The first <paramref name="take"/> of a list already ranked by <paramref name="metric"/>, as
+    /// bars of hours or plays. Without a <paramref name="color"/> of their own, bars take the
+    /// accent by listening time and the second accent by plays.
+    /// </summary>
+    private static ChartData Ranked<T>(
+        IReadOnlyList<T> ranked, int take, Metric metric, Func<T, string> name, Func<T, double> hours, Func<T, int> plays,
+        SKColor? color = null)
+        where T : class
     {
-        var items = r.Tracks.Take(take).Reverse().ToList();
+        bool byPlays = metric == Metric.Plays;
+        var items = ranked.Take(take).Reverse().ToList();
         return Rows(
-            items.Select(t => Math.Round(t.TotalHours, 2)).ToArray(),
-            items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Hours", ChartPalette.Accent, items);
-    }
-
-    public static ChartData TopTracksByCount(AnalysisResult r, int take)
-    {
-        var items = r.TracksByPlayCount.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(t => (double)t.PlayCount).ToArray(),
-            items.Select(t => ShortLabel(t.Track)).ToArray(),
-            "Plays", ChartPalette.Accent2, items);
-    }
-
-    public static ChartData TopArtistsByTime(AnalysisResult r, int take)
-    {
-        var items = r.Artists.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
-            items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Hours", ChartPalette.Accent, items);
-    }
-
-    public static ChartData TopArtistsByCount(AnalysisResult r, int take)
-    {
-        var items = r.ArtistsByPlayCount.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => (double)a.PlayCount).ToArray(),
-            items.Select(a => ShortLabel(a.Artist)).ToArray(),
-            "Plays", ChartPalette.Accent2, items);
-    }
-
-    public static ChartData TopAlbumsByTime(AnalysisResult r, int take)
-    {
-        var items = r.Albums.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => Math.Round(a.TotalHours, 2)).ToArray(),
-            items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Hours", ChartPalette.Accent, items);
-    }
-
-    public static ChartData TopAlbumsByCount(AnalysisResult r, int take)
-    {
-        var items = r.AlbumsByPlayCount.Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(a => (double)a.PlayCount).ToArray(),
-            items.Select(a => ShortLabel(a.Album)).ToArray(),
-            "Plays", ChartPalette.Accent2, items);
+            items.Select(x => byPlays ? plays(x) : Math.Round(hours(x), 2)).ToArray(),
+            items.Select(x => ShortLabel(name(x))).ToArray(),
+            Unit(metric), color ?? (byPlays ? ChartPalette.Accent2 : ChartPalette.Accent), items);
     }
 
     public static ChartData TopSkippedTracks(AnalysisResult r, int take = SkippedTrackBars)
@@ -260,13 +202,20 @@ public static class ChartBuilder
         return Columns(values, labels, Unit(metric), "Hour of day", ChartPalette.Accent);
     }
 
-    public static ChartData ByDayOfWeek(AnalysisResult r, Metric metric = Metric.Time)
+    /// <summary>Short day names, Sunday first, as <see cref="DayOfWeek"/> numbers them.</summary>
+    private static readonly string[] DayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+
+    /// <summary>Listening time, or plays, per day of the week, starting from <paramref name="firstDay"/>.</summary>
+    public static ChartData ByDayOfWeek(
+        AnalysisResult r, Metric metric = Metric.Time, DayOfWeek firstDay = DayOfWeek.Sunday)
     {
-        string[] names = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
-        var values = metric == Metric.Plays
-            ? r.PlaysByDayOfWeek.Select(n => (double)n).ToArray()
-            : r.PlaytimeByDayOfWeek.Select(ms => Math.Round(ms / 3_600_000d, 2)).ToArray();
-        return Columns(values, names, Unit(metric), "Day of week", ChartPalette.Accent2);
+        var days = Weeks.Ordered(firstDay);
+        var values = days
+            .Select(d => metric == Metric.Plays
+                ? r.PlaysByDayOfWeek[(int)d]
+                : Math.Round(r.PlaytimeByDayOfWeek[(int)d] / 3_600_000d, 2))
+            .ToArray();
+        return Columns(values, days.Select(d => DayNames[(int)d]).ToArray(), Unit(metric), "Day of week", ChartPalette.Accent2);
     }
 
     /// <summary>Total listening time, or plays, per calendar year.</summary>
@@ -277,6 +226,139 @@ public static class ChartBuilder
             .ToArray();
         var labels = r.Years.Select(y => y.Year.ToString()).ToArray();
         return Columns(values, labels, Unit(metric), "Year", ChartPalette.Accent, r.Years);
+    }
+
+    /// <summary>
+    /// Each year's listening time, or plays, stacked by how long before it the music was first
+    /// heard: that year at the bottom, then a band for each of the
+    /// <see cref="DiscoveryCohorts.YearsBack"/> years before, and everything older on top.
+    /// Relative years rather than calendar ones, so a twentieth year reads as clearly as a
+    /// second. Empty bands are left out. The columns' items are the matching rows of
+    /// <paramref name="years"/>, so a click opens that year.
+    /// </summary>
+    public static ChartData Cohorts(CohortBreakdown c, IReadOnlyList<YearStat> years, Metric metric = Metric.Time)
+    {
+        int bands = DiscoveryCohorts.YearsBack + 1;
+        var amounts = new double[bands + 1, c.Years.Count];
+        for (int y = 0; y < c.Years.Count; y++)
+        {
+            for (int j = 0; j < c.Cohorts.Count; j++)
+            {
+                // Music can't be first heard after it was played, so those cells are empty.
+                int age = c.Years[y] - c.Cohorts[j];
+                if (age >= 0)
+                    amounts[Math.Min(age, bands), y] += c.Amount(y, j, metric);
+            }
+        }
+
+        double[] Band(int age) => Enumerable.Range(0, c.Years.Count).Select(y => Math.Round(amounts[age, y], 1)).ToArray();
+
+        // New music at the bottom, so its share is measured from the same baseline every year.
+        var series = new List<ISeries>();
+        for (int age = 0; age <= bands; age++)
+        {
+            var values = Band(age);
+            if (values.All(v => v == 0))
+                continue;
+
+            string name = age switch
+            {
+                0 => "Found that year",
+                1 => "Found the year before",
+                _ when age == bands => "Found earlier",
+                _ => $"Found {age} years before",
+            };
+            series.Add(Stack(values, name, age == bands ? ChartPalette.Muted : Category(age)));
+        }
+
+        var byYear = years.ToDictionary(y => y.Year);
+        return new ChartData
+        {
+            Series = series.ToArray(),
+            XAxes = new[]
+            {
+                new Axis
+                {
+                    Name = "Year",
+                    Labels = c.Years.Select(y => y.ToString()).ToArray(),
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                },
+            },
+            YAxes = new[] { ValueAxis(Unit(metric)) },
+            Items = c.Years.Select(y => byYear.GetValueOrDefault(y) ?? new YearStat { Year = y }).ToList(),
+        };
+
+        static ISeries Stack(double[] values, string name, SKColor color) => new StackedColumnSeries<double>
+        {
+            Values = values,
+            Name = name,
+            Fill = new SolidColorPaint(color),
+        };
+    }
+
+    /// <summary>
+    /// The top artists' rank in each year by listening time, or by plays, one line each, #1
+    /// at the top. A year an artist sat below the floor is a gap in their line. The chart's
+    /// items are the artists in series order, so a click on a point can open its artist.
+    /// </summary>
+    public static ChartData RankHistory(AnalysisResult r, Metric metric = Metric.Time)
+    {
+        var history = metric == Metric.Plays ? r.RankHistoryByPlays : r.RankHistory;
+        var series = history
+            .Select((a, i) => (ISeries)new LineSeries<double?>
+            {
+                Values = a.Ranks.Select(rank => (double?)rank).ToArray(),
+                Name = ShortLabel(a.Artist.Artist),
+                Fill = null,
+                Stroke = new SolidColorPaint(Category(i)) { StrokeThickness = 3 },
+                GeometrySize = 10,
+                GeometryFill = new SolidColorPaint(Category(i)),
+                GeometryStroke = new SolidColorPaint(Category(i)) { StrokeThickness = 2 },
+                LineSmoothness = 0,
+                YToolTipLabelFormatter = p => $"#{p.Coordinate.PrimaryValue:0}",
+            })
+            .ToArray();
+
+        int lowest = history.SelectMany(a => a.Ranks).Max() ?? 1;
+        return new ChartData
+        {
+            Series = series,
+            XAxes = new[]
+            {
+                new Axis
+                {
+                    Name = "Year",
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
+                    Labels = r.Years.Select(y => y.Year.ToString()).ToArray(),
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                    MinStep = 1,
+                },
+            },
+            YAxes = new[]
+            {
+                new Axis
+                {
+                    Name = "Rank",
+                    NamePaint = Label(),
+                    NameTextSize = AxisTextSize,
+                    LabelsPaint = Label(),
+                    TextSize = AxisTextSize,
+                    IsInverted = true,
+                    MinLimit = 0.5,
+                    MaxLimit = lowest + 0.5,
+                    MinStep = 1,
+                    ForceStepToMin = true,
+                    Labeler = value => value >= 1 ? $"#{value:0}" : string.Empty,
+                },
+            },
+            Items = history.Select(a => a.Artist).ToList(),
+            ItemsFollowSeries = true,
+        };
     }
 
     /// <summary>What a value axis and its series are called: "Hours" or "Plays".</summary>
@@ -319,25 +401,28 @@ public static class ChartBuilder
     /// <summary>Bucket size for the listening-over-time chart.</summary>
     public enum TimeGranularity { Daily, Weekly, Monthly }
 
+    /// <summary>
+    /// Listening time, or plays, per day, week or month from the first play to the last. A
+    /// stretch with nothing played is a run of zeros, so the line drops to the floor across a break.
+    /// </summary>
+    /// <param name="firstDay">The day a weekly bucket starts on.</param>
     public static ChartData OverTime(
-        AnalysisResult r, TimeGranularity granularity = TimeGranularity.Daily, Metric metric = Metric.Time)
+        AnalysisResult r, TimeGranularity granularity = TimeGranularity.Daily, Metric metric = Metric.Time,
+        DayOfWeek firstDay = DayOfWeek.Sunday)
     {
         var byDay = metric == Metric.Plays ? r.PlaysByDay : r.PlaytimeByDay;
-        IEnumerable<DateTimePoint> source = granularity switch
+        var totals = new Dictionary<DateTime, double>();
+        foreach (var day in byDay)
         {
-            TimeGranularity.Weekly => byDay
-                .GroupBy(p => p.Date.AddDays(-(int)p.Date.DayOfWeek))
-                .Select(g => new DateTimePoint(g.Key, g.Sum(p => p.Value))),
-            TimeGranularity.Monthly => byDay
-                .GroupBy(p => new DateTime(p.Date.Year, p.Date.Month, 1))
-                .Select(g => new DateTimePoint(g.Key, g.Sum(p => p.Value))),
-            _ => byDay,
-        };
+            var bucket = TimeBuckets.Of(day.Date, granularity, firstDay);
+            totals[bucket] = totals.GetValueOrDefault(bucket) + day.Value;
+        }
 
-        var points = source
-            .OrderBy(p => p.Date)
-            .Select(p => new LcDateTimePoint(p.Date, Math.Round(p.Value, 2)))
-            .ToArray();
+        var points = byDay.Count == 0
+            ? Array.Empty<LcDateTimePoint>()
+            : TimeBuckets.Between(byDay.Min(p => p.Date), byDay.Max(p => p.Date), granularity, firstDay)
+                .Select(bucket => new LcDateTimePoint(bucket, Math.Round(totals.GetValueOrDefault(bucket), 2)))
+                .ToArray();
 
         string unitName = Unit(metric) + granularity switch
         {
@@ -361,6 +446,8 @@ public static class ChartBuilder
                 Fill = new SolidColorPaint(ChartPalette.Accent.WithAlpha(40)),
                 Stroke = new SolidColorPaint(ChartPalette.Accent) { StrokeThickness = 2 },
                 GeometrySize = 0,
+                // Straight, as in the artist timelines: a curve through the zeros would dip below the floor.
+                LineSmoothness = 0,
             },
         };
         return new ChartData
@@ -387,6 +474,7 @@ public static class ChartBuilder
                 Fill = new SolidColorPaint(ChartPalette.Accent2.WithAlpha(40)),
                 Stroke = new SolidColorPaint(ChartPalette.Accent2) { StrokeThickness = 2 },
                 GeometrySize = 0,
+                LineSmoothness = 0,
             },
         };
         return new ChartData
@@ -459,18 +547,27 @@ public static class ChartBuilder
 
     // ---- Heatmap ---------------------------------------------------------------------------
 
-    /// <summary>Hour-of-day (x) by day-of-week (y) listening heatmap.</summary>
-    public static ChartData DowHourHeat(AnalysisResult r, Metric metric = Metric.Time)
+    /// <summary>
+    /// Hour-of-day (x) by day-of-week (y) heatmap of listening time, or plays, its rows starting
+    /// from <paramref name="firstDay"/>. Each square's day and hour ride along as the chart's
+    /// items, so a click can be traced back to them whatever the order.
+    /// </summary>
+    public static ChartData DowHourHeat(
+        AnalysisResult r, Metric metric = Metric.Time, DayOfWeek firstDay = DayOfWeek.Sunday)
     {
+        var days = Weeks.Ordered(firstDay);
         var points = new List<WeightedPoint>(7 * 24);
-        for (int dow = 0; dow < 7; dow++)
+        var slots = new List<HeatSlot>(7 * 24);
+        for (int row = 0; row < 7; row++)
         {
             for (int hour = 0; hour < 24; hour++)
             {
+                int dow = (int)days[row];
                 double weight = metric == Metric.Plays
                     ? r.PlaysByDowHour[dow, hour]
                     : Math.Round(r.PlaytimeByDowHour[dow, hour] / 3_600_000d, 2);
-                points.Add(new WeightedPoint(hour, dow, weight));
+                points.Add(new WeightedPoint(hour, row, weight));
+                slots.Add(new HeatSlot(days[row], hour));
             }
         }
 
@@ -485,10 +582,10 @@ public static class ChartBuilder
                     .ToArray(),
             },
         };
-        string[] dayNames = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
         return new ChartData
         {
             Series = series,
+            Items = slots,
             XAxes = new[]
             {
                 new Axis
@@ -504,7 +601,7 @@ public static class ChartBuilder
             {
                 new Axis
                 {
-                    Labels = dayNames,
+                    Labels = days.Select(d => DayNames[(int)d]).ToArray(),
                     LabelsPaint = Label(),
                     TextSize = DenseAxisTextSize,
                     // Without this LiveCharts labels every other row and leaves Mon, Wed
@@ -515,6 +612,9 @@ public static class ChartBuilder
             },
         };
     }
+
+    /// <summary>One square of the heatmap: an hour of a day of the week.</summary>
+    public sealed record HeatSlot(DayOfWeek Day, int Hour);
 
     // ---- Pie / donut -----------------------------------------------------------------------
 
@@ -550,10 +650,7 @@ public static class ChartBuilder
 
         var slices = r.ReasonEnds
             .Take(ReasonSlices)
-            .Select((reason, i) => CountSlice(
-                i + 1,
-                ReasonLabels.TryGetValue(reason.Reason, out var friendly) ? friendly : reason.Reason,
-                reason.Count, total, Category(i)))
+            .Select((reason, i) => CountSlice(i + 1, EndReasons.Label(reason.Reason), reason.Count, total, Category(i)))
             .ToList();
 
         int otherCount = r.ReasonEnds.Skip(ReasonSlices).Sum(x => x.Count);
@@ -571,18 +668,19 @@ public static class ChartBuilder
         ContextSlices(r.Countries, CountrySlices, metric);
 
     public static ISeries[] ArtistShare(AnalysisResult r, Metric metric = Metric.Time) =>
-        Donut(ArtistShareSlicesOf(r, metric), ArtistDonutInnerRadius);
+        Donut(ArtistShareSlicesOf(r, metric), ArtistDonutInnerRadius, "Artist", Unit(metric));
 
     /// <summary>Donut of why plays ended (reason_end), top reasons plus "Other".</summary>
-    public static ISeries[] ReasonEndShare(AnalysisResult r) => Donut(ReasonEndSlicesOf(r), ContextDonutInnerRadius);
+    public static ISeries[] ReasonEndShare(AnalysisResult r) =>
+        Donut(ReasonEndSlicesOf(r), ContextDonutInnerRadius, "Reason", Unit(Metric.Plays));
 
     /// <summary>Donut of listening time, or plays, by device family.</summary>
     public static ISeries[] PlatformShare(AnalysisResult r, Metric metric = Metric.Time) =>
-        Donut(PlatformSlicesOf(r, metric), ContextDonutInnerRadius);
+        Donut(PlatformSlicesOf(r, metric), ContextDonutInnerRadius, "Device", Unit(metric));
 
     /// <summary>Donut of listening time, or plays, by the country each play streamed from.</summary>
     public static ISeries[] CountryShare(AnalysisResult r, Metric metric = Metric.Time) =>
-        Donut(CountrySlicesOf(r, metric), ContextDonutInnerRadius);
+        Donut(CountrySlicesOf(r, metric), ContextDonutInnerRadius, "Country", Unit(metric));
 
     private static SKColor Category(int index)
     {
@@ -627,16 +725,18 @@ public static class ChartBuilder
     private static ShareSlice CountSlice(int? rank, string name, int count, long total, SKColor color)
     {
         double pct = count * 100.0 / total;
-        return new ShareSlice(rank, name, count, pct, color, $"{count:N0} plays  ({pct:0.#}%)");
+        return new ShareSlice(rank, name, count, pct, color, $"{Plural.Of(count, "play")}  ({pct:0.#}%)");
     }
 
     // No on-slice labels: they overlap on small slices. The chart's own legend is hidden too;
     // the rank, name and share % live in the legend beside it (see MainViewModel's *Legend).
-    private static ISeries[] Donut(IReadOnlyList<ShareSlice> slices, double innerRadius) => slices
+    // The tag keeps the full name and share for the chart's table of numbers.
+    private static ISeries[] Donut(IReadOnlyList<ShareSlice> slices, double innerRadius, string kind, string unit) => slices
         .Select(s => (ISeries)new PieSeries<double>
         {
             Values = new[] { s.Value },
             Name = ShortLabel(s.Name),
+            Tag = new ChartSlice(s.Name, kind, unit, s.Percent),
             Fill = new SolidColorPaint(s.Color),
             ToolTipLabelFormatter = _ => s.Tooltip,
             InnerRadius = innerRadius,
@@ -691,23 +791,11 @@ public static class ChartBuilder
 
     // ---- Podcasts ----------------------------------------------------------------------------
 
-    public static ChartData TopShows(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time)
-    {
-        bool plays = metric == Metric.Plays;
-        var items = (plays ? r.ShowsByPlayCount : r.Shows).Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(s => plays ? s.PlayCount : Math.Round(s.TotalHours, 2)).ToArray(),
-            items.Select(s => ShortLabel(s.Show)).ToArray(),
-            Unit(metric), ChartPalette.Violet, items);
-    }
+    public static ChartData TopShows(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time) =>
+        Ranked(metric == Metric.Plays ? r.ShowsByPlayCount : r.Shows, take, metric, s => s.Show, s => s.TotalHours, s => s.PlayCount,
+            ChartPalette.Violet);
 
-    public static ChartData TopEpisodes(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time)
-    {
-        bool plays = metric == Metric.Plays;
-        var items = (plays ? r.EpisodesByPlayCount : r.Episodes).Take(take).Reverse().ToList();
-        return Rows(
-            items.Select(e => plays ? e.PlayCount : Math.Round(e.TotalHours, 2)).ToArray(),
-            items.Select(e => ShortLabel(e.Episode)).ToArray(),
-            Unit(metric), ChartPalette.Cyan, items);
-    }
+    public static ChartData TopEpisodes(AnalysisResult r, int take = PodcastBars, Metric metric = Metric.Time) =>
+        Ranked(metric == Metric.Plays ? r.EpisodesByPlayCount : r.Episodes, take, metric, e => e.Episode, e => e.TotalHours,
+            e => e.PlayCount, ChartPalette.Cyan);
 }

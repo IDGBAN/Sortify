@@ -14,6 +14,12 @@ public sealed class ArtistStat
     /// <summary>The track that was playing at the artist's first recorded listen.</summary>
     public string FirstTrack { get; set; } = "Unknown Track";
 
+    /// <summary>Different tracks of theirs that were played.</summary>
+    public int TrackCount { get; set; }
+
+    /// <summary>Calendar months with at least one dated play: how long the artist stayed in rotation.</summary>
+    public int MonthCount { get; set; }
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }
@@ -36,6 +42,22 @@ public sealed class TrackStat
     /// </summary>
     public string Uri { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Share of this track's plays that were skipped (0-100). Counted with the minimum-duration
+    /// cutoff relaxed, like the other skip figures, since a skip is usually shorter than it.
+    /// </summary>
+    public double SkipRate { get; set; }
+
+    /// <summary>
+    /// The album the analysis last counted this track toward. A track nearly always comes from
+    /// the same album, so this spares the analysis a set lookup on almost every play.
+    /// </summary>
+    internal AlbumStat? CountedAlbum;
+
+    // What the analysis works SkipRate out from: the plays, short ones included, and the skips among them.
+    internal int SkipEligiblePlays;
+    internal int Skips;
+
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
 }
@@ -51,6 +73,9 @@ public sealed class AlbumStat
     /// <summary>Null when no counted play of this album carried a timestamp.</summary>
     public DateTime? FirstPlayed { get; set; }
     public DateTime? LastPlayed { get; set; }
+
+    /// <summary>Different tracks of this album that were played.</summary>
+    public int TrackCount { get; set; }
 
     public TimeSpan TotalTime => TimeSpan.FromMilliseconds(TotalMsPlayed);
     public double TotalHours => TotalMsPlayed / 3_600_000d;
@@ -79,6 +104,15 @@ public sealed class YearStat
 
 /// <summary>A play that marks the history: the first one, the 10,000th, the one that passed 1,000 hours...</summary>
 public sealed record Milestone(string Label, DateTime Date, TrackStat Track);
+
+/// <summary>A track's busiest stretch: how many times it played within the window, between its first and last play there.</summary>
+public sealed record RepeatStat(TrackStat Track, int Plays, DateTime From, DateTime To);
+
+/// <summary>
+/// An artist's rank by listening time in each year of <see cref="AnalysisResult.Years"/>, in
+/// the same order. Null for a year they were outside the ranks charted.
+/// </summary>
+public sealed record ArtistRanks(ArtistStat Artist, IReadOnlyList<int?> Ranks);
 
 /// <summary>One calendar month: how much was played, and the artist and track that led it.</summary>
 public sealed class MonthStat
@@ -192,11 +226,26 @@ public sealed class AnalysisResult
     /// <summary>Per-calendar-year rollups, oldest year first.</summary>
     public IReadOnlyList<YearStat> Years { get; init; } = Array.Empty<YearStat>();
 
+    /// <summary>
+    /// How the top artists overall ranked in each year, top artist first. Empty with fewer than
+    /// two years. See the RankHistory* constants on AnalysisEngine.
+    /// </summary>
+    public IReadOnlyList<ArtistRanks> RankHistory { get; init; } = Array.Empty<ArtistRanks>();
+
+    /// <summary>The same, following the top artists by plays and ranking each year by plays.</summary>
+    public IReadOnlyList<ArtistRanks> RankHistoryByPlays { get; init; } = Array.Empty<ArtistRanks>();
+
     /// <summary>Per-calendar-month rollups with each month's top artist and track, oldest first.</summary>
     public IReadOnlyList<MonthStat> Months { get; init; } = Array.Empty<MonthStat>();
 
     /// <summary>The plays that mark the history, oldest first. See AnalysisEngine.Milestone*.</summary>
     public IReadOnlyList<Milestone> Milestones { get; init; } = Array.Empty<Milestone>();
+
+    /// <summary>
+    /// Each track's busiest stretch of <c>AnalysisEngine.RepeatWindowDays</c>, for the tracks
+    /// that were put on repeat; most plays first. See the Repeat* constants on AnalysisEngine.
+    /// </summary>
+    public IReadOnlyList<RepeatStat> OnRepeat { get; init; } = Array.Empty<RepeatStat>();
 
     /// <summary>
     /// Tracks played a lot that then went quiet: nothing in the last stretch of the results.
@@ -281,7 +330,10 @@ public sealed class AnalysisResult
     /// <summary>Plays bucketed by [day of week 0=Sunday..6, hour of day 0-23].</summary>
     public int[,] PlaysByDowHour { get; init; } = new int[7, 24];
 
-    /// <summary>Count of artists first heard in each calendar month (local time).</summary>
+    /// <summary>
+    /// Count of artists first heard in each calendar month (local time), every month from the
+    /// first play to the last, so a month with no new artists is a zero rather than missing.
+    /// </summary>
     public IReadOnlyList<DateTimePoint> NewArtistsByMonth { get; init; } = Array.Empty<DateTimePoint>();
 
     // ---- Skip statistics (computed with the min-duration filter relaxed) ----------------
@@ -334,10 +386,13 @@ public sealed class AnalysisResult
     /// <summary>Average number of plays per distinct track: how repetitive the listening is.</summary>
     public double PlaysPerTrack => UniqueTracks == 0 ? 0 : (double)TotalPlays / UniqueTracks;
 
-    /// <summary>Average number of artists heard for the first time in a month.</summary>
-    public double NewArtistsPerMonth => NewArtistsByMonth.Count == 0
+    /// <summary>
+    /// Average number of artists heard for the first time in a month, over the months with any
+    /// listening: a month without a new artist counts as none, and a month away doesn't count.
+    /// </summary>
+    public double NewArtistsPerMonth => Months.Count == 0
         ? 0
-        : NewArtistsByMonth.Sum(p => p.Value) / NewArtistsByMonth.Count;
+        : NewArtistsByMonth.Sum(p => p.Value) / Months.Count;
 
     /// <summary>Share of all listening time that went to the single most-played artist (0-100).</summary>
     public double TopArtistSharePercent => TotalMsPlayed <= 0 || Artists.Count == 0

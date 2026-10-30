@@ -26,8 +26,9 @@ jobs:
       - name: Check formatting
         run: dotnet format --verify-no-changes --no-restore
 
+      # Warnings fail the build, so the ones nullable checking raises can't pile up unnoticed.
       - name: Build
-        run: dotnet build --configuration Debug --no-restore
+        run: dotnet build --configuration Debug --no-restore -warnaserror
 
       - name: Test
         run: dotnet test --configuration Debug --no-build --verbosity normal

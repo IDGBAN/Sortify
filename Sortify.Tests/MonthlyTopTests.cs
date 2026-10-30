@@ -68,7 +68,7 @@ public class MonthlyTopTests
         };
 
         Assert.Equal("A was your #1 artist in 5 of 6 months, 3 of them in a row (2024-04 to 2024-06).",
-            MainViewModel.DescribeMonthlyLeader(months));
+            InsightText.MonthlyLeader(months));
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class MonthlyTopTests
         // Two months apart are not "in a row", even with nothing listened to in between.
         var months = new[] { Month(2024, 1, "A"), Month(2024, 3, "A") };
 
-        Assert.Equal("A was your #1 artist in 2 of 2 months.", MainViewModel.DescribeMonthlyLeader(months));
+        Assert.Equal("A was your #1 artist in 2 of 2 months.", InsightText.MonthlyLeader(months));
     }
 
     [Fact]
@@ -85,13 +85,13 @@ public class MonthlyTopTests
     {
         var months = new[] { Month(2024, 1, "A", 100), Month(2024, 2, "B", 900) };
 
-        Assert.StartsWith("B was your #1 artist in 1 of 2 months", MainViewModel.DescribeMonthlyLeader(months));
+        Assert.StartsWith("B was your #1 artist in 1 of 2 months", InsightText.MonthlyLeader(months));
     }
 
     [Fact]
     public void Leader_IsBlankWithNoMonths()
     {
-        Assert.Equal(string.Empty, MainViewModel.DescribeMonthlyLeader(Array.Empty<MonthStat>()));
+        Assert.Equal(string.Empty, InsightText.MonthlyLeader(Array.Empty<MonthStat>()));
     }
 
     [Fact]

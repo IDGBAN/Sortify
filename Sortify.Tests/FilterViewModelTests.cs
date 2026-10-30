@@ -41,6 +41,22 @@ public class FilterViewModelTests
     }
 
     [Fact]
+    public void ToOptions_TakesInAllOfTheToDate()
+    {
+        var vm = new FilterViewModel { EndDate = new DateTime(2023, 12, 31, 9, 0, 0) };
+
+        Assert.Equal(new DateTime(2024, 1, 1).AddTicks(-1), vm.ToOptions().EndDate);
+    }
+
+    [Fact]
+    public void ToOptions_CopesWithTheLastDayOfTheCalendar()
+    {
+        var vm = new FilterViewModel { EndDate = DateTime.MaxValue.Date };
+
+        Assert.Equal(DateTime.MaxValue, vm.ToOptions().EndDate);
+    }
+
+    [Fact]
     public void Describe_HandlesAnOpenEndedDateRange()
     {
         Assert.Contains("From 2023-01-01",

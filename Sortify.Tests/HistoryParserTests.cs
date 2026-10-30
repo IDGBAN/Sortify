@@ -102,6 +102,34 @@ public class HistoryParserTests : IDisposable
     }
 
     [Fact]
+    public async Task Skips_NullRows_AndReadsTheRest()
+    {
+        var path = await WriteFileAsync("Streaming_History_Audio_2023.json", """
+        [
+            null,
+            { "ts": "2023-05-01T10:00:00Z", "ms_played": 1000, "master_metadata_track_name": "Song" },
+            null
+        ]
+        """);
+
+        var result = await new HistoryParser().ParseAsync(new[] { path });
+
+        Assert.Equal("Song", Assert.Single(result.Records).TrackName);
+        Assert.Empty(result.Warnings);
+    }
+
+    [Fact]
+    public async Task AFileOfJustNull_HoldsNoPlays()
+    {
+        var path = await WriteFileAsync("Streaming_History_Audio_2023.json", "null");
+
+        var result = await new HistoryParser().ParseAsync(new[] { path });
+
+        Assert.Empty(result.Records);
+        Assert.Equal("Holds no plays Sortify can read", Assert.Single(result.Files).Problem);
+    }
+
+    [Fact]
     public async Task Parses_PodcastEpisodes_AsPodcastKind()
     {
         var path = await WriteFileAsync("Streaming_History_Audio.json", """
@@ -120,6 +148,27 @@ public class HistoryParserTests : IDisposable
         Assert.Equal("Some Show", record.ShowName);
         Assert.Equal("Ep 12: Deep Dive", record.EpisodeName);
         Assert.Equal("spotify:episode:abc123", record.Uri);
+    }
+
+    [Fact]
+    public async Task Parses_TheAccountDataPodcastFile_AsPodcasts()
+    {
+        var path = await WriteFileAsync("StreamingHistory_podcast_0.json", """
+        [
+            { "endTime": "2023-01-13 07:33", "podcastName": "Some Show",
+              "episodeName": "Ep 12: Deep Dive", "msPlayed": 1234567 }
+        ]
+        """);
+
+        var result = await new HistoryParser().ParseAsync(new[] { path });
+
+        var record = Assert.Single(result.Records);
+        Assert.Equal(ContentKind.Podcast, record.Kind);
+        Assert.Equal("Some Show", record.ShowName);
+        Assert.Equal("Ep 12: Deep Dive", record.EpisodeName);
+        Assert.Equal(1234567, record.MsPlayed);
+        Assert.NotEqual(DateTime.MinValue, record.Timestamp);
+        Assert.Equal(LoadedFileFormat.AccountData, Assert.Single(result.Files).Format);
     }
 
     [Fact]
@@ -213,6 +262,27 @@ public class HistoryParserTests : IDisposable
         var result = await new HistoryParser().ParseAsync(new[] { path });
 
         Assert.Same(result.Records[0].Platform, result.Records[1].Platform);
+    }
+
+    [Fact]
+    public async Task HoldsOneCopyOfEachName_AcrossFiles()
+    {
+        const string play = """
+            { "ts": "2023-05-01T10:00:00Z", "ms_played": 1000, "master_metadata_track_name": "Song",
+              "master_metadata_album_artist_name": "Artist", "master_metadata_album_album_name": "Album",
+              "spotify_track_uri": "spotify:track:abc", "reason_end": "trackdone" }
+            """;
+        var first = await WriteFileAsync("Streaming_History_Audio_2023.json", $"[{play}]");
+        var second = await WriteFileAsync("Streaming_History_Audio_2024.json", $"[{play.Replace("2023-", "2024-")}]");
+
+        var result = await new HistoryParser().ParseAsync(new[] { first, second });
+
+        var (a, b) = (result.Records[0], result.Records[1]);
+        Assert.Same(a.TrackName, b.TrackName);
+        Assert.Same(a.ArtistName, b.ArtistName);
+        Assert.Same(a.AlbumName, b.AlbumName);
+        Assert.Same(a.Uri, b.Uri);
+        Assert.Same(a.ReasonEnd, b.ReasonEnd);
     }
 
     [Fact]

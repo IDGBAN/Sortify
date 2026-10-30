@@ -61,34 +61,35 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Text="MY YEAR IN MUSIC" FontSize="30" FontWeight="SemiBold"
+                <TextBlock Grid.Row="0" Text="{Binding Range.Kicker}" FontSize="30" FontWeight="SemiBold"
                            Foreground="{DynamicResource AccentBrush}" />
-                <TextBlock Grid.Row="1" Text="{Binding Year}" FontSize="150" FontWeight="Bold" Margin="-6,-14,0,-12"
-                           Foreground="{DynamicResource TextBrush}" />
+                <!-- A year fits at full size; a long range like "Dec 20, 2023 to Jan 5, 2024" shrinks to the width. -->
+                <Viewbox Grid.Row="1" StretchDirection="DownOnly" HorizontalAlignment="Left">
+                    <TextBlock Text="{Binding Range.Title}" FontSize="150" FontWeight="Bold" Margin="-6,-14,0,-12"
+                               Foreground="{DynamicResource TextBrush}" />
+                </Viewbox>
                 <TextBlock Grid.Row="2" FontSize="64" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}">
-                    <Run Text="{Binding TotalMinutes, Mode=OneWay, StringFormat=N0}" /><Run Text=" minutes" />
+                    <Run Text="{Binding TotalMinutes, Mode=OneWay, StringFormat=N0}" /><Run Text=" " /><Run Text="{Binding MinutesWord, Mode=OneWay}" />
                 </TextBlock>
                 <TextBlock Grid.Row="3" Style="{StaticResource Label}" FontSize="30" Margin="0,4,0,0"
-                           Text="{Binding TotalHours, StringFormat='{}{0:N0} hours of listening'}" />
+                           Text="{Binding HoursText}"
+                           Visibility="{Binding HoursText, Converter={StaticResource TextToVis}}" />
 
-                <UniformGrid Grid.Row="4" Columns="4" Margin="0,44,0,44">
-                    <StackPanel>
-                        <TextBlock Text="{Binding Plays, StringFormat=N0}" Style="{StaticResource StatNumber}" />
-                        <TextBlock Text="plays" Style="{StaticResource Label}" />
-                    </StackPanel>
-                    <StackPanel>
-                        <TextBlock Text="{Binding Artists, StringFormat=N0}" Style="{StaticResource StatNumber}" />
-                        <TextBlock Text="artists" Style="{StaticResource Label}" />
-                    </StackPanel>
-                    <StackPanel>
-                        <TextBlock Text="{Binding NewArtists, StringFormat=N0}" Style="{StaticResource StatNumber}" />
-                        <TextBlock Text="new artists" Style="{StaticResource Label}" />
-                    </StackPanel>
-                    <StackPanel>
-                        <TextBlock Text="{Binding LongestStreakDays, StringFormat=N0}" Style="{StaticResource StatNumber}" />
-                        <TextBlock Text="days in a row" Style="{StaticResource Label}" />
-                    </StackPanel>
-                </UniformGrid>
+                <ItemsControl Grid.Row="4" ItemsSource="{Binding Stats}" Margin="0,44,0,44">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <UniformGrid Columns="4" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type models:YearReviewStat}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Value}" Style="{StaticResource StatNumber}" />
+                                <TextBlock Text="{Binding Label}" Style="{StaticResource Label}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
 
                 <Grid Grid.Row="5">
                     <Grid.ColumnDefinitions>
@@ -110,6 +111,10 @@
                     <TextBlock FontSize="28" Foreground="{DynamicResource TextBrush}"
                                Visibility="{Binding BiggestMonthText, Converter={StaticResource TextToVis}}">
                         <Run Text="Biggest month: " Foreground="{DynamicResource MutedBrush}" /><Run Text="{Binding BiggestMonthText, Mode=OneWay}" />
+                    </TextBlock>
+                    <TextBlock FontSize="28" Foreground="{DynamicResource TextBrush}"
+                               Visibility="{Binding BiggestWeekText, Converter={StaticResource TextToVis}}">
+                        <Run Text="Biggest week: " Foreground="{DynamicResource MutedBrush}" /><Run Text="{Binding BiggestWeekText, Mode=OneWay}" />
                     </TextBlock>
                     <TextBlock FontSize="28" Margin="0,8,0,0" Foreground="{DynamicResource TextBrush}"
                                Visibility="{Binding BiggestDayText, Converter={StaticResource TextToVis}}">

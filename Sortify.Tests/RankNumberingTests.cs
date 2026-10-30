@@ -43,12 +43,12 @@ public class RankNumberingTests
     {
         var charts = OnUiThread(() => new[]
         {
-            ChartBuilder.TopTracksByTime(Result(), 3),
-            ChartBuilder.TopTracksByCount(Result(), 3),
-            ChartBuilder.TopArtistsByTime(Result(), 3),
-            ChartBuilder.TopArtistsByCount(Result(), 3),
-            ChartBuilder.TopAlbumsByTime(Result(), 3),
-            ChartBuilder.TopAlbumsByCount(Result(), 3),
+            ChartBuilder.TopTracks(Result(), 3, Metric.Time),
+            ChartBuilder.TopTracks(Result(), 3, Metric.Plays),
+            ChartBuilder.TopArtists(Result(), 3, Metric.Time),
+            ChartBuilder.TopArtists(Result(), 3, Metric.Plays),
+            ChartBuilder.TopAlbums(Result(), 3, Metric.Time),
+            ChartBuilder.TopAlbums(Result(), 3, Metric.Plays),
         });
 
         foreach (var chart in charts)
@@ -74,7 +74,7 @@ public class RankNumberingTests
     [Fact]
     public void AnEmptyBarChart_HasNoRanks()
     {
-        var chart = OnUiThread(() => ChartBuilder.TopTracksByTime(AnalysisResult.Empty, 25));
+        var chart = OnUiThread(() => ChartBuilder.TopTracks(AnalysisResult.Empty, 25, Metric.Time));
 
         Assert.Empty(chart.YAxes[0].Labels!);
     }

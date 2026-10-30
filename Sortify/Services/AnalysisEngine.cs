@@ -28,6 +28,24 @@ public static class AnalysisEngine
     /// <summary>How many forgotten tracks and artists are listed.</summary>
     public const int ForgottenMaxRows = 50;
 
+    /// <summary>
+    /// The stretch a burst of repeats is measured over, in days. 7 finds the week a song was
+    /// on repeat; 1 finds single obsessive days; much past 30 just finds favourites.
+    /// </summary>
+    public const int RepeatWindowDays = 7;
+
+    /// <summary>Plays inside the window a track needs to count as having been on repeat.</summary>
+    public const int RepeatMinPlays = 10;
+
+    /// <summary>How many tracks the On Repeat list shows.</summary>
+    public const int RepeatRows = 25;
+
+    /// <summary>How many of the top artists overall the rank history follows. Past ten the lines tangle.</summary>
+    public const int RankHistoryArtists = 8;
+
+    /// <summary>The lowest rank the rank history charts; an artist below it leaves a gap for that year.</summary>
+    public const int RankHistoryFloor = 20;
+
     /// <summary>Play counts worth marking: the play that reached each one becomes a milestone.</summary>
     public static readonly int[] MilestonePlayCounts = { 1_000, 10_000, 50_000, 100_000, 250_000, 500_000 };
 
@@ -57,13 +75,21 @@ public static class AnalysisEngine
         // Tracks and albums are keyed by (name, artist) so the same title by two artists stays
         // two rows. A tuple rather than a joined string: joining allocates a fresh key for
         // every play, which on a large history is most of what a pass allocates.
+        // Each play costs a handful of dictionary lookups, and on a large history those lookups
+        // are most of a pass, so the loop avoids every one it can: a track's skips are counted
+        // on its own stat, its album is remembered from its last play, plays in the same month
+        // as the one before reuse its totals, and years are summed from their months at the end.
         var artists = new Dictionary<string, ArtistStat>(StringComparer.Ordinal);
         var tracks = new Dictionary<(string Track, string Artist), TrackStat>();
         var albums = new Dictionary<(string Album, string Artist), AlbumStat>();
-        var skips = new Dictionary<(string Track, string Artist), (int Plays, int Skips)>();
         var reasons = new Dictionary<string, ReasonEndStat>(StringComparer.OrdinalIgnoreCase);
-        var years = new Dictionary<int, PeriodAccumulator>();
         var months = new Dictionary<DateTime, PeriodAccumulator>();
+        PeriodAccumulator? monthAcc = null;
+        var month = DateTime.MinValue;
+
+        // Tracks in the order their first counted play came. Short plays put a track in
+        // tracks for its skips, so this is what keeps the rankings to tracks actually counted.
+        var countedTracks = new List<TrackStat>();
         var byDay = new Dictionary<DateTime, (long Ms, int Plays)>();
         var byHour = new long[24];
         var byDow = new long[7];
@@ -73,12 +99,15 @@ public static class AnalysisEngine
         var playsByDowHour = new int[7, 24];
         var timedPlays = new List<TimedPlay>();
 
+        // Which tracks each album was heard through. Keyed by the stat objects, which are one
+        // per name already, so a lookup costs two reference hashes rather than three string ones.
+        var albumTracks = new HashSet<(AlbumStat, TrackStat)>();
+
         var shows = new Dictionary<string, ShowStat>(StringComparer.Ordinal);
         var showEpisodeKeys = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
         var episodes = new Dictionary<(string Episode, string Show), EpisodeStat>();
         var platforms = new Dictionary<string, ContextStat>(StringComparer.Ordinal);
         var countries = new Dictionary<string, ContextStat>(StringComparer.OrdinalIgnoreCase);
-        var families = new Dictionary<string, string>(StringComparer.Ordinal);
 
         int totalPlays = 0;
         long totalMs = 0;
@@ -120,15 +149,7 @@ public static class AnalysisEngine
             if (r.MsPlayed >= filter.MinMsPlayed)
             {
                 if (r.Platform.Length > 0)
-                {
-                    // Only a few dozen distinct platform strings exist, so classify each once.
-                    if (!families.TryGetValue(r.Platform, out var family))
-                    {
-                        family = PlatformFamily(r.Platform);
-                        families[r.Platform] = family;
-                    }
-                    Bump(platforms, family, r.MsPlayed);
-                }
+                    Bump(platforms, Devices.FamilyOf(r.Platform), r.MsPlayed);
                 if (r.Country.Length > 0)
                     Bump(countries, r.Country, r.MsPlayed);
 
@@ -151,20 +172,19 @@ public static class AnalysisEngine
             string artistName = r.DisplayArtist;
             string albumName = r.DisplayAlbum;
 
-            var trackKey = (trackName, artistName);
+            ref var trackSlot = ref CollectionsMarshal.GetValueRefOrAddDefault(tracks, (trackName, artistName), out _);
+            var track = trackSlot ??= new TrackStat { Track = trackName, Artist = artistName };
 
             // ---- Relaxed-duration statistics: skips and end reasons -------------------------
             skipEligiblePlays++;
+            track.SkipEligiblePlays++;
             if (r.Skipped)
+            {
                 totalSkips++;
+                track.Skips++;
+            }
             if (string.Equals(r.ReasonEnd, "trackdone", StringComparison.OrdinalIgnoreCase))
                 completedPlays++;
-
-            // Counted as a plain value tuple: allocating a SkippedTrackStat per unique track
-            // wastes one object for every track that was never skipped, which is most of them.
-            ref var counts = ref CollectionsMarshal.GetValueRefOrAddDefault(skips, trackKey, out _);
-            counts.Plays++;
-            if (r.Skipped) counts.Skips++;
 
             var reasonKey = string.IsNullOrWhiteSpace(r.ReasonEnd) ? "unknown" : r.ReasonEnd;
             if (!reasons.TryGetValue(reasonKey, out var reason))
@@ -190,21 +210,27 @@ public static class AnalysisEngine
             artist.TotalMsPlayed += r.MsPlayed;
             artist.PlayCount++;
 
-            if (!tracks.TryGetValue(trackKey, out var track))
-            {
-                track = new TrackStat { Track = trackName, Artist = artistName };
-                tracks[trackKey] = track;
-            }
+            if (track.PlayCount == 0)
+                countedTracks.Add(track);
             track.TotalMsPlayed += r.MsPlayed;
             track.PlayCount++;
             if (track.Uri.Length == 0)
                 track.Uri = r.Uri;
 
-            var albumKey = (albumName, artistName);
-            if (!albums.TryGetValue(albumKey, out var album))
+            // The track and the album share the play's artist, so the album the track was last
+            // counted toward is this one whenever the names match.
+            var album = track.CountedAlbum;
+            if (album is null || !string.Equals(album.Album, albumName, StringComparison.Ordinal))
             {
-                album = new AlbumStat { Album = albumName, Artist = artistName };
-                albums[albumKey] = album;
+                var albumKey = (albumName, artistName);
+                if (!albums.TryGetValue(albumKey, out album))
+                {
+                    album = new AlbumStat { Album = albumName, Artist = artistName };
+                    albums[albumKey] = album;
+                }
+                track.CountedAlbum = album;
+                if (albumTracks.Add((album, track)))
+                    album.TrackCount++;
             }
             album.TotalMsPlayed += r.MsPlayed;
             album.PlayCount++;
@@ -242,19 +268,11 @@ public static class AnalysisEngine
 
                 timedPlays.Add(new TimedPlay(ts, r.MsPlayed, track));
 
-                int year = ts.Year;
-                if (!years.TryGetValue(year, out var acc))
+                if (monthAcc is null || ts.Year != month.Year || ts.Month != month.Month)
                 {
-                    acc = new PeriodAccumulator();
-                    years[year] = acc;
-                }
-                acc.Add(artist, track, r.MsPlayed);
-
-                var month = new DateTime(ts.Year, ts.Month, 1);
-                if (!months.TryGetValue(month, out var monthAcc))
-                {
-                    monthAcc = new PeriodAccumulator();
-                    months[month] = monthAcc;
+                    month = new DateTime(ts.Year, ts.Month, 1);
+                    ref var monthSlot = ref CollectionsMarshal.GetValueRefOrAddDefault(months, month, out _);
+                    monthAcc = monthSlot ??= new PeriodAccumulator();
                 }
                 monthAcc.Add(artist, track, r.MsPlayed);
             }
@@ -262,25 +280,44 @@ public static class AnalysisEngine
 
         cancellationToken.ThrowIfCancellationRequested();
 
+        // The per-row figures the tables show beyond time and plays.
+        foreach (var track in countedTracks)
+        {
+            track.SkipRate = track.SkipEligiblePlays == 0 ? 0 : track.Skips * 100.0 / track.SkipEligiblePlays;
+            artists[track.Artist].TrackCount++;
+        }
+        foreach (var monthTotals in months.Values)
+        {
+            foreach (var artist in monthTotals.Artists.Keys)
+                artist.MonthCount++;
+        }
+
+        // In month order, so each year meets its artists and tracks in the order they were
+        // first played, as the months do.
+        var years = new Dictionary<int, PeriodAccumulator>();
+        foreach (var (start, monthTotals) in months.OrderBy(kv => kv.Key))
+        {
+            ref var yearSlot = ref CollectionsMarshal.GetValueRefOrAddDefault(years, start.Year, out _);
+            (yearSlot ??= new PeriodAccumulator()).Add(monthTotals);
+        }
+
         var artistList = artists.Values.OrderByDescending(a => a.TotalMsPlayed).ToList();
-        var trackList = tracks.Values.OrderByDescending(t => t.TotalMsPlayed).ToList();
+        var trackList = countedTracks.OrderByDescending(t => t.TotalMsPlayed).ToList();
         var albumList = albums.Values.OrderByDescending(a => a.TotalMsPlayed).ToList();
         var artistsByCount = artists.Values.OrderByDescending(a => a.PlayCount).ToList();
-        var tracksByCount = tracks.Values.OrderByDescending(t => t.PlayCount).ToList();
+        var tracksByCount = countedTracks.OrderByDescending(t => t.PlayCount).ToList();
         var albumsByCount = albums.Values.OrderByDescending(a => a.PlayCount).ToList();
-        // Only tracks that were actually skipped become objects; the rest never leave the
-        // counting dictionary.
         var skippedList = new List<SkippedTrackStat>();
-        foreach (var (key, counts) in skips)
+        foreach (var track in tracks.Values)
         {
-            if (counts.Skips == 0)
+            if (track.Skips == 0)
                 continue;
             skippedList.Add(new SkippedTrackStat
             {
-                Track = key.Track,
-                Artist = key.Artist,
-                SkipCount = counts.Skips,
-                PlayCount = counts.Plays,
+                Track = track.Track,
+                Artist = track.Artist,
+                SkipCount = track.Skips,
+                PlayCount = track.SkipEligiblePlays,
             });
         }
         skippedList.Sort(static (a, b) => b.SkipCount.CompareTo(a.SkipCount));
@@ -299,7 +336,7 @@ public static class AnalysisEngine
         var dayPoints = days.Select(kv => new DateTimePoint(kv.Key, kv.Value.Ms / 3_600_000d)).ToList();
         var playDayPoints = days.Select(kv => new DateTimePoint(kv.Key, kv.Value.Plays)).ToList();
 
-        var (streakDays, streakStart, streakEnd) = LongestStreak(dayPoints);
+        var (streakDays, streakStart, streakEnd) = LongestStreak(dayPoints.Select(p => p.Date).ToList());
         int currentStreak = CurrentStreak(dayPoints);
         var (breakDays, breakStart, breakEnd) = LongestBreak(dayPoints);
 
@@ -318,13 +355,9 @@ public static class AnalysisEngine
         var (sessionCount, avgSessionMs, longestSessionMs, longestSessionDate) =
             ComputeSessions(timedPlays, sessionGap ?? SessionGap);
         var milestones = ComputeMilestones(timedPlays, artistList, tracks);
+        var onRepeat = ComputeRepeats(timedPlays);
 
-        var newArtistsByMonth = artistList
-            .Where(a => a.FirstPlayed is not null)
-            .GroupBy(a => new DateTime(a.FirstPlayed!.Value.Year, a.FirstPlayed.Value.Month, 1))
-            .OrderBy(g => g.Key)
-            .Select(g => new DateTimePoint(g.Key, g.Count()))
-            .ToList();
+        var newArtistsByMonth = NewArtistsByMonth(artistList, firstListen, lastListen);
 
         var yearList = years
             .OrderBy(kv => kv.Key)
@@ -334,6 +367,8 @@ public static class AnalysisEngine
             .OrderBy(kv => kv.Key)
             .Select(kv => BuildMonthStat(kv.Key, kv.Value))
             .ToList();
+        var rankHistory = ComputeRankHistory(years, yearList, artistList, Metric.Time);
+        var rankHistoryByPlays = ComputeRankHistory(years, yearList, artistsByCount, Metric.Plays);
 
         // Measured from the last play in the results rather than from today: an export is a
         // snapshot, and a filtered one can end years ago.
@@ -360,8 +395,11 @@ public static class AnalysisEngine
             TracksByPlayCount = tracksByCount,
             AlbumsByPlayCount = albumsByCount,
             Years = yearList,
+            RankHistory = rankHistory,
+            RankHistoryByPlays = rankHistoryByPlays,
             Months = monthList,
             Milestones = milestones,
+            OnRepeat = onRepeat,
             ForgottenTracks = forgottenTracks,
             ForgottenArtists = forgottenArtists,
             ReasonEnds = reasonList,
@@ -459,65 +497,6 @@ public static class AnalysisEngine
     }
 
     /// <summary>
-    /// Collapses Spotify's very granular platform strings (which embed OS builds, device
-    /// models and SDK versions) into a handful of families worth charting. Matches whole
-    /// tokens, so "tv" means a TV and not any word that happens to contain those letters.
-    /// </summary>
-    internal static string PlatformFamily(string platform)
-    {
-        string lower = platform.ToLowerInvariant();
-        var tokens = lower.Split(TokenSeparators, StringSplitOptions.RemoveEmptyEntries);
-
-        if (lower.Contains("web_player") || lower.Contains("webplayer"))
-            return "Web player";
-
-        // TVs, consoles and cars report as "Partner <device> ...", so they have to be matched
-        // before the catch-all partner token sends them to the speaker bucket.
-        if (lower.Contains("android_auto") || lower.Contains("android auto") || tokens.Any(CarTokens.Contains))
-            return "Car";
-        if (tokens.Any(TvTokens.Contains))
-            return "TV / console";
-        if (tokens.Any(SpeakerTokens.Contains))
-            return "Speaker / cast";
-        if (tokens.Any(MobileTokens.Contains))
-            return "Mobile";
-
-        // Spotify writes macOS as "OS X 10.15.7 [x86_64]", with a space.
-        if (tokens.Any(DesktopTokens.Contains) || lower.Contains("os x"))
-            return "Desktop";
-        return "Other";
-    }
-
-    private static readonly char[] TokenSeparators =
-        " _-;:,.()[]/\\".ToCharArray();
-
-    private static readonly HashSet<string> CarTokens = new(StringComparer.Ordinal)
-    {
-        "car", "carplay", "automotive", "androidauto",
-    };
-
-    private static readonly HashSet<string> TvTokens = new(StringComparer.Ordinal)
-    {
-        "tv", "smarttv", "androidtv", "appletv", "firetv", "googletv", "tizen", "webos", "roku", "bravia",
-        "xbox", "playstation", "ps3", "ps4", "ps5",
-    };
-
-    private static readonly HashSet<string> SpeakerTokens = new(StringComparer.Ordinal)
-    {
-        "cast", "chromecast", "sonos", "speaker", "echo", "alexa", "homepod", "bose", "partner",
-    };
-
-    private static readonly HashSet<string> MobileTokens = new(StringComparer.Ordinal)
-    {
-        "android", "ios", "iphone", "ipad", "ipod",
-    };
-
-    private static readonly HashSet<string> DesktopTokens = new(StringComparer.Ordinal)
-    {
-        "windows", "osx", "macos", "mac", "linux",
-    };
-
-    /// <summary>
     /// Running totals for one year or one month, and who led it. Keyed by the artist and
     /// track objects of the whole pass, which are already one per name, so each play costs a
     /// reference hash rather than hashing the names again for every month and year.
@@ -539,6 +518,24 @@ public static class AnalysisEngine
             ref var trackTotals = ref CollectionsMarshal.GetValueRefOrAddDefault(Tracks, track, out _);
             trackTotals.Ms += ms;
             trackTotals.Plays++;
+        }
+
+        public void Add(PeriodAccumulator other)
+        {
+            Ms += other.Ms;
+            Plays += other.Plays;
+            foreach (var (artist, totals) in other.Artists)
+            {
+                ref var artistTotals = ref CollectionsMarshal.GetValueRefOrAddDefault(Artists, artist, out _);
+                artistTotals.Ms += totals.Ms;
+                artistTotals.Plays += totals.Plays;
+            }
+            foreach (var (track, totals) in other.Tracks)
+            {
+                ref var trackTotals = ref CollectionsMarshal.GetValueRefOrAddDefault(Tracks, track, out _);
+                trackTotals.Ms += totals.Ms;
+                trackTotals.Plays += totals.Plays;
+            }
         }
 
         public (ArtistStat? Artist, long Ms, int Plays) TopArtist(Metric metric) => Leader(Artists, metric);
@@ -567,6 +564,71 @@ public static class AnalysisEngine
             }
             return top is null ? (null, 0, 0) : (top, best.Ms, best.Plays);
         }
+    }
+
+    /// <summary>
+    /// Artists heard for the first time in each calendar month from the first play to the
+    /// last, with a zero for a month that brought none, so the chart's line doesn't slope
+    /// across it as if it had.
+    /// </summary>
+    private static List<DateTimePoint> NewArtistsByMonth(IReadOnlyList<ArtistStat> artists, DateTime? first, DateTime? last)
+    {
+        var points = new List<DateTimePoint>();
+        if (first is not { } from || last is not { } to)
+            return points;
+
+        var counts = new Dictionary<DateTime, int>();
+        foreach (var artist in artists)
+        {
+            if (artist.FirstPlayed is { } heard)
+                CollectionsMarshal.GetValueRefOrAddDefault(counts, new DateTime(heard.Year, heard.Month, 1), out _)++;
+        }
+
+        // Counted rather than stepped to the last month, which in December 9999 has no next one.
+        var start = new DateTime(from.Year, from.Month, 1);
+        int months = (to.Year - from.Year) * 12 + to.Month - from.Month + 1;
+        for (int i = 0; i < months; i++)
+        {
+            var month = start.AddMonths(i);
+            points.Add(new DateTimePoint(month, counts.GetValueOrDefault(month)));
+        }
+        return points;
+    }
+
+    /// <summary>
+    /// Where each of the top artists overall ranked by listening time, or by plays, in every
+    /// year, down to <see cref="RankHistoryFloor"/>. Needs two years to say anything.
+    /// </summary>
+    /// <param name="artists">Every artist, ranked by <paramref name="metric"/>.</param>
+    private static List<ArtistRanks> ComputeRankHistory(
+        Dictionary<int, PeriodAccumulator> years, IReadOnlyList<YearStat> yearList, IReadOnlyList<ArtistStat> artists,
+        Metric metric)
+    {
+        if (yearList.Count < 2)
+            return new List<ArtistRanks>();
+
+        var followed = artists.Take(RankHistoryArtists).ToList();
+        var ranks = new Dictionary<ArtistStat, int?[]>(ReferenceEqualityComparer.Instance);
+        foreach (var artist in followed)
+            ranks[artist] = new int?[yearList.Count];
+
+        for (int y = 0; y < yearList.Count; y++)
+        {
+            var inYear = years[yearList[y].Year].Artists;
+            // Plays tie far more often than milliseconds do; the longer listen goes first, as with the leaders.
+            var ranked = metric == Metric.Plays
+                ? inYear.OrderByDescending(kv => kv.Value.Plays).ThenByDescending(kv => kv.Value.Ms)
+                : inYear.OrderByDescending(kv => kv.Value.Ms);
+            int rank = 0;
+            foreach (var (artist, _) in ranked.Take(RankHistoryFloor))
+            {
+                rank++;
+                if (ranks.TryGetValue(artist, out var row))
+                    row[y] = rank;
+            }
+        }
+
+        return followed.Select(a => new ArtistRanks(a, ranks[a])).ToList();
     }
 
     private static YearStat BuildYearStat(int year, PeriodAccumulator acc) => new()
@@ -606,33 +668,33 @@ public static class AnalysisEngine
         };
     }
 
-    /// <summary>Finds the longest run of consecutive listening days in date-sorted day points.</summary>
-    private static (int days, DateTime? start, DateTime? end) LongestStreak(IReadOnlyList<DateTimePoint> dayPoints)
+    /// <summary>Finds the longest run of consecutive days in sorted, distinct calendar days.</summary>
+    internal static (int Days, DateTime? Start, DateTime? End) LongestStreak(IReadOnlyList<DateTime> days)
     {
-        if (dayPoints.Count == 0)
+        if (days.Count == 0)
             return (0, null, null);
 
         int best = 1, current = 1;
-        DateTime bestStart = dayPoints[0].Date, bestEnd = dayPoints[0].Date;
-        DateTime runStart = dayPoints[0].Date;
+        DateTime bestStart = days[0], bestEnd = days[0];
+        DateTime runStart = days[0];
 
-        for (int i = 1; i < dayPoints.Count; i++)
+        for (int i = 1; i < days.Count; i++)
         {
-            if (dayPoints[i].Date == dayPoints[i - 1].Date.AddDays(1))
+            if (days[i] == days[i - 1].AddDays(1))
             {
                 current++;
             }
             else
             {
                 current = 1;
-                runStart = dayPoints[i].Date;
+                runStart = days[i];
             }
 
             if (current > best)
             {
                 best = current;
                 bestStart = runStart;
-                bestEnd = dayPoints[i].Date;
+                bestEnd = days[i];
             }
         }
 
@@ -773,6 +835,55 @@ public static class AnalysisEngine
 
         milestones.Sort(static (a, b) => a.Date.CompareTo(b.Date));
         return milestones;
+    }
+
+    /// <summary>
+    /// Each track's busiest <see cref="RepeatWindowDays"/>: the most of its plays that ended
+    /// within that span of each other, and the first and last of them. Expects
+    /// <paramref name="plays"/> sorted by end time. Only tracks with enough plays overall to
+    /// qualify are looked at, which keeps this to a small share of a large history.
+    /// </summary>
+    private static List<RepeatStat> ComputeRepeats(List<TimedPlay> plays)
+    {
+        var times = new Dictionary<TrackStat, List<DateTime>>(ReferenceEqualityComparer.Instance);
+        foreach (var play in plays)
+        {
+            if (play.Track.PlayCount < RepeatMinPlays)
+                continue;
+            if (!times.TryGetValue(play.Track, out var list))
+            {
+                list = new List<DateTime>();
+                times[play.Track] = list;
+            }
+            list.Add(play.End);
+        }
+
+        var window = TimeSpan.FromDays(RepeatWindowDays);
+        var repeats = new List<RepeatStat>();
+        foreach (var (track, ends) in times)
+        {
+            int best = 0, bestFirst = 0, bestLast = 0;
+            for (int first = 0, last = 0; last < ends.Count; last++)
+            {
+                while (ends[last] - ends[first] >= window)
+                    first++;
+                if (last - first + 1 > best)
+                {
+                    best = last - first + 1;
+                    bestFirst = first;
+                    bestLast = last;
+                }
+            }
+
+            if (best >= RepeatMinPlays)
+                repeats.Add(new RepeatStat(track, best, ends[bestFirst], ends[bestLast]));
+        }
+
+        return repeats
+            .OrderByDescending(r => r.Plays)
+            .ThenBy(r => r.From)
+            .Take(RepeatRows)
+            .ToList();
     }
 
     private static DateTime StartOf(TimedPlay play)

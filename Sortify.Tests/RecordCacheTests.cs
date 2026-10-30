@@ -9,7 +9,7 @@ namespace Sortify.Tests;
 /// The cache writes to a single per-user file, so these tests share it and must not run in
 /// parallel with each other.
 /// </summary>
-[Collection(nameof(RecordCacheTests))]
+[Collection(DataFolderCollection.Name)]
 public class RecordCacheTests : IDisposable
 {
     private readonly string _dir;
@@ -222,7 +222,7 @@ public class RecordCacheTests : IDisposable
     }
 
     [Fact]
-    public void ANegativePoolSize_IsTreatedAsAMiss()
+    public void ANegativeStringCount_IsTreatedAsAMiss()
     {
         var file = WriteFile("a.json");
         RecordCache.TrySave(new[] { file }, new[] { Music() });
@@ -230,9 +230,9 @@ public class RecordCacheTests : IDisposable
         var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
         int keyLength = RecordCache.BuildKey(new[] { file }).Length;
-        int poolOffset = 6 + sizeof(int) + 1 + keyLength + sizeof(int);
+        int stringCountOffset = 6 + sizeof(int) + 1 + keyLength + sizeof(int);
 
-        BitConverter.GetBytes(-5).CopyTo(bytes, poolOffset);
+        BitConverter.GetBytes(-5).CopyTo(bytes, stringCountOffset);
         File.WriteAllBytes(cachePath, bytes);
 
         Assert.Null(RecordCache.TryLoad(new[] { file }));
@@ -255,13 +255,25 @@ public class RecordCacheTests : IDisposable
         Assert.Equal(DateTime.MinValue, loaded[1].Timestamp);
     }
 
-    /// <summary>Where the first record starts, found by its track/artist/album strings rather than by offset arithmetic.</summary>
-    private static int FirstRecordOffset(byte[] bytes)
+    /// <summary>Where the string table's strings start, found by the first three of them rather than by offset arithmetic.</summary>
+    private static int StringTableOffset(byte[] bytes)
     {
         byte[] marker = { 1, (byte)'T', 1, (byte)'A', 2, (byte)'A', (byte)'l' };
         int index = bytes.AsSpan().IndexOf(marker);
-        Assert.True(index >= 0, "record marker not found in the cache file");
+        Assert.True(index >= 0, "string table not found in the cache file");
         return index;
+    }
+
+    /// <summary>
+    /// Where the first record of a cache of <see cref="Music"/> starts: after the last string in
+    /// the table, at the indexes of its track, artist and album, which are the first three strings.
+    /// </summary>
+    private static int FirstRecordOffset(byte[] bytes)
+    {
+        byte[] marker = { 2, (byte)'C', (byte)'A', 0, 1, 2 };
+        int index = bytes.AsSpan().IndexOf(marker);
+        Assert.True(index >= 0, "record marker not found in the cache file");
+        return index + 3;
     }
 
     [Fact]
@@ -274,7 +286,7 @@ public class RecordCacheTests : IDisposable
         // with a FormatException rather than an IOException.
         var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
-        new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }.CopyTo(bytes, FirstRecordOffset(bytes));
+        new byte[] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }.CopyTo(bytes, StringTableOffset(bytes));
         File.WriteAllBytes(cachePath, bytes);
 
         Assert.Null(RecordCache.TryLoad(new[] { file }));
@@ -286,16 +298,44 @@ public class RecordCacheTests : IDisposable
         var file = WriteFile("a.json");
         RecordCache.TrySave(new[] { file }, new[] { Music() });
 
-        // Track, artist and album strings, ms played, ticks, the reason flag plus
-        // "trackdone", then the skipped flag; the kind byte follows.
+        // The track, artist and album indexes, ms played, ticks, the reason's index, then the
+        // skipped flag; the kind byte follows.
         var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
         var bytes = File.ReadAllBytes(cachePath);
-        int kindOffset = FirstRecordOffset(bytes) + 2 + 2 + 3 + sizeof(int) + sizeof(long) + 1 + 10 + 1;
+        int kindOffset = FirstRecordOffset(bytes) + 3 + sizeof(int) + sizeof(long) + 1 + 1;
         Assert.Equal((byte)ContentKind.Music, bytes[kindOffset]);
         bytes[kindOffset] = 200;
         File.WriteAllBytes(cachePath, bytes);
 
         Assert.Null(RecordCache.TryLoad(new[] { file }));
+    }
+
+    [Fact]
+    public void AStringIndexPastTheTable_IsTreatedAsAMiss()
+    {
+        var file = WriteFile("a.json");
+        RecordCache.TrySave(new[] { file }, new[] { Music() });
+
+        var cachePath = Path.Combine(AppPaths.DataDirectory, "records.cache");
+        var bytes = File.ReadAllBytes(cachePath);
+        bytes[FirstRecordOffset(bytes)] = 100;
+        File.WriteAllBytes(cachePath, bytes);
+
+        Assert.Null(RecordCache.TryLoad(new[] { file }));
+    }
+
+    [Fact]
+    public void LoadedPlays_ShareOneCopyOfEachName()
+    {
+        var file = WriteFile("a.json");
+        RecordCache.TrySave(new[] { file }, new[] { Music(), Music() });
+
+        var loaded = RecordCache.TryLoad(new[] { file })!;
+
+        Assert.Same(loaded[0].TrackName, loaded[1].TrackName);
+        Assert.Same(loaded[0].ArtistName, loaded[1].ArtistName);
+        Assert.Same(loaded[0].AlbumName, loaded[1].AlbumName);
+        Assert.Same(loaded[0].Uri, loaded[1].Uri);
     }
 
     [Fact]

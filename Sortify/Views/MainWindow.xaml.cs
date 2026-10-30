@@ -3,7 +3,6 @@ using System.Globalization;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Automation.Peers;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
@@ -32,12 +31,19 @@ public partial class MainWindow : ThemedWindow
     public MainWindow()
     {
         InitializeComponent();
+        ChartTableWindow.MakeChartsReachable(this, SayChartIsEmpty);
 
         // App owns the settings so the dialog, the view model and window placement all
         // read and write one instance.
         _settings = (Application.Current as App)?.Settings ?? AppSettings.Load();
         var vm = new MainViewModel(_settings);
-        vm.PropertyChanged += OnViewModelPropertyChanged;
+        vm.History.ScrollRequested += OnHistoryScrollRequested;
+        vm.History.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(HistoryViewModel.Rows))
+                Dispatcher.BeginInvoke(KeepHistorySelectionInView, System.Windows.Threading.DispatcherPriority.Loaded);
+        };
+        vm.History.SortReset += (_, _) => ShowHistorySort(nameof(PlayRow.When), ListSortDirection.Descending);
         DataContext = vm;
 
         RestorePlacement();
@@ -46,17 +52,6 @@ public partial class MainWindow : ThemedWindow
     }
 
     private MainViewModel? ViewModel => DataContext as MainViewModel;
-
-    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        // The status line is where every load, filter and export reports back. Marking it a
-        // live region isn't enough on its own; WPF only announces when the event is raised.
-        if (e.PropertyName == nameof(MainViewModel.StatusText))
-        {
-            UIElementAutomationPeer.CreatePeerForElement(StatusLine)
-                ?.RaiseAutomationEvent(AutomationEvents.LiveRegionChanged);
-        }
-    }
 
     // Reopen last session's folder once the window is up, so the user sees the shell (and
     // the loading status) rather than a blank pause before it appears.
@@ -135,10 +130,10 @@ public partial class MainWindow : ThemedWindow
     {
         bool ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
 
-        // Ctrl+1..9 jump straight to a tab.
-        if (ctrl && e.Key is >= Key.D1 and <= Key.D9)
+        // Ctrl+1..9 jump straight to a tab, and Ctrl+0 to the last one, History.
+        if (ctrl && e.Key is >= Key.D0 and <= Key.D9)
         {
-            int index = e.Key - Key.D1;
+            int index = e.Key == Key.D0 ? Tabs.Items.Count - 1 : e.Key - Key.D1;
             if (index < Tabs.Items.Count)
             {
                 Tabs.SelectedIndex = index;
@@ -173,19 +168,32 @@ public partial class MainWindow : ThemedWindow
         base.OnPreviewKeyDown(e);
     }
 
-    /// <summary>The row filter belonging to the tab currently on screen, if it has one.</summary>
-    private TextBox? CurrentQuickFilter() => Tabs.SelectedIndex switch
+    /// <summary>A mouse's back and forward buttons step through filter changes, as in a browser.</summary>
+    protected override void OnMouseUp(MouseButtonEventArgs e)
     {
-        1 => TrackQuickFilter,
-        2 => ArtistQuickFilter,
-        3 => AlbumQuickFilter,
-        5 => ShowQuickFilter,
-        _ => null,
-    };
+        if (e.ChangedButton is MouseButton.XButton1 or MouseButton.XButton2 && ViewModel is { } vm)
+        {
+            var command = e.ChangedButton == MouseButton.XButton1 ? vm.Filters.UndoCommand : vm.Filters.RedoCommand;
+            if (command.CanExecute(null))
+                command.Execute(null);
 
-    private bool IsQuickFilter(TextBox box) =>
-        ReferenceEquals(box, TrackQuickFilter) || ReferenceEquals(box, ArtistQuickFilter) ||
-        ReferenceEquals(box, AlbumQuickFilter) || ReferenceEquals(box, ShowQuickFilter);
+            // Handled, so Windows doesn't also turn the click into a browser-back command.
+            e.Handled = true;
+            return;
+        }
+        base.OnMouseUp(e);
+    }
+
+    private IEnumerable<TextBox> QuickFilters() =>
+        new[] { TrackQuickFilter, ArtistQuickFilter, AlbumQuickFilter, ShowQuickFilter, HistoryQuickFilter };
+
+    /// <summary>
+    /// The row filter belonging to the tab currently on screen, if it has one. Only the selected
+    /// tab's content is shown, so it is the one visible box, wherever that tab sits in the row.
+    /// </summary>
+    private TextBox? CurrentQuickFilter() => QuickFilters().FirstOrDefault(box => box.IsVisible);
+
+    private bool IsQuickFilter(TextBox box) => QuickFilters().Contains(box);
 
     private void FocusQuickFilter()
     {
@@ -279,6 +287,43 @@ public partial class MainWindow : ThemedWindow
         PeopleOnlyOne.Columns = columns;
     }
 
+    /// <summary>Below this width the Overview's five headline figures go three to a row.</summary>
+    private const double OverviewFiguresInOneRowMinWidth = 720;
+
+    /// <summary>Below this width the Overview's top-five lists go one above the other.</summary>
+    private const double OverviewListsSideBySideMinWidth = 840;
+
+    private void OnOverviewSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        OverviewFigures.Columns = e.NewSize.Width < OverviewFiguresInOneRowMinWidth ? 3 : 5;
+        OverviewLists.Columns = e.NewSize.Width < OverviewListsSideBySideMinWidth ? 1 : 3;
+    }
+
+    /// <summary>Below this width the forgotten tracks and artists go one above the other.</summary>
+    private const double ForgottenSideBySideMinWidth = 760;
+
+    /// <summary>The Forgotten Favorites card's height with its tables side by side, as the XAML starts it, and stacked.</summary>
+    private const double ForgottenSideBySideHeight = 400;
+    private const double ForgottenStackedHeight = 720;
+
+    private void OnForgottenSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // Setting the height below raises this again; only a new width can change the layout.
+        if (!e.WidthChanged)
+            return;
+
+        bool narrow = e.NewSize.Width < ForgottenSideBySideMinWidth;
+        var columns = ForgottenTables.ColumnDefinitions;
+        var rows = ForgottenTables.RowDefinitions;
+        columns[1].Width = new GridLength(narrow ? 0 : 12);
+        columns[2].Width = new GridLength(narrow ? 0 : 2, GridUnitType.Star);
+        rows[1].Height = new GridLength(narrow ? 12 : 0);
+        rows[2].Height = new GridLength(narrow ? 1 : 0, GridUnitType.Star);
+        Grid.SetRow(ForgottenArtistsTable, narrow ? 2 : 0);
+        Grid.SetColumn(ForgottenArtistsTable, narrow ? 0 : 2);
+        ForgottenCard.Height = narrow ? ForgottenStackedHeight : ForgottenSideBySideHeight;
+    }
+
     // ---- Tabs --------------------------------------------------------------------------------
 
     // Fade + slide the tab body in whenever the user switches tabs. Filtered to the
@@ -292,12 +337,17 @@ public partial class MainWindow : ThemedWindow
         if (sender is not TabControl tabs)
             return;
 
-        // The comparisons are only worked out while someone is looking at them.
+        // The comparisons and the play list are only worked out while someone is looking at them.
         if (ViewModel is { } vm)
         {
             vm.Compare.IsVisible = ReferenceEquals(tabs.SelectedItem, CompareTab);
             vm.ComparePeople.IsVisible = ReferenceEquals(tabs.SelectedItem, ComparePeopleTab);
+            vm.History.IsVisible = ReferenceEquals(tabs.SelectedItem, HistoryTab);
         }
+
+        // Windows' "Show animations in Windows" switch, which people turn off to cut down on motion.
+        if (!SystemParameters.ClientAreaAnimation)
+            return;
 
         var host = FindContentHost(tabs);
         if (host is null)
@@ -385,6 +435,12 @@ public partial class MainWindow : ThemedWindow
         menu.IsOpen = true;
     }
 
+    private void OnShowLoadedFiles(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.LoadedHistory is { } history)
+            new LoadedFilesWindow(history) { Owner = this }.ShowDialog();
+    }
+
     private async void OnOpenSettings(object sender, RoutedEventArgs e)
     {
         var dialog = new SettingsWindow(_settings) { Owner = this };
@@ -394,11 +450,28 @@ public partial class MainWindow : ThemedWindow
             await vm.ApplySettingsChangesAsync();
     }
 
-    // ---- Chart images ---------------------------------------------------------------------------
+    // ---- Chart images and numbers ---------------------------------------------------------------
 
     /// <summary>The card a chart context menu was opened on.</summary>
     private static FrameworkElement? CardFor(object sender) =>
         sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement card } } ? card : null;
+
+    /// <summary>Offers a chart's numbers only when it has some, which an empty one (no podcasts, say) doesn't.</summary>
+    private void OnChartMenuOpened(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ContextMenu { PlacementTarget: FrameworkElement card } menu)
+            return;
+        foreach (var item in menu.Items.OfType<MenuItem>().Where(i => Equals(i.Tag, "numbers")))
+            item.IsEnabled = ChartTableWindow.TableFor(card) is not null;
+    }
+
+    private void OnShowChartNumbers(object sender, RoutedEventArgs e)
+    {
+        if (CardFor(sender) is { } card && !ChartTableWindow.ShowFor(card, this))
+            SayChartIsEmpty();
+    }
+
+    private void SayChartIsEmpty() => ViewModel?.SetStatus("That chart has no numbers to show yet.");
 
     private void OnCopyChartImage(object sender, RoutedEventArgs e)
     {
@@ -473,13 +546,12 @@ public partial class MainWindow : ThemedWindow
     private void OnHeatClick(IChartView chart, IEnumerable<ChartPoint> points)
     {
         var point = points.FirstOrDefault(p => !p.IsEmpty);
-        if (point is null || ViewModel is not { } vm)
+        if (point is null || ViewModel is not { } vm || chart is not FrameworkElement { Tag: ChartData data })
             return;
-        if (point.Index < 0 || point.Index >= 7 * 24)
+        if (point.Index < 0 || point.Index >= data.Items.Count || data.Items[point.Index] is not ChartBuilder.HeatSlot slot)
             return;
 
-        // The heatmap's points run day by day, 24 hours each (see ChartBuilder.DowHourHeat).
-        vm.Filters.SetSlot(point.Index / 24, point.Index % 24);
+        vm.Filters.SetSlot((int)slot.Day, slot.Hour);
     }
 
     /// <summary>
@@ -497,6 +569,21 @@ public partial class MainWindow : ThemedWindow
             RoutedEvent = MouseWheelEvent,
             Source = grid,
         });
+    }
+
+    /// <summary>A point on the rank history opens the artist whose line it is on.</summary>
+    private void OnRankPointClick(IChartView chart, IEnumerable<ChartPoint> points)
+    {
+        var point = points.FirstOrDefault(p => !p.IsEmpty);
+        if (point is null || chart is not FrameworkElement { Tag: ChartData data })
+            return;
+
+        int index = Array.IndexOf(data.Series, point.Context.Series);
+        if (index < 0 || index >= data.Items.Count)
+            return;
+
+        var item = data.Items[index];
+        Dispatcher.BeginInvoke(async () => await ShowDetailAsync(item));
     }
 
     // ---- Infinite scroll -------------------------------------------------------------------------
@@ -617,6 +704,15 @@ public partial class MainWindow : ThemedWindow
     private void OnExcludeArtistFromAlbums(object sender, RoutedEventArgs e) =>
         ViewModel?.ExcludeArtistsFromGrid(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
 
+    private void OnFocusArtistFromTracks(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<TrackStat>(TracksGrid).Select(t => t.Artist));
+
+    private void OnFocusArtistFromArtists(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<ArtistStat>(ArtistsGrid).Select(a => a.Artist));
+
+    private void OnFocusArtistFromAlbums(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<AlbumStat>(AlbumsGrid).Select(a => a.Artist));
+
     private async void OnOpenMonthArtist(object sender, RoutedEventArgs e)
     {
         if (MonthsGrid.SelectedItem is MonthRow m)
@@ -641,11 +737,17 @@ public partial class MainWindow : ThemedWindow
             await ShowYearReviewAsync(y.Year, this);
     }
 
-    /// <summary>True while a year-in-review card is being worked out.</summary>
+    private async void OnSummaryCard(object sender, RoutedEventArgs e) =>
+        await ShowReviewAsync(vm => vm.BuildSummaryCardAsync(), this);
+
+    /// <summary>True while a summary card is being worked out.</summary>
     private bool _buildingReview;
 
     /// <summary>Works out a year's card and previews it over <paramref name="owner"/>.</summary>
-    private async Task ShowYearReviewAsync(int year, Window owner)
+    private Task ShowYearReviewAsync(int year, Window owner) =>
+        ShowReviewAsync(vm => vm.BuildYearReviewAsync(year), owner);
+
+    private async Task ShowReviewAsync(Func<MainViewModel, Task<YearReview?>> build, Window owner)
     {
         if (_buildingReview || ViewModel is not { } vm)
             return;
@@ -655,7 +757,7 @@ public partial class MainWindow : ThemedWindow
         Mouse.OverrideCursor = Cursors.AppStarting;
         try
         {
-            review = await vm.BuildYearReviewAsync(year);
+            review = await build(vm);
         }
         finally
         {
@@ -728,7 +830,12 @@ public partial class MainWindow : ThemedWindow
             return;
         }
 
-        new DetailWindow(detail, vm.BuildDetailAsync, vm.Metric) { Owner = this, OpenYearReview = ShowYearReviewAsync }.ShowDialog();
+        new DetailWindow(detail, vm.BuildDetailAsync, vm.Metric)
+        {
+            Owner = this,
+            OpenYearReview = ShowYearReviewAsync,
+            FocusArtist = artist => vm.FocusOnArtistsFromGrid(new[] { artist }),
+        }.ShowDialog();
     }
 
     // ---- Copy to clipboard -------------------------------------------------------------------
@@ -758,7 +865,7 @@ public partial class MainWindow : ThemedWindow
             return;
 
         if (TryCopy(string.Join(Environment.NewLine, distinct)))
-            ViewModel?.SetStatus($"Copied {distinct.Count:N0} {noun}{(distinct.Count == 1 ? "" : "s")} to the clipboard.");
+            ViewModel?.SetStatus($"Copied {Plural.Of(distinct.Count, noun)} to the clipboard.");
         else
             ViewModel?.SetStatus("Could not copy: another program is holding the clipboard. Try again.", isError: true);
     }
@@ -791,6 +898,12 @@ public partial class MainWindow : ThemedWindow
     private void OnCopyForgottenLinks(object sender, RoutedEventArgs e) =>
         ViewModel?.CopySpotifyLinks(ForgottenTracksGrid.Items.OfType<TrackStat>(), TryCopy);
 
+    private void OnCopyRepeatLinks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(RepeatGrid.Items.OfType<RepeatStat>().Select(r => r.Track), TryCopy);
+
+    private void OnCopyLinksFromRepeats(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(SelectedRows<RepeatStat>(RepeatGrid).Select(r => r.Track), TryCopy);
+
     /// <summary>
     /// Copies the first rows in the order the grid shows them, so a sort by plays or a row
     /// filter decides which tracks make the cut.
@@ -802,6 +915,110 @@ public partial class MainWindow : ThemedWindow
         ViewModel?.CopySpotifyLinks(TracksGrid.Items.OfType<TrackStat>().Take(count), TryCopy);
     }
 
+    // ---- Listening calendar -----------------------------------------------------------------------
+
+    private async void OnCalendarDayClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { DataContext: CalendarDay { HasListening: true } day })
+            await ShowDetailAsync(day);
+    }
+
+    private async void OnOpenBiggestDay(object sender, RoutedEventArgs e)
+    {
+        if (ViewModel?.BiggestDay is { } day)
+            await ShowDetailAsync(new CalendarDay(day, 0, 0));
+    }
+
+    // ---- History ---------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The play list is sorted by its view model: the grid's own sort reads every value by
+    /// reflection, which stalls on a few hundred thousand rows.
+    /// </summary>
+    private void OnHistorySorting(object sender, DataGridSortingEventArgs e)
+    {
+        e.Handled = true;
+        if (ViewModel is not { } vm || e.Column.SortMemberPath is not { Length: > 0 } column)
+            return;
+
+        var direction = e.Column.SortDirection == ListSortDirection.Ascending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+        ShowHistorySort(column, direction);
+        _ = vm.History.SortAsync(column, direction == ListSortDirection.Descending);
+    }
+
+    private void ShowHistorySort(string column, ListSortDirection direction)
+    {
+        foreach (var c in HistoryGrid.Columns)
+            c.SortDirection = c.SortMemberPath == column ? direction : null;
+    }
+
+    /// <summary>Selects a play and brings it to the top of the list, as a jump to a day asks.</summary>
+    private void OnHistoryScrollRequested(object? sender, PlayRow row)
+    {
+        HistoryGrid.SelectedItem = row;
+        HistoryGrid.UpdateLayout();
+
+        // The grid scrolls by item, so an offset is a row count and puts the row at the top.
+        int index = HistoryGrid.Items.IndexOf(row);
+        if (index >= 0 && FindChild<ScrollViewer>(HistoryGrid) is { } viewer)
+            viewer.ScrollToVerticalOffset(index);
+        else
+            HistoryGrid.ScrollIntoView(row);
+    }
+
+    /// <summary>
+    /// After a sort or a new row filter, the selected play stays in view if it is still listed;
+    /// otherwise the list starts again from the top.
+    /// </summary>
+    private void KeepHistorySelectionInView()
+    {
+        if (HistoryGrid.SelectedItem is { } selected && HistoryGrid.Items.Contains(selected))
+            HistoryGrid.ScrollIntoView(selected);
+        else if (FindChild<ScrollViewer>(HistoryGrid) is { } viewer)
+            viewer.ScrollToTop();
+    }
+
+    private static T? FindChild<T>(DependencyObject root) where T : DependencyObject
+    {
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T found)
+                return found;
+            if (FindChild<T>(child) is { } deeper)
+                return deeper;
+        }
+        return null;
+    }
+
+    private async void OnOpenPlayTrack(object sender, RoutedEventArgs e)
+    {
+        if (HistoryGrid.SelectedItem is PlayRow row)
+            await ShowDetailAsync(row);
+    }
+
+    private async void OnOpenPlayArtist(object sender, RoutedEventArgs e)
+    {
+        if (HistoryGrid.SelectedItem is not PlayRow row)
+            return;
+
+        await ShowDetailAsync(row.Record.Kind == ContentKind.Music
+            ? new ArtistStat { Artist = row.Artist }
+            : new ShowStat { Show = row.Record.ShowName });
+    }
+
+    private void OnCopyPlays(object sender, RoutedEventArgs e) =>
+        CopyLines(SelectedRows<PlayRow>(HistoryGrid).Select(r => $"{r.When}  {r.Track} - {r.Artist}"), "play");
+
+    private void OnCopyPlayLinks(object sender, RoutedEventArgs e) =>
+        ViewModel?.CopySpotifyLinks(SelectedRows<PlayRow>(HistoryGrid)
+            .Select(r => new TrackStat { Track = r.Track, Artist = r.Artist, Uri = r.Record.Uri }), TryCopy);
+
+    private void OnFocusArtistFromPlays(object sender, RoutedEventArgs e) =>
+        ViewModel?.FocusOnArtistsFromGrid(SelectedRows<PlayRow>(HistoryGrid).Select(r => r.Artist));
+
     // ---- Listening-over-time granularity toggle ---------------------------------------------
 
     private async void OnCompareGranularityChecked(object sender, RoutedEventArgs e)
@@ -811,7 +1028,7 @@ public partial class MainWindow : ThemedWindow
             return;
 
         if (Enum.TryParse<ChartBuilder.TimeGranularity>(tag, out var granularity))
-            await vm.SetCompareGranularityAsync(granularity);
+            await vm.CompareArtists.SetGranularityAsync(granularity);
     }
 
     private void OnGranularityChecked(object sender, RoutedEventArgs e)

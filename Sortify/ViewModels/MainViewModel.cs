@@ -15,14 +15,31 @@ namespace Sortify.ViewModels;
 
 public sealed partial class MainViewModel : ObservableObject
 {
-    private readonly HistoryParser _parser = new();
+    /// <summary>How the loaded export's play times were converted, so a change in the setting can read it again.</summary>
+    private string? _loadedTimeZones;
     private readonly AppSettings _settings;
     private readonly DispatcherTimer _debounce;
     private List<PlayRecord> _rawRecords = new();
+
+    /// <summary>The plays with re-releases folded together, worked out the first time the option is on.</summary>
+    private List<PlayRecord>? _combinedRecords;
+
+    /// <summary>
+    /// The plays every view reads: as loaded, or with remasters and deluxe editions counted
+    /// under the original when the sidebar asks. Going through one list keeps exclusions,
+    /// searches and drill-downs matching the names on screen.
+    /// </summary>
+    private IReadOnlyList<PlayRecord> Records => Filters.CombineReleases
+        ? _combinedRecords ??= ReleaseNames.Combine(_rawRecords)
+        : _rawRecords;
     private AnalysisResult _result = AnalysisResult.Empty;
 
     /// <summary>The filters <see cref="_result"/> was computed under, as the chip row words them.</summary>
     private IReadOnlyList<string> _resultFilters = Array.Empty<string>();
+
+    /// <summary>The filters <see cref="_result"/> was computed under, for views that list its plays.</summary>
+    private FilterOptions? _resultOptions;
+
     private CancellationTokenSource? _analysisCts;
     private CancellationTokenSource? _loadCts;
     private ChartBuilder.TimeGranularity _overTimeGranularity = ChartBuilder.TimeGranularity.Daily;
@@ -44,16 +61,23 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<SearchSuggestion> _suggestions = Array.Empty<SearchSuggestion>();
     [ObservableProperty] private IReadOnlyList<SearchSuggestion> _tableSuggestions = Array.Empty<SearchSuggestion>();
 
-    public IReadOnlyList<SearchSuggestion> CompareSuggestionDetails => CompareSuggestions
-        .Select(name => _result.Artists.First(a => a.Artist == name))
-        .Select(a => new SearchSuggestion("Artist", a.Artist, "", a.TotalMsPlayed, a.PlayCount, "Current filters"))
-        .ToArray();
-
     /// <summary>The Compare Periods tab.</summary>
     public CompareViewModel Compare { get; }
 
     /// <summary>The Compare People tab.</summary>
     public PeopleCompareViewModel ComparePeople { get; }
+
+    /// <summary>The History tab.</summary>
+    public HistoryViewModel History { get; }
+
+    /// <summary>The listening calendar on the Trends tab.</summary>
+    public CalendarViewModel Calendar { get; } = new();
+
+    /// <summary>Compare Artists on the Trends tab.</summary>
+    public CompareArtistsViewModel CompareArtists { get; }
+
+    /// <summary>The day with the most listening in the current results, for the Insights card's link.</summary>
+    public DateTime? BiggestDay => _result.BiggestDay;
 
     // Grid item sources. Swapped wholesale after each analysis pass instead of using
     // ObservableCollections: repopulating tens of thousands of rows item-by-item raises
@@ -69,6 +93,15 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private IReadOnlyList<MonthRow> _months = Array.Empty<MonthRow>();
     [ObservableProperty] private string _monthlyLeaderText = string.Empty;
     [ObservableProperty] private IReadOnlyList<Milestone> _milestones = Array.Empty<Milestone>();
+    [ObservableProperty] private IReadOnlyList<RepeatStat> _onRepeat = Array.Empty<RepeatStat>();
+
+    /// <summary>What puts a track on the On Repeat list, worded for the Insights card.</summary>
+    public string OnRepeatHint { get; } =
+        $"The tracks you played at least {AnalysisEngine.RepeatMinPlays} times within {AnalysisEngine.RepeatWindowDays} days, " +
+        "each at its busiest stretch. Double-click one for its breakdown.";
+
+    public string OnRepeatEmpty { get; } =
+        $"No track was played {AnalysisEngine.RepeatMinPlays} times within {AnalysisEngine.RepeatWindowDays} days under the current filters.";
     [ObservableProperty] private IReadOnlyList<TrackStat> _forgottenTracks = Array.Empty<TrackStat>();
     [ObservableProperty] private IReadOnlyList<ArtistStat> _forgottenArtists = Array.Empty<ArtistStat>();
 
@@ -96,6 +129,9 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool _isBusy;
     [ObservableProperty] private bool _hasData;
 
+    /// <summary>True while the made-up sample history is open rather than a real export.</summary>
+    [ObservableProperty] private bool _isSample;
+
     [ObservableProperty] private double _progressValue;
     [ObservableProperty] private bool _isProgressIndeterminate = true;
 
@@ -105,7 +141,15 @@ public sealed partial class MainViewModel : ObservableObject
     /// <summary>The filters currently narrowing the results, each removable on its own.</summary>
     public ObservableCollection<FilterChip> ActiveFilters { get; } = new();
 
-    [ObservableProperty] private bool _hasActiveFilters;
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowFilterBar))]
+    private bool _hasActiveFilters;
+
+    /// <summary>
+    /// The row above the tabs shows the active filters, and stays up after they are all cleared
+    /// while there is a change to undo, so a stray "Clear all" can be taken back.
+    /// </summary>
+    public bool ShowFilterBar => HasActiveFilters || Filters.CanUndo || Filters.CanRedo;
 
     /// <summary>Folders opened previously, newest first; bound to the Open Recent menu.</summary>
     public ObservableCollection<string> RecentFolders { get; } = new();
@@ -120,7 +164,7 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsRankedByTime), nameof(IsRankedByPlays), nameof(RankSortMember),
         nameof(RankedByText), nameof(ArtistShareTitle), nameof(PerYearTitle), nameof(MonthlyTopHint),
-        nameof(AmountHeader))]
+        nameof(AmountHeader), nameof(RankHint))]
     private Metric _metric;
 
     /// <summary>The Time half of the switch. Unchecking it does nothing; checking Plays does.</summary>
@@ -172,36 +216,18 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private string _uniqueTracksText = "-";
     [ObservableProperty] private string _dateRangeText = "-";
 
-    // Insights ------------------------------------------------------------------------------
-    [ObservableProperty] private string _longestStreakText = "-";
-    [ObservableProperty] private string _currentStreakText = "-";
-    [ObservableProperty] private string _longestBreakText = "-";
-    [ObservableProperty] private string _biggestDayText = "-";
-    [ObservableProperty] private string _activeDaysText = "-";
-    [ObservableProperty] private string _avgPerDayText = "-";
-    [ObservableProperty] private string _skipRateText = "-";
-    [ObservableProperty] private string _completionRateText = "-";
-    [ObservableProperty] private string _repeatRateText = "-";
-    [ObservableProperty] private string _discoveryRateText = "-";
-    [ObservableProperty] private string _topArtistShareText = "-";
-    [ObservableProperty] private string _peakHourText = "-";
-    [ObservableProperty] private string _sessionsText = "-";
-    [ObservableProperty] private string _avgSessionText = "-";
-    [ObservableProperty] private string _longestSessionText = "-";
-    [ObservableProperty] private string _weekSplitText = "-";
-    [ObservableProperty] private string _timeOfDayText = "-";
+    /// <summary>What the history on screen was read from, for the panel the status bar opens.</summary>
+    [ObservableProperty] private LoadedHistory? _loadedHistory;
 
-    // Playback context ---------------------------------------------------------------------
-    [ObservableProperty] private string _shuffleRateText = "-";
-    [ObservableProperty] private string _offlineRateText = "-";
-    [ObservableProperty] private string _privateSessionText = "-";
-    [ObservableProperty] private string _topDeviceText = "-";
+    /// <summary>The status bar's link to that panel: "12 files loaded, 1 skipped".</summary>
+    [ObservableProperty] private string _loadedFilesText = string.Empty;
 
-    // Podcasts -----------------------------------------------------------------------------
-    [ObservableProperty] private string _podcastTimeText = "-";
-    [ObservableProperty] private string _podcastPlaysText = "-";
-    [ObservableProperty] private string _uniqueShowsText = "-";
-    [ObservableProperty] private string _uniqueEpisodesText = "-";
+    /// <summary>The Overview's card button, naming what the card would cover: "Summary card for March 2024".</summary>
+    [ObservableProperty] private string _summaryCardText = "Summary card";
+
+    /// <summary>The Insights and Podcasts tabs' figures, in words.</summary>
+    [ObservableProperty] private InsightText _insights = InsightText.Empty;
+
     [ObservableProperty] private bool _hasPodcastData;
 
     // Charts ------------------------------------------------------------------------------
@@ -214,9 +240,16 @@ public sealed partial class MainViewModel : ObservableObject
     [ObservableProperty] private ChartData _heat = ChartData.Empty;
     [ObservableProperty] private ChartData _overTime = ChartData.Empty;
     [ObservableProperty] private ChartData _byYear = ChartData.Empty;
+    [ObservableProperty] private ChartData _rankChart = ChartData.Empty;
+    [ObservableProperty] private bool _hasRankHistory;
     [ObservableProperty] private ChartData _discovery = ChartData.Empty;
     [ObservableProperty] private ChartData _showsChart = ChartData.Empty;
     [ObservableProperty] private ChartData _episodesChart = ChartData.Empty;
+
+    /// <summary>What the rank history follows, worded for its card.</summary>
+    public string RankHint =>
+        $"Where your top {AnalysisEngine.RankHistoryArtists} artists ranked each year {RankedByText}. " +
+        $"A gap means they were outside the top {AnalysisEngine.RankHistoryFloor} that year.";
 
     [ObservableProperty] private ISeries[] _artistShareSeries = Array.Empty<ISeries>();
     [ObservableProperty] private IReadOnlyList<LegendEntry> _artistShareLegend = Array.Empty<LegendEntry>();
@@ -265,8 +298,15 @@ public sealed partial class MainViewModel : ObservableObject
     {
         _settings = settings ?? AppSettings.Load();
         _settings.PruneMissingFolders();
+        History = new HistoryViewModel(() => HasData
+            ? new HistoryViewModel.Source(Records, _resultOptions ?? Filters.ToOptions())
+            : null);
         Compare = new CompareViewModel(CompareSource);
         ComparePeople = new PeopleCompareViewModel(CompareSource);
+        CompareArtists = new CompareArtistsViewModel(() => HasData
+            ? new CompareArtistsViewModel.Source(Records, Filters.ToOptions(), _settings.FirstDayOfWeek)
+            : null);
+        CompareArtists.Notice += (_, message) => SetStatus(message);
         SidebarVisible = _settings.SidebarVisible;
         Metric = _settings.Metric;
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
@@ -274,6 +314,7 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshThemeButton();
 
         // Restored before anything listens for changes, so it doesn't trigger a save or a recompute.
+        Filters.SetFirstDayOfWeek(_settings.FirstDayOfWeek);
         if (_settings.Filters is { } remembered)
             Filters.Apply(remembered);
         Filters.LoadPresets(_settings.FilterPresets);
@@ -298,6 +339,11 @@ public sealed partial class MainViewModel : ObservableObject
             _settings.Save();
         };
         Filters.Notice += (_, message) => SetStatus(message);
+        Filters.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(FilterViewModel.CanUndo) or nameof(FilterViewModel.CanRedo))
+                OnPropertyChanged(nameof(ShowFilterBar));
+        };
 
         // Charts bake their colours into Skia paints, so they have to be rebuilt rather
         // than repainted when the palette changes.
@@ -308,11 +354,17 @@ public sealed partial class MainViewModel : ObservableObject
         };
 
         RefreshActiveFilters();
+        if (_settings.WasUnreadable)
+        {
+            SetStatus("Sortify couldn't read its settings and started with the defaults. " +
+                      "The old file was kept as settings.unreadable.json in Sortify's data folder.", isError: true);
+        }
     }
 
     /// <summary>Your plays and the sidebar's filters, for the two Compare tabs; null until a history is open.</summary>
     private CompareViewModel.Source? CompareSource() => HasData
-        ? new CompareViewModel.Source(_rawRecords, Filters.ToOptions(), _settings.SessionGap)
+        ? new CompareViewModel.Source(Records, Filters.ToOptions(), _settings.SessionGap, _loadedFiles,
+            PlayTimeZones.From(_settings), Filters.CombineReleases)
         : null;
 
     // ---- Loading ---------------------------------------------------------------------------
@@ -423,8 +475,38 @@ public sealed partial class MainViewModel : ObservableObject
     private static bool IsExportContainer(string path) =>
         Directory.Exists(path) || (ArchivePath.IsArchive(path) && File.Exists(path));
 
+    /// <summary>
+    /// Opens a made-up history for someone still waiting on their export. It isn't remembered
+    /// in Recent or cached, and anything opened afterwards replaces it.
+    /// </summary>
+    [RelayCommand]
+    private async Task OpenSampleAsync()
+    {
+        if (_isLoading)
+            return;
+
+        _isLoading = true;
+        RefreshBusy();
+        try
+        {
+            SetStatus("Making up a sample history...");
+            var records = await Task.Run(() => SampleHistory.Generate());
+            AdoptHistory(records, Array.Empty<string>(), folder: null, isSample: true);
+            DescribeLoad(Array.Empty<LoadedFile>(), 0, source: null, fromCache: false);
+            SetStatus($"Opened a sample history of {records.Count:N0} made-up plays. Crunching numbers...");
+            await RecomputeAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+            RefreshBusy();
+        }
+    }
+
+    private bool CanReload() => HasData && !IsSample;
+
     /// <summary>Re-reads the files behind the current results, bypassing the cache.</summary>
-    [RelayCommand(CanExecute = nameof(HasData))]
+    [RelayCommand(CanExecute = nameof(CanReload))]
     private async Task ReloadAsync()
     {
         if (_loadedFiles.Count == 0)
@@ -461,7 +543,7 @@ public sealed partial class MainViewModel : ObservableObject
     /// the parse, since walking a big folder can take a while. <paramref name="nothingFound"/>
     /// is the error shown when it finds no files; null says nothing.
     /// </summary>
-    private async Task LoadAsync(Func<IReadOnlyList<string>> findFiles, string? folder, string? nothingFound)
+    internal async Task LoadAsync(Func<IReadOnlyList<string>> findFiles, string? folder, string? nothingFound)
     {
         if (_isLoading)
             return;
@@ -492,13 +574,16 @@ public sealed partial class MainViewModel : ObservableObject
 
             // Re-reading an unchanged export is the common case (relaunching the app, or
             // reopening the same folder), and parsing it again costs seconds for nothing.
+            var timeZones = PlayTimeZones.From(_settings);
             SetStatus("Checking for cached results...");
-            var cached = await Task.Run(() => RecordCache.TryLoad(filePaths), token);
+            var cached = await Task.Run(() => RecordCache.TryLoadHistory(filePaths, timeZones), token);
             token.ThrowIfCancellationRequested();
-            if (cached is { Count: > 0 })
+            if (cached is { Records.Count: > 0 })
             {
-                AdoptHistory(cached.ToList(), filePaths, folder);
-                SetStatus($"Loaded {_rawRecords.Count:N0} plays from cache. Crunching numbers...");
+                AdoptHistory(cached.Records.ToList(), filePaths, folder);
+                _loadedTimeZones = timeZones.CacheKey;
+                DescribeLoad(cached.Files, cached.DuplicatesRemoved, folder, fromCache: true);
+                SetStatus($"Loaded {Plural.Of(_rawRecords.Count, "play")} from cache. Crunching numbers...");
                 await RecomputeAsync();
                 return;
             }
@@ -511,7 +596,7 @@ public sealed partial class MainViewModel : ObservableObject
                 StatusIsError = false;
             });
 
-            var parsed = await _parser.ParseAsync(filePaths, progress, token);
+            var parsed = await new HistoryParser(timeZones).ParseAsync(filePaths, progress, token);
             if (parsed.Records.Count == 0)
             {
                 // A stray file dropped on the window shouldn't take away the history already open.
@@ -523,26 +608,36 @@ public sealed partial class MainViewModel : ObservableObject
             }
 
             AdoptHistory(parsed.Records, filePaths, folder);
+            _loadedTimeZones = timeZones.CacheKey;
+            DescribeLoad(parsed.Files, parsed.DuplicatesRemoved, folder, fromCache: false);
             int problems = parsed.Warnings.Count + parsed.SkippedFiles.Count;
-            string warn = problems > 0 ? $" ({problems} file(s) skipped)" : string.Empty;
+            string warn = problems > 0 ? $" ({Plural.Of(problems, "file")} skipped)" : string.Empty;
             IsProgressIndeterminate = true;
-            SetStatus($"Loaded {_rawRecords.Count:N0} plays from {filePaths.Count} file(s){warn}. Crunching numbers...");
+            SetStatus($"Loaded {Plural.Of(_rawRecords.Count, "play")} from {Plural.Of(filePaths.Count, "file")}{warn}. Crunching numbers...");
             await RecomputeAsync();
 
             // Said after the analysis rather than before it, which would overwrite it at once.
             if (parsed.DuplicatesRemoved > 0 && !StatusIsError)
             {
-                SetStatus($"{StatusText} Left out {parsed.DuplicatesRemoved:N0} " +
-                          $"play{(parsed.DuplicatesRemoved == 1 ? "" : "s")} that more than one of the loaded files held.");
+                SetStatus($"{StatusText} Left out {Plural.Of(parsed.DuplicatesRemoved, "play")} " +
+                          "that more than one of the loaded files held.");
             }
 
             // Save after analysis so the user isn't waiting on disk I/O to see results.
             var toCache = _rawRecords;
-            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache), CancellationToken.None);
+            _ = Task.Run(() => RecordCache.TrySave(filePaths, toCache, timeZones, parsed.Files, parsed.DuplicatesRemoved),
+                CancellationToken.None);
         }
         catch (OperationCanceledException)
         {
             SetStatus("Loading cancelled.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Each file's own problems are caught as it is read; this is the search for them
+            // failing, such as a folder deleted or a network drive dropping out partway through.
+            string problem = $"Couldn't read your Spotify history: {ex.Message}";
+            SetStatus(HasData ? $"{problem} Your current history is still open." : problem, isError: true);
         }
         finally
         {
@@ -558,17 +653,20 @@ public sealed partial class MainViewModel : ObservableObject
     /// so a folder or ZIP is remembered in Recent (and reopened at the next launch) once it has
     /// actually loaded.
     /// </summary>
-    private void AdoptHistory(List<PlayRecord> records, IReadOnlyList<string> filePaths, string? folder)
+    private void AdoptHistory(List<PlayRecord> records, IReadOnlyList<string> filePaths, string? folder, bool isSample = false)
     {
         // Reloading the same export keeps the artists and periods being compared; a different
         // one starts again from its own.
-        bool newHistory = !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
+        bool newHistory = isSample != IsSample || !filePaths.SequenceEqual(_loadedFiles, StringComparer.OrdinalIgnoreCase);
         if (newHistory)
-            _comparisonSeeded = false;
+            CompareArtists.StartOver();
 
         _rawRecords = records;
+        _combinedRecords = null;
         _loadedFiles = filePaths;
         _loadedFolder = folder;
+        IsSample = isSample;
+        _cohorts = CohortBreakdown.Empty;
         if (folder is not null)
         {
             _settings.RememberFolder(folder);
@@ -582,6 +680,18 @@ public sealed partial class MainViewModel : ObservableObject
 
     private void RefreshBusy() => IsBusy = _isLoading || _pendingAnalyses > 0;
 
+    /// <summary>Records what the history just adopted was read from, and words the status bar's link to it.</summary>
+    private void DescribeLoad(IReadOnlyList<LoadedFile> files, int duplicatesRemoved, string? source, bool fromCache)
+    {
+        var (first, last) = PlayRecord.DateSpan(_rawRecords);
+        LoadedHistory = new LoadedHistory(files, duplicatesRemoved, source, fromCache, IsSample, _rawRecords.Count, first, last);
+        int read = files.Count(f => f.Format != LoadedFileFormat.Skipped);
+        int skipped = files.Count - read;
+        LoadedFilesText = IsSample
+            ? "About this sample"
+            : $"{Plural.Of(read, "file")} loaded{(skipped > 0 ? $", {skipped:N0} skipped" : "")}";
+    }
+
     /// <summary>
     /// Offers the quick date ranges, devices and countries that fit the history just loaded.
     /// Read off the raw records rather than the filtered results, so filtering to one year
@@ -590,13 +700,14 @@ public sealed partial class MainViewModel : ObservableObject
     /// </summary>
     private void OfferChoicesForHistory(bool newHistory)
     {
-        Suggestions = SearchSuggestions.Build(_rawRecords);
         DateTime? last = null;
         var years = new SortedSet<int>();
         var platformMs = new Dictionary<string, long>(StringComparer.Ordinal);
         var countryMs = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var artistMs = new Dictionary<string, long>(StringComparer.Ordinal);
         foreach (var r in _rawRecords)
         {
+            CollectionsMarshal.GetValueRefOrAddDefault(artistMs, r.DisplayArtist, out _) += r.MsPlayed;
             if (r.Platform.Length > 0)
                 CollectionsMarshal.GetValueRefOrAddDefault(platformMs, r.Platform, out _) += r.MsPlayed;
             if (r.Country.Length > 0)
@@ -613,13 +724,14 @@ public sealed partial class MainViewModel : ObservableObject
         Compare.SetHistory(last, years.ToList(), resetPeriods: newHistory);
 
         var devices = platformMs
-            .GroupBy(kv => AnalysisEngine.PlatformFamily(kv.Key))
+            .GroupBy(kv => Devices.FamilyOf(kv.Key))
             .OrderByDescending(g => g.Sum(kv => kv.Value))
             .Select(g => (g.Key, g.Key, g.Key));
         var countries = countryMs
             .OrderByDescending(kv => kv.Value)
             .Select(kv => (kv.Key, kv.Key.ToUpperInvariant(), CountryName(kv.Key)));
         Filters.SetAvailablePlayback(devices, countries);
+        Filters.SetKnownArtists(artistMs.OrderByDescending(kv => kv.Value).Select(kv => kv.Key).ToList());
     }
 
     /// <summary>"Canada (CA)" for "CA", or the code alone when .NET doesn't know it.</summary>
@@ -644,7 +756,7 @@ public sealed partial class MainViewModel : ObservableObject
             return;
         _overTimeGranularity = granularity;
         if (HasData)
-            OverTime = ChartBuilder.OverTime(_result, granularity, Metric);
+            OverTime = ChartBuilder.OverTime(_result, granularity, Metric, _settings.FirstDayOfWeek);
     }
 
     partial void OnMetricChanged(Metric value)
@@ -656,6 +768,8 @@ public sealed partial class MainViewModel : ObservableObject
         }
 
         Compare.Metric = value;
+        ComparePeople.Metric = value;
+        CompareArtists.Metric = value;
         if (HasData)
         {
             UpdateCollections();
@@ -690,7 +804,20 @@ public sealed partial class MainViewModel : ObservableObject
     public async Task ApplySettingsChangesAsync()
     {
         ChartAnimationSpeed = _settings.AnimateCharts ? ChartAnimationDuration : TimeSpan.Zero;
+        Filters.SetFirstDayOfWeek(_settings.FirstDayOfWeek);
+        RefreshActiveFilters();
         RefreshRecentFolders();
+        _ = ComparePeople.ReadTheirsAgainIfTimesChangedAsync();
+
+        // Play times are converted as an export is read, so a new time zone setting means
+        // reading it again. The sample's times are made up in local time to begin with.
+        if (HasData && !IsSample && _loadedFiles.Count > 0 &&
+            PlayTimeZones.From(_settings).CacheKey != _loadedTimeZones)
+        {
+            await LoadFilesAsync(_loadedFiles, _loadedFolder);
+            return;
+        }
+
         if (HasData)
             await RecomputeAsync();
     }
@@ -734,6 +861,7 @@ public sealed partial class MainViewModel : ObservableObject
     // ---- Grid-driven exclusions ----------------------------------------------------------
 
     public void ExcludeArtistsFromGrid(IEnumerable<string> artists) => Filters.ExcludeArtists(artists);
+    public void FocusOnArtistsFromGrid(IEnumerable<string> artists) => Filters.FocusOnArtists(artists);
     public void ExcludeTracksFromGrid(IEnumerable<string> tracks) => Filters.ExcludeTracks(tracks);
 
     /// <summary>
@@ -760,8 +888,8 @@ public sealed partial class MainViewModel : ObservableObject
 
         string missing = links.Missing == 0
             ? string.Empty
-            : $" {links.Missing:N0} track{(links.Missing == 1 ? " has" : "s have")} no link in the export and {(links.Missing == 1 ? "was" : "were")} left out.";
-        SetStatus($"Copied {links.Copied:N0} Spotify link{(links.Copied == 1 ? "" : "s")}. " +
+            : $" {Plural.Of(links.Missing, "track")} {(links.Missing == 1 ? "has" : "have")} no link in the export and {(links.Missing == 1 ? "was" : "were")} left out.";
+        SetStatus($"Copied {Plural.Of(links.Copied, "Spotify link")}. " +
                   $"Paste {(links.Copied == 1 ? "it" : "them")} into a playlist in the Spotify desktop app.{missing}");
     }
 
@@ -776,7 +904,7 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasData || _rawRecords.Count == 0)
             return null;
 
-        return await DetailEngine.BuildAsync(_rawRecords, Filters.ToOptions(), scope, title, subtitle);
+        return await DetailEngine.BuildAsync(Records, Filters.ToOptions(), scope, title, subtitle, _result, Metric);
     }
 
     /// <summary>
@@ -788,9 +916,31 @@ public sealed partial class MainViewModel : ObservableObject
         if (!HasData || _rawRecords.Count == 0)
             return null;
 
+        return await YearReviewBuilder.BuildAsync(Records, Filters.ToOptions(), year, CardFilterNote(), _settings.SessionGap);
+    }
+
+    /// <summary>
+    /// Works out the summary card for the dates set in the sidebar, or for the whole history
+    /// when none are, under the other filters. Null when there is nothing loaded.
+    /// </summary>
+    public async Task<YearReview?> BuildSummaryCardAsync()
+    {
+        if (!HasData || _rawRecords.Count == 0)
+            return null;
+
+        var options = Filters.ToOptions();
+        return await YearReviewBuilder.BuildForDatesAsync(Records, options, options.StartDate, options.EndDate,
+            CardFilterNote(), _settings.SessionGap, _settings.FirstDayOfWeek);
+    }
+
+    /// <summary>Whether there is anything to put on a summary card.</summary>
+    public bool CanMakeSummaryCard => CanExport();
+
+    // Dates are left out: the card's heading already says which days it covers.
+    private string CardFilterNote()
+    {
         var others = Filters.Describe(includeDates: false).ToList();
-        string note = others.Count == 0 ? string.Empty : "Filtered: " + string.Join("; ", others);
-        return await YearReviewBuilder.BuildAsync(_rawRecords, Filters.ToOptions(), year, note, _settings.SessionGap);
+        return others.Count == 0 ? string.Empty : "Filtered: " + string.Join("; ", others);
     }
 
     // ---- Analysis --------------------------------------------------------------------------
@@ -798,6 +948,8 @@ public sealed partial class MainViewModel : ObservableObject
     private async Task RecomputeAsync()
     {
         if (!HasData) return;
+
+        Filters.CommitHistory();
 
         // Cancel the previous pass but keep its source alive: the running task may still be
         // reading the token, and disposing it out from under that is a race.
@@ -812,10 +964,21 @@ public sealed partial class MainViewModel : ObservableObject
         RefreshBusy();
         try
         {
+            // Folding re-releases goes through every play, so it is done off the UI thread the
+            // first time; a history adopted in the meantime makes the result moot.
+            if (Filters.CombineReleases && _combinedRecords is null)
+            {
+                var raw = _rawRecords;
+                var combined = await Task.Run(() => ReleaseNames.Combine(raw));
+                if (ReferenceEquals(raw, _rawRecords))
+                    _combinedRecords ??= combined;
+            }
+
+            var suggesting = RefreshSuggestionsAsync();
             AnalysisResult result;
             try
             {
-                result = await AnalysisEngine.AnalyzeAsync(_rawRecords, options, _settings.SessionGap, token);
+                result = await AnalysisEngine.AnalyzeAsync(Records, options, _settings.SessionGap, token);
             }
             catch (OperationCanceledException)
             {
@@ -832,11 +995,17 @@ public sealed partial class MainViewModel : ObservableObject
                 return;
             _result = result;
             _resultFilters = described;
+            _resultOptions = options;
+            if (!ShowCohorts)
+                _cohorts = CohortBreakdown.Empty;
 
+            TableSuggestions = SearchSuggestions.FromResult(_result);
             UpdateCollections();
             UpdateSummary();
-            UpdateInsights();
+            Insights = InsightText.For(_result);
+            OnPropertyChanged(nameof(BiggestDay));
             UpdateCharts();
+            Calendar.Update(_result.PlaytimeByDay, _settings.FirstDayOfWeek);
             NotifyExportsChanged();
             if (IsJumpOpen)
                 RefreshJump();
@@ -845,14 +1014,16 @@ public sealed partial class MainViewModel : ObservableObject
                 ? Filters.HasInvalidDateRange
                     ? "No plays match: the From date is after the To date."
                     : "No plays match the current filters."
-                : $"Showing {_result.TotalPlays:N0} plays across {_result.UniqueTracks:N0} tracks, " +
-                  $"{_result.UniqueArtists:N0} artists and {_result.UniqueAlbums:N0} albums.");
+                : $"Showing {Plural.Of(_result.TotalPlays, "play")} across {Plural.Of(_result.UniqueTracks, "track")}, " +
+                  $"{Plural.Of(_result.UniqueArtists, "artist")} and {Plural.Of(_result.UniqueAlbums, "album")}.");
 
-            SeedComparison();
-            RefreshCompareSuggestions();
             Compare.Invalidate();
             ComparePeople.Invalidate();
-            await RefreshArtistTimelineAsync();
+            History.Invalidate();
+            if (ShowCohorts)
+                _ = RefreshCohortsAsync();
+            await CompareArtists.UpdateAsync(RankedArtists);
+            await suggesting;
         }
         finally
         {
@@ -861,9 +1032,28 @@ public sealed partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>The plays <see cref="Suggestions"/> were last built from.</summary>
+    private IReadOnlyList<PlayRecord>? _suggestedFrom;
+
+    /// <summary>
+    /// Builds the sidebar's name suggestions off the UI thread from the plays the views read, so
+    /// with re-releases combined a remaster isn't offered under a name no play has any more.
+    /// Only a new history or a change to that option builds them again.
+    /// </summary>
+    private async Task RefreshSuggestionsAsync()
+    {
+        var records = Records;
+        if (ReferenceEquals(records, _suggestedFrom))
+            return;
+
+        _suggestedFrom = records;
+        var built = await Task.Run(() => SearchSuggestions.Build(records));
+        if (ReferenceEquals(records, _suggestedFrom))
+            Suggestions = built;
+    }
+
     private void UpdateCollections()
     {
-        TableSuggestions = SearchSuggestions.FromResult(_result);
         ApplyTrackQuickFilter();
         ApplyArtistQuickFilter();
         ApplyAlbumQuickFilter();
@@ -874,8 +1064,9 @@ public sealed partial class MainViewModel : ObservableObject
         ForgottenTracks = _result.ForgottenTracks;
         ForgottenArtists = _result.ForgottenArtists;
         Months = _result.Months.Reverse().Select(m => MonthRow.For(m, Metric)).ToList();
-        MonthlyLeaderText = DescribeMonthlyLeader(_result.Months, Metric);
+        MonthlyLeaderText = InsightText.MonthlyLeader(_result.Months, Metric);
         Milestones = _result.Milestones;
+        OnRepeat = _result.OnRepeat;
         HasPodcastData = _result.Shows.Count > 0;
 
         TopTracks = RankedTracks.Take(5)
@@ -944,132 +1135,49 @@ public sealed partial class MainViewModel : ObservableObject
         return matches;
     }
 
-    // ---- Comparing artists over time ------------------------------------------------------------
-
-    /// <summary>How many of the top artists the comparison starts with after a history loads.</summary>
-    private const int ComparedArtistsToStartWith = 3;
-
-    /// <summary>How many name suggestions show under the box while typing.</summary>
-    private const int CompareSuggestionCount = 6;
-
-    /// <summary>Artists on the comparison chart, in the order their lines are coloured.</summary>
-    public ObservableCollection<string> ComparedArtists { get; } = new();
-
-    [ObservableProperty] private string _compareQuery = string.Empty;
-    [ObservableProperty] private IReadOnlyList<string> _compareSuggestions = Array.Empty<string>();
-    [ObservableProperty] private ChartData _artistTimelineChart = ChartData.Empty;
-    [ObservableProperty] private string _compareHint = string.Empty;
-
-    private ArtistTimeline _artistTimeline = ArtistTimeline.Empty;
-    private ChartBuilder.TimeGranularity _compareGranularity = ChartBuilder.TimeGranularity.Monthly;
-    private CancellationTokenSource? _timelineCts;
+    // ---- New or familiar ---------------------------------------------------------------------------
 
     /// <summary>
-    /// The comparison starts out with the top few artists, once per loaded history, so the
-    /// chart isn't blank. After that it only changes when the user changes it.
+    /// True while the Years chart splits each year by when its music was first heard. That
+    /// takes two more passes over the plays, so it is only worked out while shown.
     /// </summary>
-    private bool _comparisonSeeded;
+    [ObservableProperty] private bool _showCohorts;
 
-    partial void OnCompareQueryChanged(string value) => RefreshCompareSuggestions();
+    [ObservableProperty] private ChartData _cohortChart = ChartData.Empty;
+    [ObservableProperty] private string _cohortText = string.Empty;
 
-    private void RefreshCompareSuggestions()
+    private CohortBreakdown _cohorts = CohortBreakdown.Empty;
+    private CancellationTokenSource? _cohortCts;
+
+    partial void OnShowCohortsChanged(bool value)
     {
-        string query = CompareQuery.Trim();
-        CompareSuggestions = query.Length == 0
-            ? Array.Empty<string>()
-            : _result.Artists
-                .Where(a => !ComparedArtists.Contains(a.Artist))
-                .Select(a => (a.Artist, Rank: MatchRank(a.Artist, query), a.TotalMsPlayed))
-                .Where(x => x.Rank >= 0)
-                .OrderBy(x => x.Rank)
-                .ThenByDescending(x => x.TotalMsPlayed)
-                .Take(CompareSuggestionCount)
-                .Select(x => x.Artist)
-                .ToList();
-        OnPropertyChanged(nameof(CompareSuggestionDetails));
-        RefreshCompareHint();
+        if (value)
+            _ = RefreshCohortsAsync();
     }
 
-    private void RefreshCompareHint()
+    private async Task RefreshCohortsAsync()
     {
-        CompareHint = ComparedArtists.Count == 0
-            ? $"Type an artist's name and pick from the matches to add them. Up to {ArtistComparison.MaxArtists} at once."
-            : CompareQuery.Trim().Length > 0 && CompareSuggestions.Count == 0
-                ? ComparedArtists.Count >= ArtistComparison.MaxArtists
-                    ? $"The chart already has {ArtistComparison.MaxArtists} artists. Remove one to add another."
-                    : $"No artist in the current results matches “{CompareQuery.Trim()}”."
-                : string.Empty;
-    }
-
-    [RelayCommand]
-    private async Task AddComparedArtistAsync(string? artist)
-    {
-        artist ??= CompareSuggestions.FirstOrDefault();
-        if (string.IsNullOrEmpty(artist) || ComparedArtists.Contains(artist))
+        if (!HasData)
             return;
-        if (ComparedArtists.Count >= ArtistComparison.MaxArtists)
-        {
-            RefreshCompareHint();
-            SetStatus($"The comparison chart holds {ArtistComparison.MaxArtists} artists at most. Remove one to add {artist}.");
-            return;
-        }
 
-        ComparedArtists.Add(artist);
-        CompareQuery = string.Empty;
-        await RefreshArtistTimelineAsync();
-    }
-
-    [RelayCommand]
-    private async Task RemoveComparedArtistAsync(string? artist)
-    {
-        if (artist is null || !ComparedArtists.Remove(artist))
-            return;
-        RefreshCompareSuggestions();
-        await RefreshArtistTimelineAsync();
-    }
-
-    /// <summary>Switches the comparison between monthly and weekly buckets.</summary>
-    public async Task SetCompareGranularityAsync(ChartBuilder.TimeGranularity granularity)
-    {
-        if (_compareGranularity == granularity)
-            return;
-        _compareGranularity = granularity;
-        await RefreshArtistTimelineAsync();
-    }
-
-    private void SeedComparison()
-    {
-        if (_comparisonSeeded)
-            return;
-        _comparisonSeeded = true;
-        ComparedArtists.Clear();
-        foreach (var artist in RankedArtists.Take(ComparedArtistsToStartWith))
-            ComparedArtists.Add(artist.Artist);
-    }
-
-    /// <summary>Rebuilds the comparison under the current filters; a newer call cancels an older one.</summary>
-    private async Task RefreshArtistTimelineAsync()
-    {
-        RefreshCompareHint();
-        var previous = _timelineCts;
-        _timelineCts = new CancellationTokenSource();
+        var previous = _cohortCts;
+        _cohortCts = new CancellationTokenSource();
         previous?.Cancel();
-        var token = _timelineCts.Token;
+        var token = _cohortCts.Token;
 
         try
         {
-            var timeline = HasData && ComparedArtists.Count > 0
-                ? await ArtistComparison.BuildAsync(_rawRecords, Filters.ToOptions(), ComparedArtists.ToList(),
-                    _compareGranularity, token)
-                : ArtistTimeline.Empty;
+            var cohorts = await DiscoveryCohorts.BuildAsync(Records, _resultOptions ?? Filters.ToOptions(), token);
             if (token.IsCancellationRequested)
                 return;
-            _artistTimeline = timeline;
-            ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity, Metric);
+
+            _cohorts = cohorts;
+            CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years, Metric);
+            CohortText = InsightText.Cohorts(_cohorts, Metric);
         }
         catch (OperationCanceledException)
         {
-            // A newer refresh took over; it sets the chart.
+            // A newer refresh took over.
         }
         finally
         {
@@ -1146,42 +1254,20 @@ public sealed partial class MainViewModel : ObservableObject
 
         var results = new List<JumpResult>();
         results.AddRange(Best(r.Artists, a => a.Artist, a => a.TotalMsPlayed)
-            .Select(a => new JumpResult("Artist", a.Artist, $"{a.PlayCount:N0} plays", TimeFormat.Friendly(a.TotalTime), a)));
+            .Select(a => new JumpResult("Artist", a.Artist, Plural.Of(a.PlayCount, "play"), TimeFormat.Friendly(a.TotalTime), a)));
         results.AddRange(Best(r.Tracks, t => t.Track, t => t.TotalMsPlayed)
             .Select(t => new JumpResult("Track", t.Track, t.Artist, TimeFormat.Friendly(t.TotalTime), t)));
         results.AddRange(Best(r.Albums, a => a.Album, a => a.TotalMsPlayed)
             .Select(a => new JumpResult("Album", a.Album, a.Artist, TimeFormat.Friendly(a.TotalTime), a)));
         results.AddRange(Best(r.Shows, s => s.Show, s => s.TotalMsPlayed)
             .Select(s => new JumpResult(s.Kind == ContentKind.Audiobook ? "Audiobook" : "Podcast", s.Show,
-                $"{s.EpisodeCount:N0} episode{(s.EpisodeCount == 1 ? "" : "s")}", TimeFormat.Friendly(s.TotalTime), s)));
+                Plural.Of(s.EpisodeCount, "episode"), TimeFormat.Friendly(s.TotalTime), s)));
         results.AddRange(Best(r.Episodes, e => e.Episode, e => e.TotalMsPlayed)
             .Select(e => new JumpResult("Episode", e.Episode, e.Show, TimeFormat.Friendly(e.TotalTime), e)));
         return results;
 
-        IEnumerable<T> Best<T>(IReadOnlyList<T> items, Func<T, string> name, Func<T, long> ms) => items
-            .Select(item => (Item: item, Rank: MatchRank(name(item), query)))
-            .Where(x => x.Rank >= 0)
-            .OrderBy(x => x.Rank)
-            .ThenByDescending(x => ms(x.Item))
-            .Take(perKind)
-            .Select(x => x.Item);
-    }
-
-    /// <summary>0 for the whole name, 1 for its start, 2 for the start of a later word, 3 for anywhere else, -1 for no match.</summary>
-    internal static int MatchRank(string name, string query)
-    {
-        int at = name.IndexOf(query, StringComparison.OrdinalIgnoreCase);
-        if (at < 0)
-            return -1;
-        if (at == 0)
-            return name.Length == query.Length ? 0 : 1;
-
-        for (; at > 0; at = name.IndexOf(query, at + 1, StringComparison.OrdinalIgnoreCase))
-        {
-            if (!char.IsLetterOrDigit(name[at - 1]))
-                return 2;
-        }
-        return 3;
+        List<T> Best<T>(IReadOnlyList<T> items, Func<T, string> name, Func<T, long> ms) =>
+            NameMatch.Best(items, item => NameMatch.Rank(name(item), query), perKind, (a, b) => ms(b).CompareTo(ms(a)));
     }
 
     // ---- Summary text -------------------------------------------------------------------------
@@ -1195,186 +1281,17 @@ public sealed partial class MainViewModel : ObservableObject
         DateRangeText = _result.FirstListen is { } f && _result.LastListen is { } l
             ? $"{TimeFormat.Timestamp(f)}  to  {TimeFormat.Timestamp(l)}"
             : "-";
-    }
 
-    private void UpdateInsights()
-    {
-        var r = _result;
-
-        LongestStreakText = r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se
-            ? $"{r.LongestStreakDays} day{(r.LongestStreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})"
-            : "-";
-
-        CurrentStreakText = r.CurrentStreakDays > 0 && r.LastListen is { } lastListen
-            ? $"{r.CurrentStreakDays} day{(r.CurrentStreakDays == 1 ? "" : "s")}  (up to {TimeFormat.Day(lastListen)})"
-            : "-";
-
-        LongestBreakText = r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be
-            ? $"{r.LongestBreakDays} day{(r.LongestBreakDays == 1 ? "" : "s")}  ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})"
-            : "-";
-
-        BiggestDayText = r.BiggestDay is { } bd
-            ? $"{TimeFormat.Day(bd)}  ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})"
-            : "-";
-
-        ActiveDaysText = r.ActiveDays > 0 ? r.ActiveDays.ToString("N0") : "-";
-
-        AvgPerDayText = r.ActiveDays > 0
-            ? TimeFormat.Friendly(TimeSpan.FromMilliseconds((double)r.TotalMsPlayed / r.ActiveDays))
-            : "-";
-
-        SkipRateText = r.SkipEligiblePlays > 0
-            ? $"{r.TotalSkips * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.TotalSkips:N0} of {r.SkipEligiblePlays:N0} plays)"
-            : "-";
-
-        CompletionRateText = r.SkipEligiblePlays > 0
-            ? $"{r.CompletedPlays * 100.0 / r.SkipEligiblePlays:0.#}%  ({r.CompletedPlays:N0} plays)"
-            : "-";
-
-        RepeatRateText = r.UniqueTracks > 0
-            ? $"{r.PlaysPerTrack:0.0} plays per track"
-            : "-";
-
-        DiscoveryRateText = r.NewArtistsByMonth.Count > 0
-            ? $"{r.NewArtistsPerMonth:0.#} new artists / month"
-            : "-";
-
-        TopArtistShareText = r.Artists.Count > 0
-            ? $"{r.Artists[0].Artist}  ({r.TopArtistSharePercent:0.#}% of your time)"
-            : "-";
-
-        PeakHourText = BuildPeakHourText(r);
-
-        SessionsText = r.SessionCount > 0 ? r.SessionCount.ToString("N0") : "-";
-
-        AvgSessionText = r.SessionCount > 0
-            ? TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.AvgSessionMs))
-            : "-";
-
-        LongestSessionText = r.LongestSessionMs > 0 && r.LongestSessionDate is { } sd
-            ? $"{TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.LongestSessionMs))}  ({TimeFormat.Day(sd)})"
-            : "-";
-
-        WeekSplitText = BuildWeekSplitText(r);
-        TimeOfDayText = BuildTimeOfDayText(r);
-
-        // Playback context. Older exports omit these flags, hence the eligibility check.
-        ShuffleRateText = r.ShuffleEligiblePlays > 0
-            ? $"{r.ShufflePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.ShufflePlays:N0} of {r.ShuffleEligiblePlays:N0} plays)"
-            : "-";
-
-        OfflineRateText = r.ShuffleEligiblePlays > 0
-            ? $"{r.OfflinePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.OfflinePlays:N0} plays)"
-            : "-";
-
-        PrivateSessionText = r.ShuffleEligiblePlays > 0
-            ? $"{r.IncognitoPlays * 100.0 / r.ShuffleEligiblePlays:0.#}%  ({r.IncognitoPlays:N0} plays)"
-            : "-";
-
-        TopDeviceText = r.Platforms.Count > 0
-            ? $"{r.Platforms[0].Name}  ({TimeFormat.Friendly(r.Platforms[0].TotalTime)})"
-            : "-";
-
-        // Podcasts.
-        PodcastTimeText = r.PodcastMsPlayed > 0
-            ? TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.PodcastMsPlayed))
-            : "-";
-        PodcastPlaysText = r.PodcastPlays > 0 ? r.PodcastPlays.ToString("N0") : "-";
-        UniqueShowsText = r.Shows.Count > 0 ? r.Shows.Count.ToString("N0") : "-";
-        UniqueEpisodesText = r.Episodes.Count > 0 ? r.Episodes.Count.ToString("N0") : "-";
-    }
-
-    /// <summary>
-    /// Who topped the most months, and their longest run of back-to-back months on top. Ties
-    /// go to the artist with more listening (or more plays) in the months they led.
-    /// </summary>
-    internal static string DescribeMonthlyLeader(IReadOnlyList<MonthStat> months, Metric metric = Metric.Time)
-    {
-        if (months.Count == 0)
-            return string.Empty;
-
-        bool plays = metric == Metric.Plays;
-        string TopOf(MonthStat m) => plays ? m.MostPlayedArtist : m.TopArtist;
-        var leader = months
-            .GroupBy(TopOf)
-            .OrderByDescending(g => g.Count())
-            .ThenByDescending(g => g.Sum(m => plays ? m.MostPlayedArtistPlays : m.TopArtistMs))
-            .First();
-
-        int best = 0, run = 0;
-        DateTime? previous = null;
-        DateTime runStart = default, bestStart = default, bestEnd = default;
-        foreach (var month in months.Where(m => TopOf(m) == leader.Key))
+        var options = _resultOptions ?? Filters.ToOptions();
+        var range = _result.TotalPlays == 0
+            ? null
+            : CardRange.For(options.StartDate, options.EndDate, _result.FirstListen, _result.LastListen);
+        SummaryCardText = range switch
         {
-            run = previous is { } p && p.AddMonths(1) == month.Month ? run + 1 : 1;
-            if (run == 1)
-                runStart = month.Month;
-            if (run > best)
-            {
-                best = run;
-                bestStart = runStart;
-                bestEnd = month.Month;
-            }
-            previous = month.Month;
-        }
-
-        int count = leader.Count();
-        string text = $"{leader.Key} was your #1 artist in {count} of {months.Count} month{(months.Count == 1 ? "" : "s")}";
-        return best > 1
-            ? $"{text}, {best} of them in a row ({TimeFormat.Month(bestStart)} to {TimeFormat.Month(bestEnd)})."
-            : text + ".";
-    }
-
-    /// <summary>The busiest hour of the week, read off the same day-by-hour grid as the heatmap.</summary>
-    internal static string BuildPeakHourText(AnalysisResult r)
-    {
-        int peakDow = 0, peakHour = 0;
-        for (int d = 0; d < 7; d++)
-        {
-            for (int h = 0; h < 24; h++)
-            {
-                if (r.PlaytimeByDowHour[d, h] > r.PlaytimeByDowHour[peakDow, peakHour])
-                    (peakDow, peakHour) = (d, h);
-            }
-        }
-
-        // Undated plays count toward the totals but never reach the grid.
-        if (r.PlaytimeByDowHour[peakDow, peakHour] == 0)
-            return "-";
-
-        string[] dayNames = { "Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays" };
-        return $"{peakHour:00}:00-{(peakHour + 1) % 24:00}:00 on {dayNames[peakDow]}";
-    }
-
-    private static string BuildWeekSplitText(AnalysisResult r)
-    {
-        long weekend = r.PlaytimeByDayOfWeek[0] + r.PlaytimeByDayOfWeek[6];
-        long total = 0;
-        foreach (var ms in r.PlaytimeByDayOfWeek) total += ms;
-        if (total == 0)
-            return "-";
-
-        double weekendPct = weekend * 100.0 / total;
-        return $"{100 - weekendPct:0}% weekdays  /  {weekendPct:0}% weekends";
-    }
-
-    private static string BuildTimeOfDayText(AnalysisResult r)
-    {
-        long total = 0;
-        foreach (var ms in r.PlaytimeByHour) total += ms;
-        if (total == 0)
-            return "-";
-
-        Span<long> segments = stackalloc long[4]; // night, morning, afternoon, evening
-        for (int h = 0; h < 24; h++)
-            segments[h / 6] += r.PlaytimeByHour[h];
-
-        string[] names = { "Night (00-06)", "Morning (06-12)", "Afternoon (12-18)", "Evening (18-24)" };
-        int best = 0;
-        for (int i = 1; i < 4; i++)
-            if (segments[i] > segments[best]) best = i;
-
-        return $"{names[best]}  ({segments[best] * 100.0 / total:0}% of listening)";
+            null => "Summary card",
+            { AllTime: true } => "Summary card for all time",
+            _ => $"Summary card for {range.Title}",
+        };
     }
 
     // ---- Charts ------------------------------------------------------------------------------
@@ -1382,10 +1299,12 @@ public sealed partial class MainViewModel : ObservableObject
     private void UpdateCharts()
     {
         ByHour = ChartBuilder.ByHour(_result, Metric);
-        ByDayOfWeek = ChartBuilder.ByDayOfWeek(_result, Metric);
-        Heat = ChartBuilder.DowHourHeat(_result, Metric);
-        OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity, Metric);
+        ByDayOfWeek = ChartBuilder.ByDayOfWeek(_result, Metric, _settings.FirstDayOfWeek);
+        Heat = ChartBuilder.DowHourHeat(_result, Metric, _settings.FirstDayOfWeek);
+        OverTime = ChartBuilder.OverTime(_result, _overTimeGranularity, Metric, _settings.FirstDayOfWeek);
         ByYear = ChartBuilder.PerYear(_result, Metric);
+        RankChart = ChartBuilder.RankHistory(_result, Metric);
+        HasRankHistory = _result.RankHistory.Count > 0;
         Discovery = ChartBuilder.NewArtistsByMonth(_result);
         Skipped = ChartBuilder.TopSkippedTracks(_result);
         ArtistShareSeries = ChartBuilder.ArtistShare(_result, Metric);
@@ -1403,7 +1322,9 @@ public sealed partial class MainViewModel : ObservableObject
         EpisodesChart = ChartBuilder.TopEpisodes(_result, metric: Metric);
         ShowsChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Shows.Count));
         EpisodesChartHeight = BarHeight(Math.Min(ChartBuilder.PodcastBars, _result.Episodes.Count));
-        ArtistTimelineChart = ChartBuilder.ArtistTimelines(_artistTimeline, _compareGranularity, Metric);
+        CompareArtists.Redraw();
+        CohortChart = ChartBuilder.Cohorts(_cohorts, _result.Years, Metric);
+        CohortText = InsightText.Cohorts(_cohorts, Metric);
 
         // Reset the scrollable bar charts to their first page; LoadMore* append the rest.
         _tracksShown = Math.Min(BarPageSize, MaxTracks);
@@ -1499,6 +1420,11 @@ public sealed partial class MainViewModel : ObservableObject
         ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_years",
             path => ExportService.SaveYearsCsvAsync(path, _result));
 
+    [RelayCommand(CanExecute = nameof(CanExport))]
+    private Task ExportPlaysCsvAsync() =>
+        ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_plays",
+            path => ExportService.SavePlaysCsvAsync(path, FilterEngine.Apply(Records, _resultOptions ?? Filters.ToOptions())));
+
     [RelayCommand(CanExecute = nameof(CanExportPodcasts))]
     private Task ExportShowsCsvAsync() =>
         ExportAsync("CSV files (*.csv)|*.csv", ".csv", "Sortify_shows",
@@ -1537,6 +1463,8 @@ public sealed partial class MainViewModel : ObservableObject
         ReloadCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnIsSampleChanged(bool value) => ReloadCommand.NotifyCanExecuteChanged();
+
     partial void OnIsBusyChanged(bool value) => CancelLoadCommand.NotifyCanExecuteChanged();
 
     partial void OnSidebarVisibleChanged(bool value) => _settings.SidebarVisible = value;
@@ -1551,6 +1479,8 @@ public sealed partial class MainViewModel : ObservableObject
         ExportAlbumsCsvCommand.NotifyCanExecuteChanged();
         ExportYearsCsvCommand.NotifyCanExecuteChanged();
         ExportShowsCsvCommand.NotifyCanExecuteChanged();
+        ExportPlaysCsvCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanMakeSummaryCard));
     }
 
     /// <summary>Sets the status line, and whether it should be shown as a problem.</summary>
@@ -1570,7 +1500,7 @@ public sealed record RankedItem(int Rank, string Name, string Secondary, string 
     public static RankedItem For(int rank, string name, string secondary, TimeSpan time, int plays, Metric metric)
     {
         string timeText = TimeFormat.Friendly(time);
-        string playsText = $"{plays:N0} play{(plays == 1 ? "" : "s")}";
+        string playsText = Plural.Of(plays, "play");
         return metric == Metric.Plays
             ? new RankedItem(rank, name, secondary, playsText, timeText)
             : new RankedItem(rank, name, secondary, timeText, playsText);
@@ -1608,7 +1538,7 @@ public sealed class MonthRow
             TrackAmount = m.MostPlayedTrackPlays,
             TrackAmountText = m.MostPlayedTrackPlays.ToString("N0"),
             Total = m.PlayCount,
-            TotalText = $"{m.PlayCount:N0} play{(m.PlayCount == 1 ? "" : "s")}",
+            TotalText = Plural.Of(m.PlayCount, "play"),
         }
         : new MonthRow
         {

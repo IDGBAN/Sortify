@@ -50,9 +50,9 @@ public static class ExportService
         if (result.ActiveDays > 0)
             sb.AppendLine($"Active days: {result.ActiveDays:N0}");
         if (result.LongestStreakDays > 0 && result.LongestStreakStart is { } ss && result.LongestStreakEnd is { } se)
-            sb.AppendLine($"Longest streak: {result.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
+            sb.AppendLine($"Longest streak: {Plural.Of(result.LongestStreakDays, "day")} ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (result.LongestBreakDays > 0 && result.LongestBreakStart is { } bs && result.LongestBreakEnd is { } be)
-            sb.AppendLine($"Longest break: {result.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
+            sb.AppendLine($"Longest break: {Plural.Of(result.LongestBreakDays, "day")} ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (result.BiggestDay is { } bd)
             sb.AppendLine($"Biggest day: {TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(result.BiggestDayMs))})");
         if (result.SessionCount > 0)
@@ -78,7 +78,7 @@ public static class ExportService
         sb.AppendLine("Tracks Ranked by Counts Listened:");
         rank = 1;
         foreach (var t in result.TracksByPlayCount)
-            sb.AppendLine($"{rank++}. {t.PlayCount} times - {t.Track} - {t.Artist}");
+            sb.AppendLine($"{rank++}. {Plural.Of(t.PlayCount, "time")} - {t.Track} - {t.Artist}");
         sb.AppendLine();
 
         sb.AppendLine("Tracks Ranked by First Time Listened:");
@@ -105,7 +105,7 @@ public static class ExportService
         {
             sb.AppendLine("Listening by Year:");
             foreach (var y in result.Years)
-                sb.AppendLine($"{y.Year}: {TimeFormat.HhMmSs(y.TotalTime)} across {y.PlayCount:N0} plays - top artist: {y.TopArtist} - top track: {y.TopTrack}");
+                sb.AppendLine($"{y.Year}: {TimeFormat.HhMmSs(y.TotalTime)} across {Plural.Of(y.PlayCount, "play")} - top artist: {y.TopArtist} - top track: {y.TopTrack}");
             sb.AppendLine();
         }
 
@@ -212,6 +212,45 @@ public static class ExportService
         await File.WriteAllTextAsync(path, sb.ToString(), Encoding.UTF8).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Every play as one CSV row: the export cleaned up, with duplicates already dropped and
+    /// times in local time. Written as a stream, since a long history runs to tens of megabytes.
+    /// The shuffle, offline and private cells are left empty for plays the export didn't record
+    /// them for, rather than claiming false.
+    /// </summary>
+    public static Task SavePlaysCsvAsync(string path, IEnumerable<PlayRecord> plays) => Task.Run(() =>
+    {
+        using var writer = new StreamWriter(path, append: false, Encoding.UTF8, 64 * 1024);
+        writer.WriteLine("Ended,Kind,Track,Artist,Album,Show,Episode,MsPlayed,ReasonEnd,Skipped,Device,Platform,Country,Shuffle,Offline,Private,SpotifyUri");
+
+        var line = new StringBuilder(256);
+        foreach (var r in plays)
+        {
+            bool music = r.Kind == ContentKind.Music;
+            line.Clear()
+                .Append(r.Timestamp == DateTime.MinValue ? string.Empty : r.Timestamp.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture)).Append(',')
+                .Append(r.Kind).Append(',')
+                .Append(music ? Csv(r.TrackName) : string.Empty).Append(',')
+                .Append(music ? Csv(r.ArtistName) : string.Empty).Append(',')
+                .Append(music ? Csv(r.AlbumName) : string.Empty).Append(',')
+                .Append(Csv(r.ShowName)).Append(',')
+                .Append(Csv(r.EpisodeName)).Append(',')
+                .Append(r.MsPlayed).Append(',')
+                .Append(Csv(r.ReasonEnd ?? string.Empty)).Append(',')
+                .Append(r.Skipped ? "true" : "false").Append(',')
+                .Append(Csv(Devices.FamilyOf(r.Platform))).Append(',')
+                .Append(Csv(r.Platform)).Append(',')
+                .Append(r.Country).Append(',')
+                .Append(Flag(r.HasPlaybackFlags, r.Shuffle)).Append(',')
+                .Append(Flag(r.HasPlaybackFlags, r.Offline)).Append(',')
+                .Append(Flag(r.HasPlaybackFlags, r.Incognito)).Append(',')
+                .Append(Csv(r.Uri));
+            writer.WriteLine(line);
+        }
+
+        static string Flag(bool recorded, bool value) => !recorded ? string.Empty : value ? "true" : "false";
+    });
+
     // ---- Markdown ------------------------------------------------------------------------
 
     /// <summary>
@@ -223,7 +262,7 @@ public static class ExportService
         var sb = new StringBuilder();
         sb.AppendLine("# Sortify report").AppendLine();
         sb.AppendLine($"*Generated {TimeFormat.Timestamp(DateTime.Now)}*").AppendLine();
-        sb.AppendLine(MdText(FiltersLine(filters))).AppendLine();
+        sb.AppendLine(Md(FiltersLine(filters))).AppendLine();
 
         sb.AppendLine("## Summary").AppendLine();
         sb.AppendLine("| Metric | Value |");
@@ -243,11 +282,11 @@ public static class ExportService
         sb.AppendLine("| Metric | Value |");
         sb.AppendLine("| --- | --- |");
         if (r.LongestStreakDays > 0 && r.LongestStreakStart is { } ss && r.LongestStreakEnd is { } se)
-            Row("Longest streak", $"{r.LongestStreakDays} days ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
+            Row("Longest streak", $"{Plural.Of(r.LongestStreakDays, "day")} ({TimeFormat.Day(ss)} to {TimeFormat.Day(se)})");
         if (r.CurrentStreakDays > 0)
-            Row("Current streak", $"{r.CurrentStreakDays} days");
+            Row("Current streak", Plural.Of(r.CurrentStreakDays, "day"));
         if (r.LongestBreakDays > 0 && r.LongestBreakStart is { } bs && r.LongestBreakEnd is { } be)
-            Row("Longest break", $"{r.LongestBreakDays} days ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
+            Row("Longest break", $"{Plural.Of(r.LongestBreakDays, "day")} ({TimeFormat.Day(bs)} to {TimeFormat.Day(be)})");
         if (r.BiggestDay is { } bd)
             Row("Biggest day", $"{TimeFormat.Day(bd)} ({TimeFormat.Friendly(TimeSpan.FromMilliseconds(r.BiggestDayMs))})");
         if (r.SessionCount > 0)
@@ -264,7 +303,7 @@ public static class ExportService
         if (r.UniqueTracks > 0)
             Row("Plays per track", r.PlaysPerTrack.ToString("0.0"));
         if (r.Artists.Count > 0)
-            Row("Top artist share", $"{r.Artists[0].Artist} ({r.TopArtistSharePercent:0.#}%)");
+            Row("Top artist share", $"{Md(r.Artists[0].Artist)} ({r.TopArtistSharePercent:0.#}%)");
         if (r.ShuffleEligiblePlays > 0)
             Row("Shuffle rate", $"{r.ShufflePlays * 100.0 / r.ShuffleEligiblePlays:0.#}%");
         sb.AppendLine();
@@ -288,6 +327,12 @@ public static class ExportService
                     $"{y.Year} | {TimeFormat.HhMmSs(y.TotalTime)} | {y.PlayCount:N0} | {y.UniqueArtists:N0} | " +
                     $"{y.UniqueTracks:N0} | {Md(y.TopArtist)} | {Md(y.TopTrack)}"));
 
+        if (r.OnRepeat.Count > 0)
+            Table("On repeat", $"Track | Artist | Plays within {AnalysisEngine.RepeatWindowDays} days | From | To",
+                "--- | --- | --- | --- | ---",
+                r.OnRepeat.Select(x =>
+                    $"{Md(x.Track.Track)} | {Md(x.Track.Artist)} | {x.Plays:N0} | {TimeFormat.Day(x.From)} | {TimeFormat.Day(x.To)}"));
+
         if (r.Shows.Count > 0)
             Table("Top shows and audiobooks", "Rank | Show | Time | Plays | Episodes",
                 "--- | --- | --- | --- | ---",
@@ -309,14 +354,11 @@ public static class ExportService
         }
     }
 
-    /// <summary>Escapes the pipe that would otherwise split a Markdown table cell.</summary>
-    internal static string Md(string value) => value.Replace("|", "\\|");
-
     /// <summary>
-    /// Escapes what Markdown would read as formatting in running text. A search term or an
-    /// excluded artist's name can contain anything.
+    /// Escapes what Markdown would read as formatting, the pipe that would split a table cell
+    /// included. A track, an artist or a search term can contain anything.
     /// </summary>
-    internal static string MdText(string value)
+    internal static string Md(string value)
     {
         var sb = new StringBuilder(value.Length);
         foreach (char c in value)
@@ -384,6 +426,7 @@ public static class ExportService
                 artist = t.Artist,
                 hours = Math.Round(t.TotalHours, 4),
                 plays = t.PlayCount,
+                skipRatePercent = Math.Round(t.SkipRate, 2),
                 firstPlayed = t.FirstPlayed,
                 lastPlayed = t.LastPlayed,
             }),
@@ -392,6 +435,8 @@ public static class ExportService
                 artist = a.Artist,
                 hours = Math.Round(a.TotalHours, 4),
                 plays = a.PlayCount,
+                tracks = a.TrackCount,
+                months = a.MonthCount,
                 firstPlayed = a.FirstPlayed,
                 lastPlayed = a.LastPlayed,
                 firstTrack = a.FirstTrack,
@@ -402,6 +447,7 @@ public static class ExportService
                 artist = a.Artist,
                 hours = Math.Round(a.TotalHours, 4),
                 plays = a.PlayCount,
+                tracks = a.TrackCount,
                 firstPlayed = a.FirstPlayed,
                 lastPlayed = a.LastPlayed,
             }),
@@ -429,6 +475,15 @@ public static class ExportService
                 show = e.Show,
                 hours = Math.Round(e.TotalHours, 4),
                 plays = e.PlayCount,
+            }),
+            onRepeat = r.OnRepeat.Select(x => new
+            {
+                track = x.Track.Track,
+                artist = x.Track.Artist,
+                plays = x.Plays,
+                windowDays = AnalysisEngine.RepeatWindowDays,
+                from = x.From,
+                to = x.To,
             }),
             hoursByHourOfDay = r.PlaytimeByHour.Select(ms => Math.Round(ms / 3_600_000d, 4)),
             hoursByDayOfWeek = r.PlaytimeByDayOfWeek.Select(ms => Math.Round(ms / 3_600_000d, 4)),

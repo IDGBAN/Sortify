@@ -71,6 +71,67 @@ public class LoadingTests : IDisposable
     }
 
     [Fact]
+    public async Task ASearchThatFails_IsReportedInTheStatusBar_AndKeepsWhatWasOpen()
+    {
+        var folder = Export("export", TwoPlays);
+
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var vm = new MainViewModel(new AppSettings());
+            await vm.LoadAsync(() => throw new DirectoryNotFoundException("The drive went away."), null, "Nothing found.");
+
+            Assert.True(vm.StatusIsError);
+            Assert.Contains("The drive went away.", vm.StatusText);
+            Assert.False(vm.HasData);
+            Assert.False(vm.IsBusy);
+
+            await vm.OpenFolderPathAsync(folder);
+            await vm.LoadAsync(() => throw new UnauthorizedAccessException("Access denied."), null, "Nothing found.");
+
+            Assert.True(vm.StatusIsError);
+            Assert.Contains("still open", vm.StatusText);
+            Assert.Equal("2", vm.TotalPlaysText);
+            Assert.False(vm.IsBusy);
+        });
+    }
+
+    [Fact]
+    public void SettingsThatCouldntBeRead_AreMentionedInTheStatusBar()
+    {
+        WpfTestHost.Run(() =>
+        {
+            var vm = new MainViewModel(new AppSettings { WasUnreadable = true });
+
+            Assert.True(vm.StatusIsError);
+            Assert.Contains("settings.unreadable.json", vm.StatusText);
+        });
+    }
+
+    [Fact]
+    public async Task AnAccountDataExport_BringsItsPodcastsAlong()
+    {
+        var folder = Path.Combine(_dir, "account");
+        Directory.CreateDirectory(folder);
+        File.WriteAllText(Path.Combine(folder, "StreamingHistory_music_0.json"), """
+            [ { "endTime": "2023-05-01 10:00", "artistName": "Artist", "trackName": "Song", "msPlayed": 200000 } ]
+            """);
+        File.WriteAllText(Path.Combine(folder, "StreamingHistory_podcast_0.json"), """
+            [ { "endTime": "2023-05-01 11:00", "podcastName": "The Show", "episodeName": "Episode 1", "msPlayed": 1800000 } ]
+            """);
+
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var vm = new MainViewModel(new AppSettings());
+            await vm.OpenFolderPathAsync(folder);
+
+            Assert.Equal("1", vm.TotalPlaysText);
+            Assert.Equal("The Show", Assert.Single(vm.Shows).Show);
+            Assert.Equal("2 files loaded", vm.LoadedFilesText);
+            Assert.Equal("Showing 1 play across 1 track, 1 artist and 1 album.", vm.StatusText);
+        });
+    }
+
+    [Fact]
     public async Task AFileWithNoPlays_LeavesTheOpenHistoryAlone()
     {
         var folder = Export("export", TwoPlays);

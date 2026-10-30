@@ -83,6 +83,17 @@ public class YearReviewBuilderTests
     }
 
     [Fact]
+    public void WritesHoursTheSameWayInAnyCulture()
+    {
+        // German writes half an hour as "0,5".
+        using var _ = CultureScope.Named("de-DE");
+
+        var review = Build();
+
+        Assert.Equal("0.5 h", review.TopArtists[1].Time);
+    }
+
+    [Fact]
     public void TheSidebarsOtherFiltersApply_ButNotItsDates()
     {
         var filter = new FilterOptions { StartDate = new DateTime(2025, 1, 1) };
@@ -151,7 +162,7 @@ public class YearReviewViewTests
     {
         WpfTestHost.Run(() =>
         {
-            var window = new YearReviewWindow(new YearReview { Year = 2019 });
+            var window = new YearReviewWindow(new YearReview { Range = CardRange.ForYear(2019) });
 
             Assert.False(((System.Windows.Controls.Button)window.FindName("SaveButton")).IsEnabled);
             Assert.Contains("no plays in 2019", ((System.Windows.Controls.TextBlock)window.FindName("EmptyText")).Text);

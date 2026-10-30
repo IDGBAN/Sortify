@@ -30,6 +30,10 @@ public sealed partial class FilterViewModel : ObservableObject
 
     [ObservableProperty] private int _minSeconds = FilterOptions.DefaultMinMs / 1000;
     [ObservableProperty] private bool _includePodcasts;
+
+    /// <summary>Counts remasters and deluxe editions with the original release. The main view model swaps the plays every view reads.</summary>
+    [ObservableProperty] private bool _combineReleases;
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasInvalidDateRange))]
     private DateTime? _startDate;
@@ -64,11 +68,31 @@ public sealed partial class FilterViewModel : ObservableObject
 
     [ObservableProperty] private string _newExcludedArtist = string.Empty;
     [ObservableProperty] private string _newExcludedTrack = string.Empty;
+    [ObservableProperty] private string _newIncludedArtist = string.Empty;
+
+    /// <summary>The artists every tab is narrowed to; empty means every artist.</summary>
+    public ObservableCollection<string> IncludedArtists { get; } = new();
+
+    /// <summary>Artists matching what is typed into the "only these artists" box.</summary>
+    [ObservableProperty] private IReadOnlyList<string> _includeSuggestions = Array.Empty<string>();
+
+    /// <summary>Why the typed name couldn't be added, or empty.</summary>
+    [ObservableProperty] private string _includeHint = string.Empty;
+
+    /// <summary>How many matches show under the "only these artists" box while typing.</summary>
+    public const int IncludeSuggestionCount = 5;
+
+    /// <summary>Every artist in the loaded history, most listened first; empty until one loads.</summary>
+    private IReadOnlyList<string> _knownArtists = Array.Empty<string>();
 
     public ObservableCollection<string> ExcludedArtists { get; } = new();
     public ObservableCollection<string> ExcludedTracks { get; } = new();
 
+    /// <summary>One toggle per day, in <see cref="DayOfWeek"/> order (Sunday first).</summary>
     public DayToggle[] Days { get; }
+
+    /// <summary>The same toggles in the order the week is shown in, from the chosen first day.</summary>
+    [ObservableProperty] private IReadOnlyList<DayToggle> _daysInWeekOrder = Array.Empty<DayToggle>();
 
     /// <summary>Saved filter sets, in the order they were made.</summary>
     public ObservableCollection<FilterPreset> Presets { get; } = new();
@@ -118,6 +142,12 @@ public sealed partial class FilterViewModel : ObservableObject
             new DayToggle("Fri", 5, this),
             new DayToggle("Sat", 6, this),
         };
+        IncludedArtists.CollectionChanged += (_, _) =>
+        {
+            RefreshIncludeSuggestions();
+            Raise();
+        };
+        DaysInWeekOrder = Days;
         ExcludedArtists.CollectionChanged += (_, _) => Raise();
         ExcludedTracks.CollectionChanged += (_, _) => Raise();
         Presets.CollectionChanged += (_, _) => HasPresets = Presets.Count > 0;
@@ -125,6 +155,7 @@ public sealed partial class FilterViewModel : ObservableObject
 
     partial void OnMinSecondsChanged(int value) => Raise();
     partial void OnIncludePodcastsChanged(bool value) => Raise();
+    partial void OnCombineReleasesChanged(bool value) => Raise();
     partial void OnStartDateChanged(DateTime? value)
     {
         RefreshQuickRanges();
@@ -208,12 +239,14 @@ public sealed partial class FilterViewModel : ObservableObject
         Name = name,
         MinSeconds = MinSeconds,
         IncludePodcasts = IncludePodcasts,
+        CombineReleases = CombineReleases,
         StartDate = StartDate?.Date,
         EndDate = EndDate?.Date,
         SearchTerm = SearchTerm ?? string.Empty,
         StartHour = StartHour,
         EndHour = EndHour,
         IncludedDays = Days.Select(d => d.IsSelected).ToArray(),
+        IncludedArtists = IncludedArtists.ToList(),
         ExcludedArtists = ExcludedArtists.ToList(),
         ExcludedTracks = ExcludedTracks.ToList(),
         Shuffle = ShuffleMode,
@@ -233,6 +266,7 @@ public sealed partial class FilterViewModel : ObservableObject
     {
         MinSeconds = MinSeconds,
         IncludePodcasts = IncludePodcasts,
+        CombineReleases = CombineReleases,
         ExcludedArtists = ExcludedArtists.ToList(),
         ExcludedTracks = ExcludedTracks.ToList(),
         Private = PrivateMode,
@@ -248,12 +282,16 @@ public sealed partial class FilterViewModel : ObservableObject
         {
             MinSeconds = Math.Max(0, preset.MinSeconds);
             IncludePodcasts = preset.IncludePodcasts;
+            CombineReleases = preset.CombineReleases;
             StartDate = preset.StartDate;
             EndDate = preset.EndDate;
             SearchTerm = preset.SearchTerm ?? string.Empty;
             StartHour = Math.Clamp(preset.StartHour, 0, 23);
             EndHour = Math.Clamp(preset.EndHour, 0, 23);
 
+            IncludedArtists.Clear();
+            foreach (var artist in preset.IncludedArtists ?? new List<string>())
+                IncludeArtist(artist);
             ExcludedArtists.Clear();
             foreach (var artist in preset.ExcludedArtists ?? new List<string>())
                 ExcludeArtist(artist);
@@ -351,6 +389,78 @@ public sealed partial class FilterViewModel : ObservableObject
 
     private bool CanDeletePreset() => SelectedPreset is not null;
 
+    // ---- Undo and redo -----------------------------------------------------------------------
+
+    /// <summary>How many earlier filter states Back can step through.</summary>
+    public const int MaxHistory = 50;
+
+    private readonly List<FilterPreset> _undo = new();
+    private readonly List<FilterPreset> _redo = new();
+
+    /// <summary>The filters as of the last recorded step; null until the first one.</summary>
+    private FilterPreset? _committed;
+
+    public bool CanUndo => _undo.Count > 0;
+    public bool CanRedo => _redo.Count > 0;
+
+    /// <summary>
+    /// Records the filters as they stand as one step of history, when they differ from the last
+    /// step. The owner calls this each time the results are worked out, so a burst of edits
+    /// (typing a search, dragging a slider) lands as a single step.
+    /// </summary>
+    public void CommitHistory()
+    {
+        var now = Snapshot();
+        if (_committed is not null && now.SameFiltersAs(_committed))
+            return;
+
+        if (_committed is not null)
+        {
+            _undo.Add(_committed);
+            if (_undo.Count > MaxHistory)
+                _undo.RemoveAt(0);
+            _redo.Clear();
+        }
+        _committed = now;
+        RefreshHistory();
+    }
+
+    /// <summary>Puts back the filters from before the last change.</summary>
+    [RelayCommand(CanExecute = nameof(CanUndo))]
+    private void Undo()
+    {
+        // A change still waiting out the debounce is a step of its own, so Back undoes that.
+        CommitHistory();
+        Step(_undo, _redo);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRedo))]
+    private void Redo() => Step(_redo, _undo);
+
+    private void Step(List<FilterPreset> from, List<FilterPreset> to)
+    {
+        if (from.Count == 0 || _committed is null)
+            return;
+
+        var target = from[^1];
+        from.RemoveAt(from.Count - 1);
+        to.Add(_committed);
+        _committed = target;
+        RefreshHistory();
+
+        Apply(target);
+        // Show the saved set these filters came from, if they match one.
+        SelectQuietly(Presets.FirstOrDefault(p => p.SameFiltersAs(target)));
+    }
+
+    private void RefreshHistory()
+    {
+        OnPropertyChanged(nameof(CanUndo));
+        OnPropertyChanged(nameof(CanRedo));
+        UndoCommand.NotifyCanExecuteChanged();
+        RedoCommand.NotifyCanExecuteChanged();
+    }
+
     /// <summary>Builds a fresh <see cref="FilterOptions"/> snapshot from current values.</summary>
     public FilterOptions ToOptions()
     {
@@ -360,7 +470,7 @@ public sealed partial class FilterViewModel : ObservableObject
             MinMsPlayed = (int)Math.Clamp(MinSeconds * 1000L, 0L, int.MaxValue),
             IncludePodcasts = IncludePodcasts,
             StartDate = StartDate?.Date,
-            EndDate = EndDate?.Date.AddDays(1).AddTicks(-1),
+            EndDate = FilterOptions.EndOfDay(EndDate),
             SearchTerm = SearchTerm ?? string.Empty,
             StartHour = Math.Clamp(StartHour, 0, 23),
             EndHour = Math.Clamp(EndHour, 0, 23),
@@ -368,6 +478,7 @@ public sealed partial class FilterViewModel : ObservableObject
             Offline = OfflineMode,
             Private = PrivateMode,
         };
+        foreach (var a in IncludedArtists) opts.IncludedArtists.Add(a);
         foreach (var a in ExcludedArtists) opts.ExcludedArtists.Add(a);
         foreach (var t in ExcludedTracks) opts.ExcludedTracks.Add(t);
         foreach (var d in Days) opts.IncludedDaysOfWeek[d.Index] = d.IsSelected;
@@ -397,6 +508,9 @@ public sealed partial class FilterViewModel : ObservableObject
         if (IncludePodcasts)
             yield return new FilterChip("Podcasts counted", "Stop counting podcasts", () => IncludePodcasts = false);
 
+        if (CombineReleases)
+            yield return new FilterChip("Re-releases combined", "Count remasters and deluxe editions on their own again", () => CombineReleases = false);
+
         string? range = (StartDate, EndDate) switch
         {
             ({ } start, { } end) => $"{TimeFormat.Day(start)} to {TimeFormat.Day(end)}",
@@ -416,6 +530,13 @@ public sealed partial class FilterViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(SearchTerm))
             yield return new FilterChip($"Search “{SearchTerm.Trim()}”", "Clear the search", () => SearchTerm = string.Empty);
 
+        if (IncludedArtists.Count > 0)
+        {
+            yield return new FilterChip(
+                IncludedArtists.Count == 1 ? $"Only {IncludedArtists[0]}" : $"Only {IncludedArtists.Count} artists",
+                "Count every artist again, not just " + string.Join(", ", IncludedArtists), IncludedArtists.Clear);
+        }
+
         if (StartHour != 0 || EndHour != 23)
         {
             yield return new FilterChip($"{StartHour:00}:00-{EndHour:00}:59", "Include every hour", () => Batch(() =>
@@ -425,7 +546,7 @@ public sealed partial class FilterViewModel : ObservableObject
             }));
         }
 
-        var days = Days.Where(d => d.IsSelected).Select(d => d.Label).ToList();
+        var days = DaysInWeekOrder.Where(d => d.IsSelected).Select(d => d.Label).ToList();
         if (days.Count < Days.Length)
         {
             yield return new FilterChip(days.Count == 0 ? "No days selected" : string.Join(", ", days),
@@ -439,14 +560,14 @@ public sealed partial class FilterViewModel : ObservableObject
         if (ExcludedArtists.Count > 0)
         {
             yield return new FilterChip(
-                $"{ExcludedArtists.Count} artist{(ExcludedArtists.Count == 1 ? "" : "s")} excluded",
+                $"{Plural.Of(ExcludedArtists.Count, "artist")} excluded",
                 "Stop excluding " + string.Join(", ", ExcludedArtists), ExcludedArtists.Clear);
         }
 
         if (ExcludedTracks.Count > 0)
         {
             yield return new FilterChip(
-                $"{ExcludedTracks.Count} track{(ExcludedTracks.Count == 1 ? "" : "s")} excluded",
+                $"{Plural.Of(ExcludedTracks.Count, "track")} excluded",
                 "Stop excluding " + string.Join(", ", ExcludedTracks), ExcludedTracks.Clear);
         }
 
@@ -463,7 +584,7 @@ public sealed partial class FilterViewModel : ObservableObject
         if (_excludedDevices.Count > 0)
         {
             yield return new FilterChip(
-                $"{_excludedDevices.Count} device{(_excludedDevices.Count == 1 ? "" : "s")} left out",
+                $"{Plural.Of(_excludedDevices.Count, "device")} left out",
                 "Count plays on " + string.Join(", ", _excludedDevices.Order()) + " again",
                 () => IncludeEvery(_excludedDevices));
         }
@@ -471,7 +592,7 @@ public sealed partial class FilterViewModel : ObservableObject
         if (_excludedCountries.Count > 0)
         {
             yield return new FilterChip(
-                $"{_excludedCountries.Count} countr{(_excludedCountries.Count == 1 ? "y" : "ies")} left out",
+                $"{Plural.Of(_excludedCountries.Count, "country", "countries")} left out",
                 "Count plays from " + string.Join(", ", _excludedCountries.Order()) + " again",
                 () => IncludeEvery(_excludedCountries));
         }
@@ -483,6 +604,10 @@ public sealed partial class FilterViewModel : ObservableObject
         PlaybackMode.Exclude => new FilterChip(exclude, clearHint, clear),
         _ => null,
     };
+
+    /// <summary>Lists the day toggles from <paramref name="first"/> on, as the rest of the window orders the week.</summary>
+    public void SetFirstDayOfWeek(DayOfWeek first) =>
+        DaysInWeekOrder = Weeks.Ordered(first).Select(d => Days[(int)d]).ToArray();
 
     // ---- Date ranges -------------------------------------------------------------------------
 
@@ -539,6 +664,77 @@ public sealed partial class FilterViewModel : ObservableObject
         finally { _suppress = false; }
         Raise();
     }
+
+    // ---- Only these artists ----------------------------------------------------------------
+
+    /// <summary>The artists of the loaded history, most listened first, to suggest while typing.</summary>
+    public void SetKnownArtists(IReadOnlyList<string> artists)
+    {
+        _knownArtists = artists;
+        RefreshIncludeSuggestions();
+    }
+
+    partial void OnNewIncludedArtistChanged(string value)
+    {
+        IncludeHint = string.Empty;
+        RefreshIncludeSuggestions();
+    }
+
+    private void RefreshIncludeSuggestions()
+    {
+        string query = NewIncludedArtist.Trim();
+        IncludeSuggestions = query.Length == 0
+            ? Array.Empty<string>()
+            : NameMatch.Best(_knownArtists.Where(a => !IncludedArtists.Contains(a, StringComparer.OrdinalIgnoreCase)),
+                a => NameMatch.Rank(a, query), IncludeSuggestionCount);
+    }
+
+    /// <summary>
+    /// Adds <paramref name="picked"/>, or else what was typed: the artist of that name, or the
+    /// best match for it. A name nobody in the history goes by is refused, since it would
+    /// silently empty every tab. Before a history loads there is nothing to check against.
+    /// </summary>
+    [RelayCommand]
+    private void AddIncludedArtist(string? picked)
+    {
+        string typed = (picked ?? NewIncludedArtist).Trim();
+        if (typed.Length == 0)
+            return;
+
+        string? name = _knownArtists.Count == 0
+            ? typed
+            : _knownArtists.FirstOrDefault(a => string.Equals(a, typed, StringComparison.OrdinalIgnoreCase))
+              ?? IncludeSuggestions.FirstOrDefault();
+        if (name is null)
+        {
+            IncludeHint = $"No artist in this history is called “{typed}”.";
+            return;
+        }
+
+        IncludeArtist(name);
+        NewIncludedArtist = string.Empty;
+    }
+
+    [RelayCommand]
+    private void RemoveIncludedArtist(string? name)
+    {
+        if (name is not null) IncludedArtists.Remove(name);
+    }
+
+    public void IncludeArtist(string? name)
+    {
+        name = name?.Trim();
+        if (!string.IsNullOrEmpty(name) && !IncludedArtists.Contains(name, StringComparer.OrdinalIgnoreCase))
+            IncludedArtists.Add(name);
+    }
+
+    /// <summary>Narrows every tab to just these artists, replacing any already picked, as one change.</summary>
+    public void FocusOnArtists(IEnumerable<string> names) => Batch(() =>
+    {
+        IncludedArtists.Clear();
+        foreach (var name in names)
+            IncludeArtist(name);
+    });
 
     /// <summary>Adds an artist exclusion programmatically (e.g. from a grid context menu).</summary>
     public void ExcludeArtist(string? name)
@@ -601,6 +797,7 @@ public sealed partial class FilterViewModel : ObservableObject
     {
         MinSeconds = FilterOptions.DefaultMinMs / 1000;
         IncludePodcasts = false;
+        CombineReleases = false;
         StartDate = null;
         EndDate = null;
         SearchTerm = string.Empty;
@@ -608,6 +805,8 @@ public sealed partial class FilterViewModel : ObservableObject
         EndHour = 23;
         NewExcludedArtist = string.Empty;
         NewExcludedTrack = string.Empty;
+        NewIncludedArtist = string.Empty;
+        IncludedArtists.Clear();
         ExcludedArtists.Clear();
         ExcludedTracks.Clear();
         foreach (var d in Days) d.IsSelected = true;

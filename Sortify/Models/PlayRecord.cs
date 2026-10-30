@@ -21,7 +21,37 @@ public sealed class PlayRecord
     public int MsPlayed { get; init; }
 
     /// <summary>Local-time timestamp the play ended (Spotify "ts" field, converted from UTC).</summary>
-    public DateTime Timestamp { get; init; }
+    public DateTime Timestamp { get => _timestamp; init => _timestamp = value; }
+
+    private DateTime _timestamp;
+
+    /// <summary>
+    /// Moves a freshly parsed play from UTC to local time. The parser matches duplicates on
+    /// the UTC times and converts afterwards, which saves copying every record to change one field.
+    /// </summary>
+    internal void SetLocalTime(DateTime local) => _timestamp = local;
+
+    /// <summary>A copy of this play under other track and album names, for folding re-releases together.</summary>
+    internal PlayRecord WithNames(string trackName, string albumName) => new()
+    {
+        TrackName = trackName,
+        ArtistName = ArtistName,
+        AlbumName = albumName,
+        MsPlayed = MsPlayed,
+        Timestamp = Timestamp,
+        ReasonEnd = ReasonEnd,
+        Skipped = Skipped,
+        Kind = Kind,
+        ShowName = ShowName,
+        EpisodeName = EpisodeName,
+        Uri = Uri,
+        Platform = Platform,
+        Country = Country,
+        Shuffle = Shuffle,
+        Offline = Offline,
+        Incognito = Incognito,
+        HasPlaybackFlags = HasPlaybackFlags,
+    };
 
     /// <summary>Spotify "reason_end" (e.g. "trackdone", "fwdbtn", "endplay").</summary>
     public string? ReasonEnd { get; init; }
@@ -78,6 +108,22 @@ public sealed class PlayRecord
     /// those rows in their denominator.
     /// </summary>
     public bool HasPlaybackFlags { get; init; }
+
+    /// <summary>When the first and the last of the plays ended, leaving out any without a time. Null when none has one.</summary>
+    public static (DateTime? First, DateTime? Last) DateSpan(IEnumerable<PlayRecord> plays)
+    {
+        DateTime? first = null, last = null;
+        foreach (var play in plays)
+        {
+            if (play.Timestamp == DateTime.MinValue)
+                continue;
+            if (first is null || play.Timestamp < first)
+                first = play.Timestamp;
+            if (last is null || play.Timestamp > last)
+                last = play.Timestamp;
+        }
+        return (first, last);
+    }
 }
 
 /// <summary>
@@ -164,4 +210,13 @@ public sealed class SpotifyHistoryEntry
 
     [JsonPropertyName("trackName")]
     public string? LegacyTrackName { get; set; }
+
+    // Newer account-data exports keep podcasts in a file of their own
+    // ("StreamingHistory_podcast_0.json") under these names.
+
+    [JsonPropertyName("podcastName")]
+    public string? LegacyPodcastName { get; set; }
+
+    [JsonPropertyName("episodeName")]
+    public string? LegacyEpisodeName { get; set; }
 }

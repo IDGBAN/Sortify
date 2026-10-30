@@ -226,7 +226,7 @@ public class AnalysisEngineTests
     }
 
     [Fact]
-    public void NewArtistsByMonth_CountsFirstListens()
+    public void NewArtistsByMonth_CountsFirstListens_WithAZeroForEveryMonthWithout()
     {
         var records = new[]
         {
@@ -234,15 +234,37 @@ public class AnalysisEngineTests
             Record(artist: "X", ts: new DateTime(2023, 2, 5, 10, 0, 0)), // repeat, not new
             Record(artist: "Y", ts: new DateTime(2023, 1, 20, 10, 0, 0)),
             Record(artist: "Z", ts: new DateTime(2023, 3, 5, 10, 0, 0)),
+            // Nothing at all in April.
+            Record(artist: "Z", ts: new DateTime(2023, 5, 5, 10, 0, 0)),
         };
 
         var r = AnalysisEngine.Analyze(records, NoFilter);
 
+        Assert.Equal(
+            new[]
+            {
+                (new DateTime(2023, 1, 1), 2.0),
+                (new DateTime(2023, 2, 1), 0.0),
+                (new DateTime(2023, 3, 1), 1.0),
+                (new DateTime(2023, 4, 1), 0.0),
+                (new DateTime(2023, 5, 1), 0.0),
+            },
+            r.NewArtistsByMonth.Select(p => (p.Date, p.Value)));
+    }
+
+    [Fact]
+    public void NewArtistsByMonth_ReachesDecember9999()
+    {
+        var records = new[]
+        {
+            Record(artist: "X", ts: new DateTime(9999, 11, 5, 10, 0, 0)),
+            Record(artist: "Y", ts: new DateTime(9999, 12, 31, 10, 0, 0)),
+        };
+
+        var r = AnalysisEngine.Analyze(records, NoFilter);
+
+        Assert.Equal(new DateTime(9999, 12, 1), r.NewArtistsByMonth[^1].Date);
         Assert.Equal(2, r.NewArtistsByMonth.Count);
-        Assert.Equal(new DateTime(2023, 1, 1), r.NewArtistsByMonth[0].Date);
-        Assert.Equal(2, r.NewArtistsByMonth[0].Value);
-        Assert.Equal(new DateTime(2023, 3, 1), r.NewArtistsByMonth[1].Date);
-        Assert.Equal(1, r.NewArtistsByMonth[1].Value);
     }
 
     [Fact]
@@ -417,9 +439,9 @@ public class AnalysisEngineTests
     [InlineData("linux", "Desktop")]
     [InlineData("Scarlett", "Other")]
     [InlineData("something unknown", "Other")]
-    public void PlatformFamily_BucketsSpotifyPlatformStrings(string raw, string expected)
+    public void DeviceFamilies_GroupSpotifyPlatformStrings(string raw, string expected)
     {
-        Assert.Equal(expected, AnalysisEngine.PlatformFamily(raw));
+        Assert.Equal(expected, Devices.FamilyOf(raw));
     }
 
     [Fact]

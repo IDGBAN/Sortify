@@ -21,7 +21,7 @@
                    Foreground="{DynamicResource MutedBrush}" />
 
         <TextBlock x:Name="ResultText" Grid.Row="1" Style="{StaticResource Hint}" FontSize="11" Margin="0,0,0,10"
-                   AutomationProperties.LiveSetting="Polite"
+                   views:LiveRegion.Announce="Polite"
                    Text="A 1080 by 1350 PNG, sized for sharing. It follows Sortify's light or dark theme." />
 
         <DockPanel Grid.Row="2" LastChildFill="False">

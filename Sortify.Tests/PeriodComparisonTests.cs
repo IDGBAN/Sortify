@@ -55,6 +55,37 @@ public class PeriodComparisonTests
     }
 
     [Fact]
+    public void AChange_IsColouredAsItReads()
+    {
+        var a = new AnalysisResult { TotalPlays = 1000, TotalMsPlayed = 1000, ActiveDays = 200, SkipEligiblePlays = 1000, TotalSkips = 250 };
+        var b = new AnalysisResult { TotalPlays = 997, TotalMsPlayed = 995, ActiveDays = 200, SkipEligiblePlays = 1000, TotalSkips = 251 };
+
+        var metrics = PeriodComparison.Build(a, b).Metrics.ToDictionary(m => m.Metric);
+
+        Assert.Equal(("0%", Trend.Same), (metrics["Plays"].Change, metrics["Plays"].Trend));
+        Assert.Equal(("-1%", Trend.Down), (metrics["Listening time"].Change, metrics["Listening time"].Trend));
+        Assert.Equal(("+0.1 points", Trend.Up), (metrics["Skip rate"].Change, metrics["Skip rate"].Trend));
+    }
+
+    [Fact]
+    public void ASkipRateUpOnePoint_SaysPoint()
+    {
+        var a = new AnalysisResult { SkipEligiblePlays = 100, TotalSkips = 20 };
+        var b = new AnalysisResult { SkipEligiblePlays = 100, TotalSkips = 21 };
+
+        Assert.Equal("+1 point", PeriodComparison.Build(a, b).Metrics.Single(m => m.Metric == "Skip rate").Change);
+    }
+
+    [Fact]
+    public async Task APeriodEndingOnTheLastDayOfTheCalendar_StillCompares()
+    {
+        var result = await PeriodComparison.CompareAsync(Records, new FilterOptions(),
+            new DateTime(2023, 1, 1), new DateTime(2023, 12, 31), new DateTime(2024, 1, 1), DateTime.MaxValue.Date);
+
+        Assert.Equal(4, result.B.TotalPlays);
+    }
+
+    [Fact]
     public async Task Artists_AreOrderedByPeriodBWithDropoutsLast()
     {
         var result = await Compare();
@@ -348,6 +379,22 @@ public class CompareViewModelTests
         Assert.Equal(DateTime.Parse(endA, System.Globalization.CultureInfo.InvariantCulture), vm.EndA);
     }
 
+    [Theory]
+    [InlineData("2024-01-01")]
+    [InlineData("2024-01-02")]
+    public void MatchAToB_SaysSoWhenBRunsToTheEndOfTheCalendar(string startB)
+    {
+        var vm = Model();
+        var before = (vm.StartA, vm.EndA);
+        vm.StartB = DateTime.Parse(startB, System.Globalization.CultureInfo.InvariantCulture);
+        vm.EndB = DateTime.MaxValue.Date;
+
+        vm.MatchAToBCommand.Execute(null);
+
+        Assert.Equal(before, (vm.StartA, vm.EndA));
+        Assert.Contains("no room before period B", vm.Message);
+    }
+
     [Fact]
     public void MatchAToB_NeedsBothEndsOfB()
     {
@@ -373,6 +420,29 @@ public class CompareViewModelTests
     }
 
     [Fact]
+    public async Task ABackwardsPeriod_StopsTheComparisonAlreadyRunning()
+    {
+        // On the UI thread, so the first comparison can't finish until the second refresh is done.
+        await WpfTestHost.RunAsync(async () =>
+        {
+            var plays = new List<PlayRecord>
+            {
+                new() { TrackName = "T", ArtistName = "A", AlbumName = "L", MsPlayed = 600_000, Timestamp = new DateTime(2026, 1, 5, 12, 0, 0) },
+            };
+            var vm = Model(() => new CompareViewModel.Source(plays, new FilterOptions(), TimeSpan.FromMinutes(30)));
+
+            var comparing = vm.RefreshAsync();
+            vm.EndA = new DateTime(2020, 1, 1);
+            await vm.RefreshAsync();
+            await comparing;
+
+            Assert.Contains("starts after it ends", vm.Message);
+            Assert.Empty(vm.Metrics);
+            Assert.False(vm.IsWorking);
+        });
+    }
+
+    [Fact]
     public async Task NothingIsWorkedOutWhileTheTabIsHidden()
     {
         int asked = 0;
@@ -386,7 +456,7 @@ public class CompareViewModelTests
         Assert.Equal(0, asked);
 
         vm.IsVisible = true;
-        await Task.Delay(200);
+        await Wait.UntilAsync(() => vm.Message.Length > 0);
 
         Assert.Equal(1, asked);
         Assert.Equal("Neither period has any plays under the current filters.", vm.Message);

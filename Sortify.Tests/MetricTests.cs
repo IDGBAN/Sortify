@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
 using Sortify.Models;
 using Sortify.Services;
 using Sortify.ViewModels;
@@ -189,6 +190,32 @@ public class MetricChartTests
         Assert.Equal(new[] { "Long Band", "Quick Band" }, byPlays.Items.Cast<ArtistStat>().Select(a => a.Artist));
         Assert.Equal(new[] { 3d, 6d }, Values(byPlays));
         Assert.Equal("Plays", byPlays.Series[0].Name);
+    }
+
+    [Theory]
+    [InlineData(Metric.Time)]
+    [InlineData(Metric.Plays)]
+    public void RankedBars_TakeTheUnitAndColourOfTheMetric(Metric metric)
+    {
+        var r = TwoWayHistory.Analyze();
+        bool plays = metric == Metric.Plays;
+
+        var charts = OnUiThread(() => new[]
+        {
+            (ChartBuilder.TopTracks(r, 5, metric), plays ? ChartPalette.Accent2 : ChartPalette.Accent),
+            (ChartBuilder.TopArtists(r, 5, metric), plays ? ChartPalette.Accent2 : ChartPalette.Accent),
+            (ChartBuilder.TopAlbums(r, 5, metric), plays ? ChartPalette.Accent2 : ChartPalette.Accent),
+            // Shows and episodes keep a colour of their own either way.
+            (ChartBuilder.TopShows(r, 5, metric), ChartPalette.Violet),
+            (ChartBuilder.TopEpisodes(r, 5, metric), ChartPalette.Cyan),
+        });
+
+        foreach (var (chart, color) in charts)
+        {
+            var series = (RowSeries<double>)Assert.Single(chart.Series);
+            Assert.Equal(plays ? "Plays" : "Hours", series.Name);
+            Assert.Equal(color, ((SolidColorPaint)series.Fill!).Color);
+        }
     }
 
     [Fact]
@@ -485,10 +512,10 @@ public class MetricRowTests
     {
         var months = TwoWayHistory.Analyze().Months;
 
-        Assert.StartsWith("Long Band was your #1 artist in 2 of 2 months", MainViewModel.DescribeMonthlyLeader(months));
+        Assert.StartsWith("Long Band was your #1 artist in 2 of 2 months", InsightText.MonthlyLeader(months));
         // February is a tie on plays (one each), which goes to the longer listen.
         Assert.StartsWith("Quick Band was your #1 artist in 1 of 2 months",
-            MainViewModel.DescribeMonthlyLeader(months, Metric.Plays));
+            InsightText.MonthlyLeader(months, Metric.Plays));
     }
 
     [Fact]

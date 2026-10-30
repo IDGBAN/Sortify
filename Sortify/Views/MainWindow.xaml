@@ -19,13 +19,80 @@
              resource rather than inline in the style setter: WPF cannot wire event handlers
              to elements built inside a Setter.Value. One shared instance is fine - the
              handlers read PlacementTarget, which is set to the card as the menu opens. -->
-        <ContextMenu x:Key="ChartMenu">
+        <ContextMenu x:Key="ChartMenu" Opened="OnChartMenuOpened">
+            <MenuItem Header="Show the numbers..." Tag="numbers" Click="OnShowChartNumbers" InputGestureText="Enter" />
+            <Separator />
             <MenuItem Header="Copy chart as image" Click="OnCopyChartImage" />
             <MenuItem Header="Save chart as image..." Click="OnSaveChartImage" />
         </ContextMenu>
 
         <Style x:Key="ChartCard" TargetType="Border" BasedOn="{StaticResource Card}">
             <Setter Property="ContextMenu" Value="{StaticResource ChartMenu}" />
+        </Style>
+
+        <!-- One day of the listening calendar, shaded by its level of listening. -->
+        <Style x:Key="CalendarDayButton" TargetType="Button">
+            <Setter Property="Width" Value="13" />
+            <Setter Property="Height" Value="13" />
+            <Setter Property="Margin" Value="0,0,3,3" />
+            <Setter Property="Focusable" Value="{Binding IsInYear}" />
+            <Setter Property="ToolTip" Value="{Binding Description}" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding Description}" />
+            <Setter Property="FocusVisualStyle">
+                <Setter.Value>
+                    <Style>
+                        <Setter Property="Control.Template">
+                            <Setter.Value>
+                                <ControlTemplate>
+                                    <Border Margin="-2" CornerRadius="3" BorderThickness="2"
+                                            BorderBrush="{DynamicResource AccentBrush}" />
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="cell" CornerRadius="2" Background="{DynamicResource CalendarLevel0Brush}"
+                                BorderBrush="{DynamicResource TextBrush}" BorderThickness="0" />
+                        <ControlTemplate.Triggers>
+                            <DataTrigger Binding="{Binding Level}" Value="1">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel1Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="2">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel2Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="3">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel3Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Level}" Value="4">
+                                <Setter TargetName="cell" Property="Background" Value="{DynamicResource CalendarLevel4Brush}" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding IsInYear}" Value="False">
+                                <Setter TargetName="cell" Property="Visibility" Value="Hidden" />
+                            </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="cell" Property="BorderThickness" Value="1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding HasListening}" Value="True">
+                    <Setter Property="Cursor" Value="Hand" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Back and forward through filter changes, sized to sit in the chip row. -->
+        <Style x:Key="FilterHistoryButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Margin" Value="0,0,2,0" />
         </Style>
 
         <!-- The view model, for grid columns: they sit outside the visual tree and can't see
@@ -105,6 +172,14 @@
         <KeyBinding Modifiers="Control" Key="B" Command="{Binding ToggleSidebarCommand}" />
         <KeyBinding Modifiers="Control" Key="T" Command="{Binding ToggleThemeCommand}" />
         <KeyBinding Modifiers="Control" Key="R" Command="{Binding Filters.ResetCommand}" />
+        <!-- A text box that can undo its own typing takes Ctrl+Z first. -->
+        <KeyBinding Modifiers="Control" Key="Z" Command="{Binding Filters.UndoCommand}" />
+        <KeyBinding Modifiers="Control" Key="Y" Command="{Binding Filters.RedoCommand}" />
+        <KeyBinding Modifiers="Control+Shift" Key="Z" Command="{Binding Filters.RedoCommand}" />
+        <KeyBinding Modifiers="Alt" Key="Left" Command="{Binding Filters.UndoCommand}" />
+        <KeyBinding Modifiers="Alt" Key="Right" Command="{Binding Filters.RedoCommand}" />
+        <KeyBinding Key="BrowserBack" Command="{Binding Filters.UndoCommand}" />
+        <KeyBinding Key="BrowserForward" Command="{Binding Filters.RedoCommand}" />
     </Window.InputBindings>
 
     <Window.Triggers>
@@ -162,6 +237,11 @@
                         <MenuItem Header="Albums as CSV..." Command="{Binding ExportAlbumsCsvCommand}" />
                         <MenuItem Header="Years as CSV..." Command="{Binding ExportYearsCsvCommand}" />
                         <MenuItem Header="Shows as CSV..." Command="{Binding ExportShowsCsvCommand}" />
+                        <Separator />
+                        <MenuItem Header="Every play as CSV..." Command="{Binding ExportPlaysCsvCommand}" />
+                        <Separator />
+                        <MenuItem Header="Summary card image..." Click="OnSummaryCard"
+                                  IsEnabled="{Binding CanMakeSummaryCard}" />
                     </ContextMenu>
                 </Button.ContextMenu>
             </Button>
@@ -209,39 +289,72 @@
         <!-- Rule under the title bar, which holds the toolbar. -->
         <Border Grid.Row="0" Height="1" Background="{DynamicResource BorderBrush}" />
 
-        <!-- ========================= Active filter chips ======================= -->
-        <Border Grid.Row="1" Background="{DynamicResource BgBrush}" Padding="14,8,14,2"
-                Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}">
-            <DockPanel LastChildFill="True">
-                <TextBlock DockPanel.Dock="Left" Text="Filtered by" VerticalAlignment="Center"
-                           Foreground="{DynamicResource MutedBrush}" FontSize="11"
-                           FontWeight="SemiBold" Margin="0,0,10,4" />
-                <Button DockPanel.Dock="Right" Content="Clear all" Padding="10,3" Margin="6,0,0,4"
-                        FontSize="11" VerticalAlignment="Center"
-                        Command="{Binding Filters.ResetCommand}"
-                        ToolTip="Reset every filter (Ctrl+R)" />
-                <ItemsControl ItemsSource="{Binding ActiveFilters}">
-                    <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel />
-                        </ItemsPanelTemplate>
-                    </ItemsControl.ItemsPanel>
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Style="{StaticResource Chip}" Padding="10,1,3,1">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
-                                    <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
-                                            Command="{Binding ClearCommand}"
-                                            ToolTip="{Binding ClearHint}"
-                                            AutomationProperties.Name="{Binding ClearHint}" />
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </DockPanel>
-        </Border>
+        <StackPanel Grid.Row="1">
+            <!-- ======================== Sample history notice ====================== -->
+            <Border Background="{DynamicResource PanelBrush2}" BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="0,0,0,1" Padding="14,7"
+                    Visibility="{Binding IsSample, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <Button DockPanel.Dock="Right" Content="Open your export" Style="{StaticResource AccentButton}"
+                            Padding="12,4" FontSize="12" Margin="10,0,0,0" VerticalAlignment="Center"
+                            Command="{Binding RunAnalysisCommand}"
+                            ToolTip="Pick the export ZIP Spotify sent, or its JSON files (Ctrl+O)" />
+                    <TextBlock DockPanel.Dock="Left" Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="14"
+                               Foreground="{DynamicResource AccentTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                    <TextBlock VerticalAlignment="Center" TextWrapping="Wrap" FontSize="12"
+                               Text="This is a made-up sample history: every artist, track and play in it is invented. Open your own export, or drop it on this window, to see yours." />
+                </DockPanel>
+            </Border>
+
+            <!-- ========================= Active filter chips ======================= -->
+            <Border Background="{DynamicResource BgBrush}" Padding="14,8,14,2"
+                    Visibility="{Binding ShowFilterBar, Converter={StaticResource BoolToVis}}">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,8,4">
+                        <Button Style="{StaticResource FilterHistoryButton}" Content="&#xE72B;"
+                                Command="{Binding Filters.UndoCommand}"
+                                AutomationProperties.Name="Undo the last filter change"
+                                ToolTip="Undo the last filter change (Ctrl+Z or Alt+Left)" />
+                        <Button Style="{StaticResource FilterHistoryButton}" Content="&#xE72A;"
+                                Command="{Binding Filters.RedoCommand}"
+                                AutomationProperties.Name="Redo the filter change"
+                                ToolTip="Redo the filter change you undid (Ctrl+Y or Alt+Right)" />
+                    </StackPanel>
+                    <TextBlock DockPanel.Dock="Left" Text="Filtered by" VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedBrush}" FontSize="11"
+                               FontWeight="SemiBold" Margin="0,0,10,4"
+                               Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock DockPanel.Dock="Left" Text="No filters, every play counts" VerticalAlignment="Center"
+                               Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,0,10,4"
+                               Visibility="{Binding HasActiveFilters, Converter={StaticResource NotBoolToVis}}" />
+                    <Button DockPanel.Dock="Right" Content="Clear all" Padding="10,3" Margin="6,0,0,4"
+                            FontSize="11" VerticalAlignment="Center"
+                            Command="{Binding Filters.ResetCommand}"
+                            ToolTip="Reset every filter (Ctrl+R)"
+                            Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVis}}" />
+                    <ItemsControl ItemsSource="{Binding ActiveFilters}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Style="{StaticResource Chip}" Padding="10,1,3,1">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding Text}" FontSize="11" VerticalAlignment="Center" />
+                                        <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
+                                                Command="{Binding ClearCommand}"
+                                                ToolTip="{Binding ClearHint}"
+                                                AutomationProperties.Name="{Binding ClearHint}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </DockPanel>
+            </Border>
+        </StackPanel>
 
         <!-- ============================ Main content =========================== -->
         <Grid Grid.Row="2">
@@ -282,6 +395,10 @@
                                    FontSize="11" TextWrapping="Wrap"
                                    Foreground="{DynamicResource MutedBrush}"
                                    Text="Don't have it yet? Request your extended streaming history from Spotify's privacy page; it usually arrives within a few days." />
+                        <TextBlock HorizontalAlignment="Center" TextAlignment="Center" Margin="0,10,0,0" FontSize="12">
+                            <Hyperlink Command="{Binding OpenSampleCommand}"
+                                       ToolTip="Open two years of invented listening to see what Sortify shows">Explore a sample history while you wait</Hyperlink>
+                        </TextBlock>
                     </StackPanel>
                 </Border>
 
@@ -290,8 +407,13 @@
                     <!-- ============================ OVERVIEW ============================ -->
                     <TabItem Header="Overview">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel>
-                                <UniformGrid Columns="5" Margin="0,6,0,0">
+                            <StackPanel SizeChanged="OnOverviewSizeChanged">
+                                <Button HorizontalAlignment="Right" Margin="0,8,6,0" Click="OnSummaryCard"
+                                        Content="{Binding SummaryCardText}"
+                                        IsEnabled="{Binding CanMakeSummaryCard}"
+                                        AutomationProperties.Name="{Binding SummaryCardText}"
+                                        ToolTip="A 1080 by 1350 image of your listening to save or share. It covers the dates set in the sidebar, or your whole history when none are set." />
+                                <UniformGrid x:Name="OverviewFigures" Columns="5" Margin="0,6,0,0">
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="TOTAL TIME" Style="{StaticResource Caption}" />
@@ -326,7 +448,7 @@
                                 </UniformGrid>
 
                                 <!-- Top fives -->
-                                <UniformGrid Columns="3">
+                                <UniformGrid x:Name="OverviewLists" Columns="3">
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="Top Tracks" Style="{StaticResource SectionHeader}"
@@ -458,25 +580,32 @@
                                                 <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromTracks" />
                                                 <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromTracks" />
                                                 <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only their artists" Click="OnFocusArtistFromTracks" />
                                                 <MenuItem Tag="Exclude this track|Exclude these {0} tracks" Click="OnExcludeTrackFromTracks" />
                                                 <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromTracks" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
-                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="Time"
                                                                 Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                                Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                             <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                                Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Binding="{Binding SkipRate, StringFormat={}{0:0.#}%}" Width="80" MinWidth="80">
+                                                <DataGridTextColumn.Header>
+                                                    <TextBlock Text="Skip %"
+                                                               ToolTip="Share of this track's plays you skipped. Short plays count here, as they do in the skip rate on the Insights tab." />
+                                                </DataGridTextColumn.Header>
+                                            </DataGridTextColumn>
                                             <DataGridTextColumn Header="First Played"
                                                                 Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd HH:mm}"
-                                                                Width="Auto" />
+                                                                Width="140" MinWidth="140" />
                                             <DataGridTextColumn Header="Last Played"
                                                                 Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd HH:mm}"
-                                                                Width="Auto" />
+                                                                Width="140" MinWidth="140" />
                                         </DataGrid.Columns>
                                     </DataGrid>
                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -516,7 +645,7 @@
 
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
-                                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
+                                    <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,8">
                                         <TextBox views:SearchCompletion.Source="{Binding TableSuggestions}" views:SearchCompletion.Kinds="Artist"
                                                  x:Name="ArtistQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter artist rows"
@@ -526,7 +655,7 @@
                                                    Margin="0,0,8,0" FontSize="11"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                         <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown"
-                                                   VerticalAlignment="Center" FontSize="11"
+                                                   VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
@@ -540,21 +669,36 @@
                                             <ContextMenu>
                                                 <MenuItem Tag="Copy artist|Copy {0} artists" Click="OnCopyArtistFromArtists" />
                                                 <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only these {0} artists" Click="OnFocusArtistFromArtists" />
                                                 <MenuItem Tag="Exclude this artist|Exclude these {0} artists" Click="OnExcludeArtistFromArtists" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="Time"
                                                                 Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                                Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                             <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
-                                            <DataGridTextColumn Header="First Track" Binding="{Binding FirstTrack}" Width="*" />
+                                                                Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Binding="{Binding TrackCount, StringFormat=N0}" Width="80" MinWidth="80">
+                                                <DataGridTextColumn.Header>
+                                                    <TextBlock Text="Tracks" ToolTip="How many different tracks of theirs you played" />
+                                                </DataGridTextColumn.Header>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Binding="{Binding MonthCount, StringFormat=N0}" Width="85" MinWidth="85">
+                                                <DataGridTextColumn.Header>
+                                                    <TextBlock Text="Months"
+                                                               ToolTip="Calendar months with at least one play: how long they've stayed in your rotation" />
+                                                </DataGridTextColumn.Header>
+                                            </DataGridTextColumn>
+                                            <DataGridTextColumn Header="First Track" Binding="{Binding FirstTrack}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="First Played"
                                                                 Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd HH:mm}"
-                                                                Width="Auto" />
+                                                                Width="140" MinWidth="140" />
+                                            <DataGridTextColumn Header="Last Played"
+                                                                Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd HH:mm}"
+                                                                Width="140" MinWidth="140" />
                                         </DataGrid.Columns>
                                     </DataGrid>
                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -594,7 +738,7 @@
 
                             <Border Grid.Row="1" Style="{StaticResource Card}">
                                 <DockPanel>
-                                    <DockPanel DockPanel.Dock="Top" LastChildFill="False" Margin="0,0,0,8">
+                                    <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,8">
                                         <TextBox views:SearchCompletion.Source="{Binding TableSuggestions}" views:SearchCompletion.Kinds="Album"
                                                  x:Name="AlbumQuickFilter" DockPanel.Dock="Right" Width="240"
                                                  AutomationProperties.Name="Filter album rows"
@@ -604,7 +748,7 @@
                                                    Margin="0,0,8,0" FontSize="11"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                         <TextBlock Text="Double-click a row, or select it and press Enter, for the full breakdown"
-                                                   VerticalAlignment="Center" FontSize="11"
+                                                   VerticalAlignment="Center" FontSize="11" TextTrimming="CharacterEllipsis"
                                                    Foreground="{DynamicResource MutedBrush}" />
                                     </DockPanel>
                                     <Grid>
@@ -619,24 +763,30 @@
                                                 <MenuItem Tag="Copy album|Copy {0} albums" Click="OnCopyAlbumFromAlbums" />
                                                 <MenuItem Tag="Copy artist|Copy their artists" Click="OnCopyArtistFromAlbums" />
                                                 <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only their artists" Click="OnFocusArtistFromAlbums" />
                                                 <MenuItem Tag="Exclude this artist|Exclude their artists" Click="OnExcludeArtistFromAlbums" />
                                             </ContextMenu>
                                         </DataGrid.ContextMenu>
                                         <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" />
-                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
+                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
                                             <DataGridTextColumn Header="Time"
                                                                 Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
+                                                                Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
                                             <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N2}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                                Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Binding="{Binding TrackCount, StringFormat=N0}" Width="80" MinWidth="80">
+                                                <DataGridTextColumn.Header>
+                                                    <TextBlock Text="Tracks" ToolTip="How many different tracks of this album you played" />
+                                                </DataGridTextColumn.Header>
+                                            </DataGridTextColumn>
                                             <DataGridTextColumn Header="First Played"
                                                                 Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd HH:mm}"
-                                                                Width="Auto" />
+                                                                Width="140" MinWidth="140" />
                                             <DataGridTextColumn Header="Last Played"
                                                                 Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd HH:mm}"
-                                                                Width="Auto" />
+                                                                Width="140" MinWidth="140" />
                                         </DataGrid.Columns>
                                     </DataGrid>
                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -650,72 +800,121 @@
 
                     <!-- =============================== YEARS ============================= -->
                     <TabItem Header="Years">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="320" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
-                            <Border Grid.Row="0" Style="{StaticResource ChartCard}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,8">
-                                        <Run Text="{Binding PerYearTitle, Mode=OneWay}" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
-                                                                                               FontSize="11" Foreground="{DynamicResource MutedBrush}" />
-                                    </TextBlock>
-                                    <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
-                                                        Background="Transparent"
-                                                        AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                        XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}" />
-                                </DockPanel>
-                            </Border>
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <Border Style="{StaticResource ChartCard}" Height="350">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                                            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left">
+                                                <Run Text="{Binding PerYearTitle, Mode=OneWay}" /><Run Text="   Click a year for its breakdown" FontWeight="Normal"
+                                                                                                       FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <Border HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Background="{DynamicResource PanelBrush2}" CornerRadius="8" Padding="3"
+                                                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <RadioButton Content="Total" GroupName="YearsView" IsChecked="True"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                    <RadioButton Content="By year found" GroupName="YearsView"
+                                                                 IsChecked="{Binding ShowCohorts}"
+                                                                 ToolTip="Split each year by when you first heard its music"
+                                                                 Style="{StaticResource SegmentToggle}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding CohortText}" FontSize="12" Margin="0,0,0,6"
+                                                   TextWrapping="Wrap" Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
+                                        <Grid>
+                                            <lvc:CartesianChart Series="{Binding ByYear.Series}" Tag="{Binding ByYear}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
+                                                                AutomationProperties.Name="{Binding PerYearTitle}"
+                                                                Background="Transparent"
+                                                                AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                                XAxes="{Binding ByYear.XAxes}" YAxes="{Binding ByYear.YAxes}"
+                                                                Visibility="{Binding ShowCohorts, Converter={StaticResource NotBoolToVis}}" />
+                                            <lvc:CartesianChart Series="{Binding CohortChart.Series}" Tag="{Binding CohortChart}" Cursor="Hand" DataPointerDown="OnChartBarClick" FindingStrategy="CompareOnlyXTakeClosest"
+                                                                AutomationProperties.Name="{Binding PerYearTitle}"
+                                                                Background="Transparent"
+                                                                AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                                XAxes="{Binding CohortChart.XAxes}" YAxes="{Binding CohortChart.YAxes}"
+                                                                LegendPosition="Right" LegendTextSize="12" TooltipPosition="Top"
+                                                                Visibility="{Binding ShowCohorts, Converter={StaticResource BoolToVis}}" />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
 
-                            <Border Grid.Row="1" Style="{StaticResource Card}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11"
-                                               Foreground="{DynamicResource MutedBrush}"
-                                               Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
-                                    <Grid>
-                                    <DataGrid views:RowNumbers.IsEnabled="True" x:Name="YearsGrid" ItemsSource="{Binding Years}"
-                                              AutomationProperties.Name="Years"
-                                              views:GridSort.PresortedBy="Year" views:GridSort.PresortedDirection="Ascending"
-                                              PreviewMouseRightButtonDown="OnGridRightClick"
-                                              MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
-                                        <DataGrid.ContextMenu>
-                                            <ContextMenu>
-                                                <MenuItem Header="Open this year's breakdown" Click="OnOpenYearDetail"
-                                                          InputGestureText="Enter" />
-                                                <MenuItem Header="Filter everything to this year" Click="OnFilterToYear" />
-                                                <Separator />
-                                                <MenuItem Header="Make a year-in-review image..." Click="OnYearReview" />
-                                            </ContextMenu>
-                                        </DataGrid.ContextMenu>
-                                        <DataGrid.Columns>
-                                            <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="Auto" />
-                                            <DataGridTextColumn Header="Time"
-                                                                Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N1}"
-                                                                Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                            <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
-                                            <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists}" Width="Auto" />
-                                            <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks}" Width="Auto" />
-                                            <!-- The year's leaders by listening time, or by plays. -->
-                                            <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*"
-                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
-                                            <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*"
-                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
-                                            <DataGridTextColumn Header="Top Artist" Binding="{Binding MostPlayedArtist}" Width="*"
-                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
-                                            <DataGridTextColumn Header="Top Track" Binding="{Binding MostPlayedTrack}" Width="2*"
-                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
-                                        </DataGrid.Columns>
-                                    </DataGrid>
-                                    <TextBlock Style="{StaticResource EmptyRows}"
-                                               Visibility="{Binding Years, Converter={StaticResource EmptyToVis}}"
-                                               Text="No dated plays match the current filters." />
-                                    </Grid>
-                                </DockPanel>
-                            </Border>
-                        </Grid>
+                                <Border Style="{StaticResource Card}">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Margin="0,0,0,8" FontSize="11" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource MutedBrush}"
+                                                   Text="Double-click a year, or select it and press Enter, for its own breakdown. Right-click it to filter everything to that year or make a shareable year-in-review image." />
+                                        <Grid>
+                                        <DataGrid views:RowNumbers.IsEnabled="True" x:Name="YearsGrid" ItemsSource="{Binding Years}"
+                                                  AutomationProperties.Name="Years" MinHeight="80"
+                                                  views:GridSort.PresortedBy="Year" views:GridSort.PresortedDirection="Ascending"
+                                                  PreviewMouseWheel="OnPassWheelToPage"
+                                                  PreviewMouseRightButtonDown="OnGridRightClick"
+                                                  MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                            <DataGrid.ContextMenu>
+                                                <ContextMenu>
+                                                    <MenuItem Header="Open this year's breakdown" Click="OnOpenYearDetail"
+                                                              InputGestureText="Enter" />
+                                                    <MenuItem Header="Filter everything to this year" Click="OnFilterToYear" />
+                                                    <Separator />
+                                                    <MenuItem Header="Make a year-in-review image..." Click="OnYearReview" />
+                                                </ContextMenu>
+                                            </DataGrid.ContextMenu>
+                                            <DataGrid.Columns>
+                                                <DataGridTextColumn Header="Year" Binding="{Binding Year}" Width="70" MinWidth="70" />
+                                                <DataGridTextColumn Header="Time"
+                                                                    Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
+                                                                    Width="95" MinWidth="95" SortMemberPath="TotalMsPlayed" />
+                                                <DataGridTextColumn Header="Hours" Binding="{Binding TotalHours, StringFormat=N1}"
+                                                                    Width="75" MinWidth="75" SortMemberPath="TotalMsPlayed" />
+                                                <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="75" MinWidth="75" />
+                                                <DataGridTextColumn Header="Unique Artists" Binding="{Binding UniqueArtists, StringFormat=N0}" Width="120" MinWidth="120" />
+                                                <DataGridTextColumn Header="Unique Tracks" Binding="{Binding UniqueTracks, StringFormat=N0}" Width="120" MinWidth="120" />
+                                                <!-- The year's leaders by listening time, or by plays. -->
+                                                <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" MinWidth="130" ElementStyle="{StaticResource TrimmedCell}"
+                                                                    Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}"
+                                                                    Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                <DataGridTextColumn Header="Top Artist" Binding="{Binding MostPlayedArtist}" Width="*" MinWidth="130" ElementStyle="{StaticResource TrimmedCell}"
+                                                                    Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                <DataGridTextColumn Header="Top Track" Binding="{Binding MostPlayedTrack}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}"
+                                                                    Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                            </DataGrid.Columns>
+                                        </DataGrid>
+                                        <TextBlock Style="{StaticResource EmptyRows}"
+                                                   Visibility="{Binding Years, Converter={StaticResource EmptyToVis}}"
+                                                   Text="No dated plays match the current filters." />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource ChartCard}" Height="430">
+                                    <DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource SectionHeader}" Margin="0,0,0,2">
+                                            <Run Text="Rank History" /><Run Text="   Click a point for the artist's breakdown" FontWeight="Normal"
+                                                                           FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                        </TextBlock>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8" Text="{Binding RankHint}" />
+                                        <Grid>
+                                            <lvc:CartesianChart Series="{Binding RankChart.Series}" Tag="{Binding RankChart}" Cursor="Hand"
+                                                                DataPointerDown="OnRankPointClick" FindingStrategy="CompareAllTakeClosest"
+                                                                Background="Transparent"
+                                                                AnimationsSpeed="{Binding ChartAnimationSpeed}"
+                                                                XAxes="{Binding RankChart.XAxes}" YAxes="{Binding RankChart.YAxes}"
+                                                                LegendPosition="Right" LegendTextSize="12" TooltipPosition="Top"
+                                                                Visibility="{Binding HasRankHistory, Converter={StaticResource BoolToVis}}" />
+                                            <TextBlock Style="{StaticResource EmptyRows}" Margin="0,40,0,0"
+                                                       Text="Rank history needs at least two years of listening under the current filters."
+                                                       Visibility="{Binding HasRankHistory, Converter={StaticResource NotBoolToVis}}" />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </TabItem>
 
                     <!-- ============================= PODCASTS ============================ -->
@@ -734,25 +933,25 @@
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="TIME LISTENED" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding PodcastTimeText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.PodcastTime}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="PLAYS" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding PodcastPlaysText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.PodcastPlays}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="SHOWS" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding UniqueShowsText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.Shows}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="EPISODES" Style="{StaticResource Caption}" />
-                                                <TextBlock Text="{Binding UniqueEpisodesText}" Style="{StaticResource StatValueSmall}" />
+                                                <TextBlock Text="{Binding Insights.Episodes}" Style="{StaticResource StatValueSmall}" />
                                             </StackPanel>
                                         </Border>
                                     </UniformGrid>
@@ -808,13 +1007,13 @@
                                                       views:GridSort.PresortedBy="{Binding RankSortMember}"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="2*" />
+                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="2*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Kind" Binding="{Binding Kind}" Width="Auto" />
                                                     <DataGridTextColumn Header="Time"
                                                                         Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                         Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
-                                                    <DataGridTextColumn Header="Episodes" Binding="{Binding EpisodeCount}" Width="Auto" />
+                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
+                                                    <DataGridTextColumn Header="Episodes" Binding="{Binding EpisodeCount, StringFormat=N0}" Width="Auto" />
                                                     <DataGridTextColumn Header="First Played"
                                                                         Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}"
                                                                         Width="Auto" />
@@ -839,12 +1038,12 @@
                                                       views:GridSort.PresortedBy="{Binding RankSortMember}"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Episode" Binding="{Binding Episode}" Width="2*" />
-                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="*" />
+                                                    <DataGridTextColumn Header="Episode" Binding="{Binding Episode}" Width="2*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Show" Binding="{Binding Show}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Time"
                                                                         Binding="{Binding TotalTime, Converter={StaticResource HhMmSs}}"
                                                                         Width="Auto" SortMemberPath="TotalMsPlayed" />
-                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                    <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
                                                     <DataGridTextColumn Header="First Played"
                                                                         Binding="{Binding FirstPlayed, StringFormat=yyyy-MM-dd}"
                                                                         Width="Auto" />
@@ -893,7 +1092,116 @@
                                                             TooltipPosition="Top" />
                                     </DockPanel>
                                 </Border>
-                                <Border Style="{StaticResource ChartCard}" Height="460">
+                                <Border Style="{StaticResource Card}" DataContext="{Binding Calendar}">
+                                    <DockPanel>
+                                        <Grid DockPanel.Dock="Top" Margin="0,0,0,4">
+                                            <TextBlock Style="{StaticResource SectionHeader}" Margin="0" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Left">
+                                                <Run Text="Listening Calendar" /><Run Text="   Click a day for its breakdown" FontWeight="Normal"
+                                                    FontSize="11" Foreground="{DynamicResource MutedBrush}" />
+                                            </TextBlock>
+                                            <ItemsControl HorizontalAlignment="Right" ItemsSource="{Binding Years}" Focusable="False"
+                                                          AutomationProperties.Name="Years in the calendar">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Content="{Binding Year}" Style="{StaticResource QuickRangeButton}" Margin="5,0,0,4"
+                                                                Command="{Binding DataContext.ShowYearCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                AutomationProperties.Name="{Binding Year, StringFormat='Show {0} in the calendar'}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </Grid>
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding Summary}" FontSize="12" Margin="0,0,0,10"
+                                                   TextWrapping="Wrap" />
+                                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right"
+                                                    Margin="0,10,0,0" Visibility="{Binding HasDays, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="Less" FontSize="11" Margin="0,0,6,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource MutedBrush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel0Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel1Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel2Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel3Brush}" />
+                                            <Border Width="11" Height="11" CornerRadius="2" Margin="0,0,3,0"
+                                                    Background="{DynamicResource CalendarLevel4Brush}" />
+                                            <TextBlock Text="More" FontSize="11" Margin="3,0,0,0" VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource MutedBrush}" />
+                                        </StackPanel>
+                                        <!-- Scales down, never up, so a narrow window still shows the whole year. -->
+                                        <Viewbox Stretch="Uniform" StretchDirection="DownOnly" HorizontalAlignment="Left"
+                                                 Visibility="{Binding HasDays, Converter={StaticResource BoolToVis}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto" />
+                                                    <RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
+                                                <ItemsControl Grid.Row="0" Grid.Column="1" ItemsSource="{Binding MonthLabels}" Height="16"
+                                                              Focusable="False">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <Canvas />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemContainerStyle>
+                                                        <Style TargetType="ContentPresenter">
+                                                            <Setter Property="Canvas.Left" Value="{Binding Left}" />
+                                                        </Style>
+                                                    </ItemsControl.ItemContainerStyle>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Text}" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <ItemsControl Grid.Row="1" Grid.Column="0" ItemsSource="{Binding DayLabels}" Margin="0,0,6,0"
+                                                              Focusable="False">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}" FontSize="10" Height="16" LineHeight="13"
+                                                                       Foreground="{DynamicResource MutedBrush}" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <ItemsControl Grid.Row="1" Grid.Column="1" ItemsSource="{Binding Weeks}"
+                                                              KeyboardNavigation.TabNavigation="Once"
+                                                              KeyboardNavigation.DirectionalNavigation="Contained"
+                                                              AutomationProperties.Name="{Binding Year, StringFormat='Listening calendar for {0}'}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <ItemsControl ItemsSource="{Binding Days}" Focusable="False">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Button Style="{StaticResource CalendarDayButton}" Click="OnCalendarDayClick" />
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </Grid>
+                                        </Viewbox>
+                                    </DockPanel>
+                                </Border>
+                                <Border Style="{StaticResource ChartCard}" Height="460" DataContext="{Binding CompareArtists}">
                                     <DockPanel>
                                         <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
                                             <TextBlock Text="Compare Artists" Style="{StaticResource SectionHeader}"
@@ -913,14 +1221,14 @@
                                         </Grid>
                                         <DockPanel DockPanel.Dock="Top" Margin="0,2,0,4">
                                             <TextBox DockPanel.Dock="Left" Width="220" VerticalAlignment="Center"
-                                                     Text="{Binding CompareQuery, UpdateSourceTrigger=PropertyChanged}"
+                                                     Text="{Binding Query, UpdateSourceTrigger=PropertyChanged}"
                                                      AutomationProperties.Name="Add an artist to compare"
                                                      ToolTip="Type an artist's name, then pick a match or press Enter for the first one">
                                                 <TextBox.InputBindings>
-                                                    <KeyBinding Key="Enter" Command="{Binding AddComparedArtistCommand}" />
+                                                    <KeyBinding Key="Enter" Command="{Binding AddCommand}" />
                                                 </TextBox.InputBindings>
                                             </TextBox>
-                                            <ItemsControl ItemsSource="{Binding ComparedArtists}" Margin="10,0,0,0"
+                                            <ItemsControl ItemsSource="{Binding Artists}" Margin="10,0,0,0"
                                                           VerticalAlignment="Center" Focusable="False"
                                                           AutomationProperties.Name="Artists being compared">
                                                 <ItemsControl.ItemsPanel>
@@ -934,7 +1242,7 @@
                                                             <StackPanel Orientation="Horizontal">
                                                                 <TextBlock Text="{Binding}" FontSize="11" VerticalAlignment="Center" />
                                                                 <Button Style="{StaticResource ChipCloseButton}" Content="&#xE711;"
-                                                                        Command="{Binding DataContext.RemoveComparedArtistCommand,
+                                                                        Command="{Binding DataContext.RemoveCommand,
                                                                                   RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                         CommandParameter="{Binding}"
                                                                         ToolTip="Take this artist off the chart"
@@ -945,7 +1253,7 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
                                         </DockPanel>
-                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding CompareSuggestionDetails}"
+                                        <ItemsControl DockPanel.Dock="Top" ItemsSource="{Binding SuggestionDetails}"
                                                       Focusable="False" AutomationProperties.Name="Matching artists">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
@@ -955,21 +1263,22 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Button Content="{Binding}" ContentTemplate="{StaticResource SearchSuggestionTemplate}" Style="{StaticResource QuickRangeButton}"
-                                                            Command="{Binding DataContext.AddComparedArtistCommand,
+                                                            Command="{Binding DataContext.AddCommand,
                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                             CommandParameter="{Binding Name}"
                                                             AutomationProperties.Name="{Binding Name, StringFormat='Compare {0}'}" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
-                                        <TextBlock DockPanel.Dock="Top" Text="{Binding CompareHint}" Style="{StaticResource Hint}"
+                                        <TextBlock DockPanel.Dock="Top" Text="{Binding Hint}" Style="{StaticResource Hint}"
                                                    FontSize="11" Margin="0,0,0,4"
-                                                   Visibility="{Binding CompareHint, Converter={StaticResource TextToVis}}" />
-                                        <lvc:CartesianChart Series="{Binding ArtistTimelineChart.Series}"
+                                                   Visibility="{Binding Hint, Converter={StaticResource TextToVis}}" />
+                                        <lvc:CartesianChart Series="{Binding Chart.Series}"
                                                             Background="Transparent"
-                                                            AnimationsSpeed="{Binding ChartAnimationSpeed}"
-                                                            XAxes="{Binding ArtistTimelineChart.XAxes}"
-                                                            YAxes="{Binding ArtistTimelineChart.YAxes}"
+                                                            AnimationsSpeed="{Binding DataContext.ChartAnimationSpeed,
+                                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            XAxes="{Binding Chart.XAxes}"
+                                                            YAxes="{Binding Chart.YAxes}"
                                                             LegendPosition="Bottom" LegendTextSize="12"
                                                             TooltipPosition="Top" />
                                     </DockPanel>
@@ -980,7 +1289,7 @@
                                             <Run Text="Listening Heatmap (day of week vs. hour of day)" /><Run Text="   Click a square to see only that hour of that day"
                                                 FontWeight="Normal" FontSize="11" Foreground="{DynamicResource MutedBrush}" />
                                         </TextBlock>
-                                        <lvc:CartesianChart Series="{Binding Heat.Series}" Cursor="Hand" DataPointerDown="OnHeatClick" FindingStrategy="CompareAllTakeClosest"
+                                        <lvc:CartesianChart Series="{Binding Heat.Series}" Tag="{Binding Heat}" Cursor="Hand" DataPointerDown="OnHeatClick" FindingStrategy="CompareAllTakeClosest"
                                                             Background="Transparent"
                                                             AnimationsSpeed="{Binding ChartAnimationSpeed}"
                                                             XAxes="{Binding Heat.XAxes}" YAxes="{Binding Heat.YAxes}"
@@ -1023,12 +1332,12 @@
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="Month" Binding="{Binding Month, StringFormat=yyyy-MM}"
                                                                         Width="Auto" SortMemberPath="Month" />
-                                                    <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" />
+                                                    <DataGridTextColumn Header="Top Artist" Binding="{Binding TopArtist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="{Binding Data.AmountHeader, Source={StaticResource Vm}}"
                                                                         Binding="{Binding ArtistAmountText}"
                                                                         Width="Auto" SortMemberPath="ArtistAmount" />
-                                                    <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="*" />
-                                                    <DataGridTextColumn Header="By" Binding="{Binding TopTrackArtist}" Width="0.7*" />
+                                                    <DataGridTextColumn Header="Top Track" Binding="{Binding TopTrack}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="By" Binding="{Binding TopTrackArtist}" Width="0.7*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="{Binding Data.AmountHeader, Source={StaticResource Vm}}"
                                                                         Binding="{Binding TrackAmountText}"
                                                                         Width="Auto" SortMemberPath="TrackAmount" />
@@ -1074,7 +1383,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LONGEST STREAK" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding LongestStreakText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.LongestStreak}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Consecutive days with listening." />
                                         </StackPanel>
@@ -1082,7 +1391,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="CURRENT STREAK" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding CurrentStreakText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.CurrentStreak}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Consecutive days ending on your most recent listening day." />
                                         </StackPanel>
@@ -1090,7 +1399,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LONGEST BREAK" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding LongestBreakText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.LongestBreak}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Your longest stretch without playing anything." />
                                         </StackPanel>
@@ -1098,15 +1407,17 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="BIGGEST DAY" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding BiggestDayText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Style="{StaticResource StatValueSmall}">
+                                                <Hyperlink Click="OnOpenBiggestDay" ToolTip="Open this day's breakdown"><Run Text="{Binding Insights.BiggestDay, Mode=OneWay}" /></Hyperlink>
+                                            </TextBlock>
                                             <TextBlock Style="{StaticResource Hint}"
-                                                       Text="The single day with the most listening time." />
+                                                       Text="The single day with the most listening time. Click it for what you played." />
                                         </StackPanel>
                                     </Border>
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="PEAK LISTENING" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding PeakHourText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.PeakHour}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="The hour of the week you listen to most." />
                                         </StackPanel>
@@ -1114,7 +1425,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="ACTIVE DAYS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding ActiveDaysText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.ActiveDays}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Days with at least one counted play." />
                                         </StackPanel>
@@ -1122,7 +1433,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="AVERAGE PER ACTIVE DAY" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding AvgPerDayText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.AveragePerDay}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Listening time averaged over active days." />
                                         </StackPanel>
@@ -1130,7 +1441,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LISTENING SESSIONS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding SessionsText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.Sessions}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Runs of plays separated by a long enough break (set in Settings)." />
                                         </StackPanel>
@@ -1138,7 +1449,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="AVERAGE SESSION" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding AvgSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.AverageSession}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Listening time in a typical session." />
                                         </StackPanel>
@@ -1146,7 +1457,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="LONGEST SESSION" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding LongestSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.LongestSession}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Your single biggest uninterrupted listening stretch." />
                                         </StackPanel>
@@ -1154,7 +1465,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="WEEKDAYS VS WEEKENDS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding WeekSplitText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.WeekSplit}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="How your listening splits across the week." />
                                         </StackPanel>
@@ -1162,7 +1473,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="FAVORITE TIME OF DAY" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding TimeOfDayText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.TimeOfDay}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="The six-hour window you listen in most." />
                                         </StackPanel>
@@ -1173,7 +1484,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="SKIP RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding SkipRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.SkipRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays Spotify flagged as skipped (short plays included)." />
                                         </StackPanel>
@@ -1181,7 +1492,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="COMPLETION RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding CompletionRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.CompletionRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays that ran all the way to the end of the track." />
                                         </StackPanel>
@@ -1189,7 +1500,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="REPEAT RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding RepeatRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.RepeatRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="How often you come back to the same track." />
                                         </StackPanel>
@@ -1197,7 +1508,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="DISCOVERY RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding DiscoveryRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.DiscoveryRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Artists you heard for the first time, per month." />
                                         </StackPanel>
@@ -1205,7 +1516,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="MOST LISTENED ARTIST" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding TopArtistShareText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.TopArtistShare}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Share of your listening time going to one artist." />
                                         </StackPanel>
@@ -1213,7 +1524,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="SHUFFLE RATE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding ShuffleRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.ShuffleRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays that started in shuffle mode." />
                                         </StackPanel>
@@ -1221,7 +1532,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="OFFLINE LISTENING" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding OfflineRateText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.OfflineRate}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays from downloads, with no connection." />
                                         </StackPanel>
@@ -1229,7 +1540,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="PRIVATE SESSIONS" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding PrivateSessionText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.PrivateSessions}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Plays from private sessions. The sidebar can leave them out." />
                                         </StackPanel>
@@ -1237,7 +1548,7 @@
                                     <Border Style="{StaticResource Card}">
                                         <StackPanel>
                                             <TextBlock Text="TOP DEVICE" Style="{StaticResource Caption}" />
-                                            <TextBlock Text="{Binding TopDeviceText}" Style="{StaticResource StatValueSmall}" />
+                                            <TextBlock Text="{Binding Insights.TopDevice}" Style="{StaticResource StatValueSmall}" />
                                             <TextBlock Style="{StaticResource Hint}"
                                                        Text="Where most of your listening happens." />
                                         </StackPanel>
@@ -1257,11 +1568,11 @@
                                                       PreviewMouseWheel="OnPassWheelToPage"
                                                       MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="Milestone" Binding="{Binding Label}" Width="1.4*" />
+                                                    <DataGridTextColumn Header="Milestone" Binding="{Binding Label}" Width="1.4*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="When" Binding="{Binding Date, StringFormat=yyyy-MM-dd HH:mm}"
                                                                         Width="145" SortMemberPath="Date" />
-                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="1.2*" />
-                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="1.2*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                 </DataGrid.Columns>
                                             </DataGrid>
                                             <TextBlock Style="{StaticResource EmptyRows}"
@@ -1271,7 +1582,52 @@
                                     </DockPanel>
                                 </Border>
 
-                                <Border Style="{StaticResource Card}" Height="400">
+                                <Border Style="{StaticResource Card}" Height="360">
+                                    <DockPanel>
+                                        <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">
+                                            <Button DockPanel.Dock="Right" Content="Copy tracks as links" Click="OnCopyRepeatLinks"
+                                                    Padding="10,5" FontSize="11" Margin="0" VerticalAlignment="Center"
+                                                    AutomationProperties.Name="Copy the tracks on repeat as Spotify links"
+                                                    ToolTip="Copy every track below as a Spotify link, to paste into a playlist" />
+                                            <TextBlock Text="On Repeat" Style="{StaticResource SectionHeader}"
+                                                       Margin="0" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
+                                                   Text="{Binding OnRepeatHint}" />
+                                        <Grid>
+                                            <DataGrid x:Name="RepeatGrid" ItemsSource="{Binding OnRepeat}"
+                                                      AutomationProperties.Name="Tracks on repeat"
+                                                      PreviewMouseRightButtonDown="OnGridRightClick"
+                                                      ContextMenuOpening="OnGridMenuOpening"
+                                                      MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                                <DataGrid.ContextMenu>
+                                                    <ContextMenu>
+                                                        <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyLinksFromRepeats" />
+                                                    </ContextMenu>
+                                                </DataGrid.ContextMenu>
+                                                <DataGrid.Columns>
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Track.Track}" Width="2*" MinWidth="140" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Track.Artist}" Width="*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Plays" Binding="{Binding Plays, StringFormat=N0}" Width="75" MinWidth="75" />
+                                                    <DataGridTextColumn Header="From" Binding="{Binding From, StringFormat=yyyy-MM-dd}"
+                                                                        SortMemberPath="From" Width="110" MinWidth="110" />
+                                                    <DataGridTextColumn Header="To" Binding="{Binding To, StringFormat=yyyy-MM-dd}"
+                                                                        SortMemberPath="To" Width="110" MinWidth="110" />
+                                                    <DataGridTextColumn Binding="{Binding Track.PlayCount}" Width="95" MinWidth="95">
+                                                        <DataGridTextColumn.Header>
+                                                            <TextBlock Text="All Plays" ToolTip="Every play of the track under the current filters" />
+                                                        </DataGridTextColumn.Header>
+                                                    </DataGridTextColumn>
+                                                </DataGrid.Columns>
+                                            </DataGrid>
+                                            <TextBlock Style="{StaticResource EmptyRows}" Text="{Binding OnRepeatEmpty}"
+                                                       Visibility="{Binding OnRepeat, Converter={StaticResource EmptyToVis}}" />
+                                        </Grid>
+                                    </DockPanel>
+                                </Border>
+
+                                <Border x:Name="ForgottenCard" Style="{StaticResource Card}" Height="400"
+                                        SizeChanged="OnForgottenSizeChanged">
                                     <DockPanel>
                                         <DockPanel DockPanel.Dock="Top" LastChildFill="True" Margin="0,0,0,4">
                                             <Button DockPanel.Dock="Right" Content="Copy tracks as links" Click="OnCopyForgottenLinks"
@@ -1283,12 +1639,17 @@
                                         </DockPanel>
                                         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
                                                    Text="{Binding ForgottenHint}" />
-                                        <Grid>
+                                        <Grid x:Name="ForgottenTables">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="3*" />
                                                 <ColumnDefinition Width="12" />
                                                 <ColumnDefinition Width="2*" />
                                             </Grid.ColumnDefinitions>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*" />
+                                                <RowDefinition Height="0" />
+                                                <RowDefinition Height="0" />
+                                            </Grid.RowDefinitions>
                                             <Grid Grid.Column="0">
                                                 <DataGrid views:RowNumbers.IsEnabled="True" x:Name="ForgottenTracksGrid" ItemsSource="{Binding ForgottenTracks}"
                                                           AutomationProperties.Name="Forgotten tracks"
@@ -1302,9 +1663,9 @@
                                                         </ContextMenu>
                                                     </DataGrid.ContextMenu>
                                                     <DataGrid.Columns>
-                                                        <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" />
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
-                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
                                                         <DataGridTextColumn Header="Last Played"
                                                                             Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
                                                                             Width="108" />
@@ -1314,14 +1675,14 @@
                                                            Visibility="{Binding ForgottenTracks, Converter={StaticResource EmptyToVis}}"
                                                            Text="No forgotten tracks: everything you played that often is still in rotation." />
                                             </Grid>
-                                            <Grid Grid.Column="2">
+                                            <Grid x:Name="ForgottenArtistsTable" Grid.Column="2">
                                                 <DataGrid views:RowNumbers.IsEnabled="True" ItemsSource="{Binding ForgottenArtists}"
                                                           AutomationProperties.Name="Forgotten artists"
                                                           views:GridSort.PresortedBy="PlayCount"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                     <DataGrid.Columns>
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" />
-                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount}" Width="Auto" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                        <DataGridTextColumn Header="Plays" Binding="{Binding PlayCount, StringFormat=N0}" Width="Auto" />
                                                         <DataGridTextColumn Header="Last Played"
                                                                             Binding="{Binding LastPlayed, StringFormat=yyyy-MM-dd}"
                                                                             Width="108" />
@@ -1477,7 +1838,7 @@
                                             </StackPanel>
                                         </Grid>
                                         <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                   Foreground="{DynamicResource DangerBrush}" views:LiveRegion.Announce="Polite"
                                                    Visibility="{Binding Message, Converter={StaticResource TextToVis}}" />
                                         <TextBlock Text="Working out both periods..." Style="{StaticResource Hint}" FontSize="11"
                                                    Margin="0,8,0,0"
@@ -1492,9 +1853,9 @@
                                         <DataGrid ItemsSource="{Binding Metrics}" AutomationProperties.Name="Headline figures for both periods"
                                                   SelectionMode="Single" PreviewMouseWheel="OnPassWheelToPage">
                                             <DataGrid.Columns>
-                                                <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" />
-                                                <DataGridTextColumn Header="Period A" Binding="{Binding A}" Width="*" />
-                                                <DataGridTextColumn Header="Period B" Binding="{Binding B}" Width="*" />
+                                                <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" MinWidth="185" ElementStyle="{StaticResource TrimmedCell}" />
+                                                <DataGridTextColumn Header="Period A" Binding="{Binding A}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                <DataGridTextColumn Header="Period B" Binding="{Binding B}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                 <DataGridTextColumn Header="Change" Binding="{Binding Change}" Width="*"
                                                                     ElementStyle="{StaticResource TrendText}" />
                                             </DataGrid.Columns>
@@ -1514,7 +1875,7 @@
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
                                                                         SortMemberPath="RankB" />
-                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
                                                                         SortMemberPath="MsB"
                                                                         Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
@@ -1544,8 +1905,8 @@
                                                 <DataGrid.Columns>
                                                     <DataGridTextColumn Header="#" Binding="{Binding RankB, TargetNullValue=-}" Width="Auto"
                                                                         SortMemberPath="RankB" />
-                                                    <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" />
-                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" />
+                                                    <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Hours B" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
                                                                         SortMemberPath="MsB"
                                                                         Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
@@ -1577,7 +1938,7 @@
                                                           views:GridSort.PresortedBy="{Binding NewInBSortMember}"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                     <DataGrid.Columns>
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         <DataGridTextColumn Header="Hours in B" Binding="{Binding HoursB, StringFormat=N1}"
                                                                             Width="Auto" SortMemberPath="MsB"
                                                                             Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
@@ -1602,7 +1963,7 @@
                                                           views:GridSort.PresortedBy="{Binding GoneSinceASortMember}"
                                                           MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                     <DataGrid.Columns>
-                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                        <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                         <DataGridTextColumn Header="Hours in A" Binding="{Binding HoursA, StringFormat=N1}"
                                                                             Width="Auto" SortMemberPath="MsA"
                                                                             Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
@@ -1621,7 +1982,6 @@
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
-
                     <!-- ========================= COMPARE PEOPLE ========================== -->
                     <TabItem x:Name="ComparePeopleTab" Header="Compare People">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -1653,14 +2013,23 @@
                                             <TextBlock Text="{Binding LoadedText}" Style="{StaticResource Hint}" FontSize="11"
                                                        VerticalAlignment="Center" Margin="12,0,0,0" />
                                         </DockPanel>
-                                        <TextBlock Text="Reading their history..." Style="{StaticResource Hint}" FontSize="11"
-                                                   Margin="0,8,0,0"
-                                                   Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}" />
+                                        <DockPanel Margin="0,8,0,0" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVis}}">
+                                            <Button DockPanel.Dock="Right" Content="Cancel" Command="{Binding CancelLoadCommand}"
+                                                    Padding="10,5" FontSize="11" Margin="0" VerticalAlignment="Center"
+                                                    ToolTip="Stop reading their history" />
+                                            <StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+                                                <TextBlock Text="{Binding LoadStatus}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                           views:LiveRegion.Announce="Polite" />
+                                                <ProgressBar Value="{Binding LoadProgress}" Maximum="100" Height="4" Margin="0,6,0,0"
+                                                             IsIndeterminate="{Binding IsLoadProgressUnknown}"
+                                                             AutomationProperties.Name="Reading their history" />
+                                            </StackPanel>
+                                        </DockPanel>
                                         <TextBlock Text="{Binding LoadError}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                   Foreground="{DynamicResource DangerBrush}" views:LiveRegion.Announce="Polite"
                                                    Visibility="{Binding LoadError, Converter={StaticResource TextToVis}}" />
                                         <TextBlock Text="{Binding Message}" FontSize="12" Margin="0,8,0,0" TextWrapping="Wrap"
-                                                   Foreground="{DynamicResource DangerBrush}" AutomationProperties.LiveSetting="Polite"
+                                                   Foreground="{DynamicResource DangerBrush}" views:LiveRegion.Announce="Polite"
                                                    Visibility="{Binding Message, Converter={StaticResource TextToVis}}" />
                                         <TextBlock Text="Comparing your listening with theirs..." Style="{StaticResource Hint}" FontSize="11"
                                                    Margin="0,8,0,0"
@@ -1680,14 +2049,14 @@
                                             <StackPanel>
                                                 <TextBlock Text="ARTIST MATCH" Style="{StaticResource Caption}" />
                                                 <TextBlock Text="{Binding ArtistMatch}" Style="{StaticResource StatValue}"
-                                                           ToolTip="How much of your listening time and theirs goes to the same artists" />
+                                                           ToolTip="{Binding ArtistMatchHint}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
                                             <StackPanel>
                                                 <TextBlock Text="TRACK MATCH" Style="{StaticResource Caption}" />
                                                 <TextBlock Text="{Binding TrackMatch}" Style="{StaticResource StatValue}"
-                                                           ToolTip="How much of your listening time and theirs goes to the same tracks" />
+                                                           ToolTip="{Binding TrackMatchHint}" />
                                             </StackPanel>
                                         </Border>
                                         <Border Style="{StaticResource Card}">
@@ -1713,9 +2082,9 @@
                                             <DataGrid ItemsSource="{Binding Metrics}" AutomationProperties.Name="Headline figures for both people"
                                                       SelectionMode="Single" PreviewMouseWheel="OnPassWheelToPage">
                                                 <DataGrid.Columns>
-                                                    <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" />
-                                                    <DataGridTextColumn Header="You" Binding="{Binding A}" Width="*" />
-                                                    <DataGridTextColumn Header="Them" Binding="{Binding B}" Width="*" />
+                                                    <DataGridTextColumn Header="" Binding="{Binding Metric}" Width="1.4*" MinWidth="185" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="You" Binding="{Binding A}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                    <DataGridTextColumn Header="Them" Binding="{Binding B}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                     <DataGridTextColumn Header="Difference" Binding="{Binding Change}" Width="*"
                                                                         ElementStyle="{StaticResource TrendText}" />
                                                 </DataGrid.Columns>
@@ -1728,18 +2097,26 @@
                                             <DockPanel>
                                                 <TextBlock DockPanel.Dock="Top" Text="Artists You Share" Style="{StaticResource SectionHeader}" Margin="0,0,0,2" />
                                                 <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,0,0,8"
-                                                           Text="Artists you both play, the ones you're most alike on first, with each of your own ranks. Double-click a row for your breakdown." />
+                                                           Text="{Binding SharedHint}" />
                                                 <Grid>
                                                     <DataGrid ItemsSource="{Binding SharedArtists}" AutomationProperties.Name="Artists you both play"
                                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                         <DataGrid.Columns>
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
                                                             <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
                                                             <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsA" />
+                                                                                SortMemberPath="MsA"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                             <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsB" />
+                                                                                SortMemberPath="MsB"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Your plays" Binding="{Binding PlaysA, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysA"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Their plays" Binding="{Binding PlaysB, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysB"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -1757,14 +2134,22 @@
                                                     <DataGrid ItemsSource="{Binding SharedTracks}" AutomationProperties.Name="Tracks you both play"
                                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                         <DataGrid.Columns>
-                                                            <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" />
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" />
+                                                            <DataGridTextColumn Header="Track" Binding="{Binding Name}" Width="1.4*" ElementStyle="{StaticResource TrimmedCell}" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Secondary}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
                                                             <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
                                                             <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsA" />
+                                                                                SortMemberPath="MsA"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                             <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
-                                                                                SortMemberPath="MsB" />
+                                                                                SortMemberPath="MsB"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Your plays" Binding="{Binding PlaysA, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysA"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Their plays" Binding="{Binding PlaysB, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysB"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -1785,10 +2170,14 @@
                                                     <DataGrid ItemsSource="{Binding OnlyYou}" AutomationProperties.Name="Artists only you play"
                                                               MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
                                                         <DataGrid.Columns>
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Your #" Binding="{Binding RankA}" Width="Auto" />
-                                                            <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}"
-                                                                                Width="Auto" SortMemberPath="MsA" />
+                                                            <DataGridTextColumn Header="Your hours" Binding="{Binding HoursA, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsA"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Your plays" Binding="{Binding PlaysA, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysA"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -1805,10 +2194,14 @@
                                                 <Grid>
                                                     <DataGrid ItemsSource="{Binding OnlyThem}" AutomationProperties.Name="Artists only they play">
                                                         <DataGrid.Columns>
-                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" />
+                                                            <DataGridTextColumn Header="Artist" Binding="{Binding Name}" Width="*" ElementStyle="{StaticResource TrimmedCell}" />
                                                             <DataGridTextColumn Header="Their #" Binding="{Binding RankB}" Width="Auto" />
-                                                            <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}"
-                                                                                Width="Auto" SortMemberPath="MsB" />
+                                                            <DataGridTextColumn Header="Their hours" Binding="{Binding HoursB, StringFormat=N1}" Width="Auto"
+                                                                                SortMemberPath="MsB"
+                                                                                Visibility="{Binding Data.IsRankedByTime, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
+                                                            <DataGridTextColumn Header="Their plays" Binding="{Binding PlaysB, StringFormat=N0}" Width="Auto"
+                                                                                SortMemberPath="PlaysB"
+                                                                                Visibility="{Binding Data.IsRankedByPlays, Source={StaticResource Vm}, Converter={StaticResource BoolToVis}}" />
                                                         </DataGrid.Columns>
                                                     </DataGrid>
                                                     <TextBlock Style="{StaticResource EmptyRows}"
@@ -1821,6 +2214,89 @@
                                 </StackPanel>
                             </StackPanel>
                         </ScrollViewer>
+                    </TabItem>
+                    <!-- ============================= HISTORY ============================= -->
+                    <TabItem x:Name="HistoryTab" Header="History">
+                        <Border Style="{StaticResource Card}" DataContext="{Binding History}">
+                            <DockPanel>
+                                <Grid DockPanel.Dock="Top" Margin="0,0,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <TextBlock Text="Every Play" Style="{StaticResource SectionHeader}" Margin="0" />
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Summary}" FontSize="11" Foreground="{DynamicResource MutedBrush}"
+                                                       TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="Updating..." FontSize="11" Margin="10,0,0,0"
+                                                       Foreground="{DynamicResource MutedBrush}"
+                                                       Visibility="{Binding IsRefreshing, Converter={StaticResource BoolToVis}}" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Go to" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"
+                                                   Foreground="{DynamicResource MutedBrush}" />
+                                        <DatePicker Width="130" Margin="0,0,14,0" VerticalAlignment="Center"
+                                                    SelectedDate="{Binding GoToDate}"
+                                                    AutomationProperties.Name="Go to a day"
+                                                    ToolTip="Jump to the plays of a day" />
+                                        <TextBlock Text="Filter rows" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11"
+                                                   Foreground="{DynamicResource MutedBrush}" />
+                                        <TextBox x:Name="HistoryQuickFilter" Width="180"
+                                                 AutomationProperties.Name="Filter plays"
+                                                 Text="{Binding QuickFilter, UpdateSourceTrigger=PropertyChanged, Delay=250}"
+                                                 ToolTip="Narrow the plays below by track, artist or album (Ctrl+F)" />
+                                    </StackPanel>
+                                </Grid>
+                                <TextBlock DockPanel.Dock="Top" Style="{StaticResource Hint}" Margin="0,4,0,8" FontSize="11"
+                                           Text="Every play that passes the sidebar filters, newest first. Click a column header to sort, and double-click a play, or select it and press Enter, for its track's breakdown." />
+                                <TextBlock DockPanel.Dock="Top" Text="{Binding JumpNote}" FontSize="12" Margin="0,0,0,8"
+                                           Foreground="{DynamicResource Accent2TextBrush}" views:LiveRegion.Announce="Polite"
+                                           Visibility="{Binding JumpNote, Converter={StaticResource TextToVis}}" />
+                                <Grid>
+                                    <DataGrid x:Name="HistoryGrid" ItemsSource="{Binding Rows}"
+                                              AutomationProperties.Name="Every play"
+                                              Sorting="OnHistorySorting"
+                                              PreviewMouseRightButtonDown="OnGridRightClick"
+                                              ContextMenuOpening="OnGridMenuOpening"
+                                              MouseDoubleClick="OnGridRowDoubleClick" PreviewKeyDown="OnGridKeyDown">
+                                        <DataGrid.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Open the track's breakdown" Click="OnOpenPlayTrack" InputGestureText="Enter" />
+                                                <MenuItem Header="Open the artist's breakdown" Click="OnOpenPlayArtist" />
+                                                <Separator />
+                                                <MenuItem Tag="Copy play|Copy {0} plays" Click="OnCopyPlays" />
+                                                <MenuItem Tag="Copy Spotify link|Copy {0} Spotify links" Click="OnCopyPlayLinks" />
+                                                <Separator />
+                                                <MenuItem Tag="Show only this artist|Show only their artists" Click="OnFocusArtistFromPlays" />
+                                            </ContextMenu>
+                                        </DataGrid.ContextMenu>
+                                        <DataGrid.Columns>
+                                            <DataGridTextColumn Header="When" Binding="{Binding When}" SortMemberPath="When"
+                                                                SortDirection="Descending" Width="135" MinWidth="135" />
+                                            <DataGridTextColumn Header="Track" Binding="{Binding Track}" Width="2*" MinWidth="160" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Artist" Binding="{Binding Artist}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Album" Binding="{Binding Album}" Width="*" MinWidth="110" ElementStyle="{StaticResource TrimmedCell}" />
+                                            <DataGridTextColumn Header="Played" Binding="{Binding Played, Converter={StaticResource HhMmSs}}"
+                                                                SortMemberPath="Played" Width="80" MinWidth="80" />
+                                            <DataGridTextColumn Header="Ended" Binding="{Binding Ended}" Width="130" MinWidth="130" />
+                                            <DataGridTextColumn Header="Device" Binding="{Binding Device}" Width="115" MinWidth="115" />
+                                            <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="75" MinWidth="75" />
+                                            <DataGridTextColumn Binding="{Binding Mode}" SortMemberPath="Mode" Width="0.8*" MinWidth="100" ElementStyle="{StaticResource TrimmedCell}">
+                                                <DataGridTextColumn.Header>
+                                                    <TextBlock Text="Mode" ToolTip="Whether the play was shuffled, offline or in a private session" />
+                                                </DataGridTextColumn.Header>
+                                            </DataGridTextColumn>
+                                        </DataGrid.Columns>
+                                    </DataGrid>
+                                    <TextBlock Style="{StaticResource EmptyRows}" Text="{Binding EmptyText}"
+                                               Visibility="{Binding Rows, Converter={StaticResource EmptyToVis}}" />
+                                    <TextBlock Style="{StaticResource EmptyRows}" Text="Gathering your plays..." Margin="0,82,0,0"
+                                               Visibility="{Binding IsGathering, Converter={StaticResource BoolToVis}}" />
+                                </Grid>
+                            </DockPanel>
+                        </Border>
                     </TabItem>
                 </TabControl>
             </Grid>
@@ -1838,9 +2314,14 @@
                            VerticalAlignment="Center" Margin="12,0,0,0"
                            Foreground="{DynamicResource MutedBrush}"
                            Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}" />
+                <TextBlock DockPanel.Dock="Right" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0"
+                           Visibility="{Binding HasData, Converter={StaticResource BoolToVis}}">
+                    <Hyperlink Click="OnShowLoadedFiles"
+                               ToolTip="The files your history was read from, what each held, and anything left out"><Run Text="{Binding LoadedFilesText, Mode=OneWay}" /></Hyperlink>
+                </TextBlock>
                 <TextBlock x:Name="StatusLine" Text="{Binding StatusText}" TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" ToolTip="{Binding StatusText}"
-                           AutomationProperties.LiveSetting="Polite">
+                           views:LiveRegion.Announce="Polite">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
                             <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
@@ -1871,7 +2352,7 @@
                              AutomationProperties.Name="Jump to a track, artist, album or podcast"
                              PreviewKeyDown="OnJumpBoxKeyDown" />
                     <TextBlock DockPanel.Dock="Top" Text="{Binding JumpHint}" Style="{StaticResource Hint}"
-                               FontSize="11" Margin="2,8,2,0" AutomationProperties.LiveSetting="Polite"
+                               FontSize="11" Margin="2,8,2,0" views:LiveRegion.Announce="Polite"
                                Visibility="{Binding JumpHint, Converter={StaticResource TextToVis}}" />
                     <ListBox x:Name="JumpList" ItemsSource="{Binding JumpResults}" SelectedItem="{Binding SelectedJump}"
                              MaxHeight="440" Margin="0,8,0,0" Focusable="False"

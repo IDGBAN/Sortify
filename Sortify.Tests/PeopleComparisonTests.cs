@@ -116,6 +116,66 @@ public class PeopleComparisonTests
             (metrics["Top artist"].A, metrics["Top artist"].B, metrics["Top artist"].Change));
         Assert.Equal("different", metrics["Top track"].Change);
     }
+
+    [Fact]
+    public async Task BetweenTwoPeople_NothingIsNew()
+    {
+        var result = await Compare(new FilterOptions { StartDate = new DateTime(2025, 1, 1) });
+
+        Assert.Equal("same", result.Metrics.Single(m => m.Metric == "Plays").Change);
+    }
+
+    [Fact]
+    public void ByPlays_TheRanksMatchOrderAndTopArtist_CountPlays()
+    {
+        var you = AnalysisEngine.Analyze(TwoListeners.Yours, new FilterOptions());
+        var them = AnalysisEngine.Analyze(TwoListeners.Theirs, new FilterOptions());
+
+        var byTime = PeopleComparison.Build(you, them, Metric.Time);
+        var byPlays = PeopleComparison.Build(you, them, Metric.Plays);
+
+        Assert.Equal(new[] { "Long Band", "Often Band" }, byTime.SharedArtists.Select(r => r.Name));
+        Assert.Equal(new[] { "Often Band", "Long Band" }, byPlays.SharedArtists.Select(r => r.Name));
+        var often = byPlays.SharedArtists[0];
+        Assert.Equal((1, 3), (often.RankA, often.RankB));
+        Assert.Equal((6, 3), (often.PlaysA, often.PlaysB));
+
+        // Often Band: 6 of your 7 plays, 3 of their 18; Long Band: 1 of 7, 1 of 18.
+        Assert.Equal((3 + 1) * 100.0 / 18, byPlays.ArtistMatch, 3);
+        Assert.Equal("Often Band", byPlays.Metrics.Single(m => m.Metric == "Top artist").A);
+        Assert.Equal("Long Band", byTime.Metrics.Single(m => m.Metric == "Top artist").A);
+
+        // Their Quick leads their plays, but an hour is still the floor for being theirs alone.
+        var onlyThem = Assert.Single(byPlays.OnlyThem);
+        Assert.Equal(("Their Pick", 2), (onlyThem.Name, onlyThem.RankB));
+        Assert.Equal(4, onlyThem.PlaysB);
+    }
+}
+
+/// <summary>One listener who plays a long piece once and another who plays short ones often.</summary>
+internal static class TwoListeners
+{
+    private static IEnumerable<PlayRecord> Plays(string track, string artist, int count, int minutes) => Enumerable.Range(0, count)
+        .Select(day => new PlayRecord
+        {
+            TrackName = track,
+            ArtistName = artist,
+            AlbumName = "Album",
+            MsPlayed = minutes * 60_000,
+            Timestamp = new DateTime(2024, 6, 1, 12, 0, 0).AddDays(day),
+        });
+
+    // 318 minutes over 7 plays.
+    public static readonly List<PlayRecord> Yours = Plays("Epic", "Long Band", 1, 300)
+        .Concat(Plays("Hit", "Often Band", 6, 3))
+        .ToList();
+
+    // 165 minutes over 18 plays.
+    public static readonly List<PlayRecord> Theirs = Plays("Epic", "Long Band", 1, 60)
+        .Concat(Plays("Hit", "Often Band", 3, 5))
+        .Concat(Plays("Theirs", "Their Pick", 4, 20))
+        .Concat(Plays("Quick", "Their Quick", 10, 1))
+        .ToList();
 }
 
 /// <summary>The Compare People tab's own behaviour.</summary>
@@ -154,7 +214,7 @@ public class PeopleCompareViewModelTests
         Assert.Equal(0, asked);
 
         vm.IsVisible = true;
-        await Task.Delay(200);
+        await Wait.UntilAsync(() => vm.HasResults);
 
         Assert.Equal(1, asked);
         Assert.True(vm.HasResults);
@@ -162,6 +222,93 @@ public class PeopleCompareViewModelTests
         Assert.Equal("Sam", vm.TheirName);
         Assert.Equal("Only Sam, Not You", vm.OnlyThemTitle);
         Assert.Contains("1 play loaded, 2024-01-02 to 2024-01-02", vm.LoadedText);
+    }
+
+    [Fact]
+    public async Task FlippingTheSwitch_ReRanksWithoutComparingAgain()
+    {
+        int asked = 0;
+        var vm = new PeopleCompareViewModel(() =>
+        {
+            asked++;
+            return new CompareViewModel.Source(TwoListeners.Yours, new FilterOptions(), TimeSpan.FromMinutes(30));
+        });
+        vm.SetTheirs(TwoListeners.Theirs, "Sam");
+        await vm.RefreshAsync();
+        Assert.Equal("Long Band", vm.SharedArtists[0].Name);
+        int before = asked;
+
+        vm.Metric = Metric.Plays;
+
+        Assert.Equal(before, asked);
+        Assert.Equal("Often Band", vm.SharedArtists[0].Name);
+        Assert.Equal("22%", vm.ArtistMatch);
+        Assert.EndsWith("most played first.", vm.OnlyThemHint);
+        Assert.Contains("plays", vm.ArtistMatchHint);
+    }
+
+    [Fact]
+    public async Task WithReleasesCombined_TheirRemastersMeetYourOriginals()
+    {
+        var theirs = new List<PlayRecord>
+        {
+            new() { TrackName = "Song - 2011 Remaster", ArtistName = "Band", AlbumName = "Album (Deluxe Edition)", MsPlayed = 3_600_000, Timestamp = new DateTime(2024, 1, 3) },
+        };
+        bool combine = false;
+        var vm = new PeopleCompareViewModel(() =>
+            new CompareViewModel.Source(Plays, new FilterOptions(), TimeSpan.FromMinutes(30), CombineReleases: combine));
+        vm.SetTheirs(theirs);
+
+        await vm.RefreshAsync();
+        Assert.Empty(vm.SharedTracks);
+
+        combine = true;
+        await vm.RefreshAsync();
+        Assert.Equal("Song", Assert.Single(vm.SharedTracks).Name);
+        Assert.Equal("Song - 2011 Remaster", theirs[0].TrackName);
+    }
+
+    [Fact]
+    public async Task ASliverInCommon_ReadsAsUnderOnePercent()
+    {
+        var yours = new List<PlayRecord>
+        {
+            new() { TrackName = "Big", ArtistName = "Mostly Mine", AlbumName = "A", MsPlayed = 360_000_000, Timestamp = new DateTime(2024, 1, 2) },
+            new() { TrackName = "Small", ArtistName = "Shared", AlbumName = "B", MsPlayed = 1_800_000, Timestamp = new DateTime(2024, 1, 2) },
+        };
+        var vm = new PeopleCompareViewModel(() => new CompareViewModel.Source(yours, new FilterOptions(), TimeSpan.FromMinutes(30)));
+        vm.SetTheirs(new List<PlayRecord> { yours[1] });
+
+        await vm.RefreshAsync();
+
+        Assert.Equal("<1%", vm.ArtistMatch);
+    }
+
+    [Fact]
+    public async Task ACancelledLoad_KeepsWhoWasThere()
+    {
+        var vm = new PeopleCompareViewModel(YourHistory);
+        vm.SetTheirs(Plays, "Sam");
+        using var looking = new ManualResetEventSlim();
+        using var carryOn = new ManualResetEventSlim();
+
+        // Finding nothing after the cancel would otherwise say so as if it were the answer.
+        var load = vm.LoadTheirsAsync(() =>
+        {
+            looking.Set();
+            carryOn.Wait();
+            return Array.Empty<string>();
+        }, "Alex");
+        looking.Wait();
+        Assert.True(vm.CancelLoadCommand.CanExecute(null));
+        vm.CancelLoadCommand.Execute(null);
+        carryOn.Set();
+        await load;
+
+        Assert.False(vm.IsLoading);
+        Assert.True(vm.HasTheirs);
+        Assert.Equal("Sam", vm.TheirName);
+        Assert.Equal(string.Empty, vm.LoadError);
     }
 
     [Fact]
@@ -221,6 +368,30 @@ public class PeopleCompareViewModelTests
             Assert.Equal("Alex", vm.TheirName);
             Assert.Equal(string.Empty, vm.LoadError);
             Assert.StartsWith("1 play loaded", vm.LoadedText);
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task YourOwnExport_IsTurnedAway()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "sortify-people-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "StreamingHistory0.json"),
+                """[{"endTime":"2024-03-01 10:00","artistName":"Band","trackName":"Song","msPlayed":200000}]""");
+            var yourFiles = HistoryParser.FindHistoryFiles(dir);
+            var vm = new PeopleCompareViewModel(() =>
+                new CompareViewModel.Source(Plays, new FilterOptions(), TimeSpan.FromMinutes(30), yourFiles));
+
+            await vm.LoadTheirsAsync(() => HistoryParser.FindHistoryFiles(dir), "Alex");
+
+            Assert.False(vm.HasTheirs);
+            Assert.Equal("That's the export already open as yours. Pick the other person's.", vm.LoadError);
         }
         finally
         {

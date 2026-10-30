@@ -45,33 +45,47 @@ public static class PeopleComparison
     /// <summary>How many artists each "only" list shows.</summary>
     public const int OnlyOneRows = 25;
 
-    /// <summary>Analyses both histories under the same filters, at the same time, and joins the results.</summary>
+    /// <summary>
+    /// Analyses both histories under the same filters, at the same time, and joins the results,
+    /// ranked by <paramref name="metric"/>.
+    /// </summary>
     public static async Task<PeopleComparisonResult> CompareAsync(
         IReadOnlyList<PlayRecord> yours, IReadOnlyList<PlayRecord> theirs, FilterOptions filter,
-        TimeSpan? sessionGap = null, CancellationToken cancellationToken = default)
+        Metric metric = Metric.Time, TimeSpan? sessionGap = null, CancellationToken cancellationToken = default)
     {
         var you = AnalysisEngine.AnalyzeAsync(yours, filter, sessionGap, cancellationToken);
         var them = AnalysisEngine.AnalyzeAsync(theirs, filter, sessionGap, cancellationToken);
         await Task.WhenAll(you, them).ConfigureAwait(false);
-        return Build(you.Result, them.Result);
+        return Build(you.Result, them.Result, metric);
     }
 
-    public static PeopleComparisonResult Build(AnalysisResult you, AnalysisResult them)
+    /// <summary>
+    /// Joins two analysed histories. The ranks, how much the two of you have in common, which
+    /// shared artists come first and each person's top artist and track follow
+    /// <paramref name="metric"/>; an artist still needs <see cref="OnlyOneMinimum"/> of listening
+    /// to count as one person's alone either way.
+    /// </summary>
+    public static PeopleComparisonResult Build(AnalysisResult you, AnalysisResult them, Metric metric = Metric.Time)
     {
-        var artists = Join(you.Artists, them.Artists, x => (x.Artist, string.Empty), x => x.TotalMsPlayed);
-        var tracks = Join(you.Tracks, them.Tracks, x => (x.Track, x.Artist), x => x.TotalMsPlayed);
+        bool plays = metric == Metric.Plays;
+        var yourArtists = plays ? you.ArtistsByPlayCount : you.Artists;
+        var theirArtists = plays ? them.ArtistsByPlayCount : them.Artists;
+        var artists = Join(yourArtists, theirArtists, x => (x.Artist, string.Empty), x => x.TotalMsPlayed, x => x.PlayCount);
+        var tracks = Join(plays ? you.TracksByPlayCount : you.Tracks, plays ? them.TracksByPlayCount : them.Tracks,
+            x => (x.Track, x.Artist), x => x.TotalMsPlayed, x => x.PlayCount);
+        var shares = Shares.Of(you, them, metric);
 
         return new PeopleComparisonResult
         {
             You = you,
             Them = them,
-            Metrics = Metrics(you, them),
-            ArtistMatch = Match(artists.Shared, you.TotalMsPlayed, them.TotalMsPlayed),
-            TrackMatch = Match(tracks.Shared, you.TotalMsPlayed, them.TotalMsPlayed),
+            Metrics = Metrics(you, them, metric),
+            ArtistMatch = Match(artists.Shared, shares),
+            TrackMatch = Match(tracks.Shared, shares),
             SharedArtistCount = artists.Shared.Count,
             SharedTrackCount = tracks.Shared.Count,
-            SharedArtists = Ordered(artists.Shared, you.TotalMsPlayed, them.TotalMsPlayed).Take(SharedRows).ToList(),
-            SharedTracks = Ordered(tracks.Shared, you.TotalMsPlayed, them.TotalMsPlayed).Take(SharedRows).ToList(),
+            SharedArtists = Ordered(artists.Shared, shares).Take(SharedRows).ToList(),
+            SharedTracks = Ordered(tracks.Shared, shares).Take(SharedRows).ToList(),
             OnlyYou = artists.OnlyYou,
             OnlyThem = artists.OnlyThem,
         };
@@ -83,7 +97,8 @@ public static class PeopleComparison
     /// double-clicking it opens your own breakdown.
     /// </summary>
     private static (List<ComparisonRow> Shared, List<ComparisonRow> OnlyYou, List<ComparisonRow> OnlyThem) Join<T>(
-        IReadOnlyList<T> you, IReadOnlyList<T> them, Func<T, (string Name, string Secondary)> key, Func<T, long> ms)
+        IReadOnlyList<T> you, IReadOnlyList<T> them, Func<T, (string Name, string Secondary)> key, Func<T, long> ms,
+        Func<T, int> plays)
         where T : class
     {
         var theirRank = new Dictionary<(string, string), (int Rank, T Item)>();
@@ -100,46 +115,64 @@ public static class PeopleComparison
             if (!yourKeys.Add(k))
                 continue;
             if (theirRank.TryGetValue(k, out var theirs))
-                shared.Add(new ComparisonRow(k.Name, k.Secondary, i + 1, theirs.Rank, ms(you[i]), ms(theirs.Item), you[i]));
+            {
+                shared.Add(new ComparisonRow(k.Name, k.Secondary, i + 1, theirs.Rank, ms(you[i]), ms(theirs.Item), you[i])
+                {
+                    PlaysA = plays(you[i]),
+                    PlaysB = plays(theirs.Item),
+                });
+            }
             else if (onlyYou.Count < OnlyOneRows && ms(you[i]) >= minimum)
-                onlyYou.Add(new ComparisonRow(k.Name, k.Secondary, i + 1, null, ms(you[i]), 0, you[i]));
+            {
+                onlyYou.Add(new ComparisonRow(k.Name, k.Secondary, i + 1, null, ms(you[i]), 0, you[i]) { PlaysA = plays(you[i]) });
+            }
         }
 
         var onlyThem = theirRank
             .Where(kv => !yourKeys.Contains(kv.Key) && ms(kv.Value.Item) >= minimum)
             .OrderBy(kv => kv.Value.Rank)
             .Take(OnlyOneRows)
-            .Select(kv => new ComparisonRow(kv.Key.Item1, kv.Key.Item2, null, kv.Value.Rank, 0, ms(kv.Value.Item), kv.Value.Item))
+            .Select(kv => new ComparisonRow(kv.Key.Item1, kv.Key.Item2, null, kv.Value.Rank, 0, ms(kv.Value.Item), kv.Value.Item)
+            {
+                PlaysB = plays(kv.Value.Item),
+            })
             .ToList();
 
         return (shared, onlyYou, onlyThem);
     }
 
-    /// <summary>
-    /// The share of listening the two of you have in common: for everything you both play,
-    /// the smaller of your two shares of total listening time, added up. Two identical
-    /// histories score 100%, two with nothing in common 0%.
-    /// </summary>
-    internal static double Match(IEnumerable<ComparisonRow> shared, long yourTotal, long theirTotal)
+    /// <summary>The share (0-1) of each person's listening time, or of their plays, that a row holds.</summary>
+    private readonly record struct Shares(long YourTotal, long TheirTotal, bool Plays)
     {
-        if (yourTotal <= 0 || theirTotal <= 0)
+        public static Shares Of(AnalysisResult you, AnalysisResult them, Metric metric) => metric == Metric.Plays
+            ? new(you.TotalPlays, them.TotalPlays, Plays: true)
+            : new(you.TotalMsPlayed, them.TotalMsPlayed, Plays: false);
+
+        public double You(ComparisonRow r) => YourTotal <= 0 ? 0 : (double)(Plays ? r.PlaysA : r.MsA) / YourTotal;
+
+        public double Them(ComparisonRow r) => TheirTotal <= 0 ? 0 : (double)(Plays ? r.PlaysB : r.MsB) / TheirTotal;
+    }
+
+    /// <summary>
+    /// How much the two of you have in common: for everything you both play, the smaller of
+    /// your two shares of all your listening (or plays), added up. Two identical histories score
+    /// 100%, two with nothing in common 0%.
+    /// </summary>
+    private static double Match(IEnumerable<ComparisonRow> shared, Shares shares)
+    {
+        if (shares.YourTotal <= 0 || shares.TheirTotal <= 0)
             return 0;
-        double sum = shared.Sum(r => Math.Min((double)r.MsA / yourTotal, (double)r.MsB / theirTotal));
+        double sum = shared.Sum(r => Math.Min(shares.You(r), shares.Them(r)));
         return Math.Clamp(sum * 100, 0, 100);
     }
 
     /// <summary>What you have most in common first: the larger the smaller of your two shares, the higher.</summary>
-    private static IEnumerable<ComparisonRow> Ordered(IEnumerable<ComparisonRow> shared, long yourTotal, long theirTotal)
-    {
-        double You(ComparisonRow r) => yourTotal <= 0 ? 0 : (double)r.MsA / yourTotal;
-        double Them(ComparisonRow r) => theirTotal <= 0 ? 0 : (double)r.MsB / theirTotal;
-        return shared
-            .OrderByDescending(r => Math.Min(You(r), Them(r)))
-            .ThenByDescending(r => You(r) + Them(r))
-            .ThenBy(r => r.Name, StringComparer.Ordinal);
-    }
+    private static IEnumerable<ComparisonRow> Ordered(IEnumerable<ComparisonRow> shared, Shares shares) => shared
+        .OrderByDescending(r => Math.Min(shares.You(r), shares.Them(r)))
+        .ThenByDescending(r => shares.You(r) + shares.Them(r))
+        .ThenBy(r => r.Name, StringComparer.Ordinal);
 
-    private static List<ComparisonMetric> Metrics(AnalysisResult you, AnalysisResult them)
+    private static List<ComparisonMetric> Metrics(AnalysisResult you, AnalysisResult them, Metric metric)
     {
         double PerDay(AnalysisResult r) => r.ActiveDays == 0 ? 0 : (double)r.TotalMsPlayed / r.ActiveDays;
         double SkipRate(AnalysisResult r) => r.SkipEligiblePlays == 0 ? 0 : r.TotalSkips * 100.0 / r.SkipEligiblePlays;
@@ -148,26 +181,28 @@ public static class PeopleComparison
 
         var metrics = new List<ComparisonMetric>
         {
-            PeriodComparison.Numeric("Listening time", you.TotalMsPlayed, them.TotalMsPlayed, Time),
-            PeriodComparison.Numeric("Plays", you.TotalPlays, them.TotalPlays, Count),
-            PeriodComparison.Numeric("Artists", you.UniqueArtists, them.UniqueArtists, Count),
-            PeriodComparison.Numeric("Tracks", you.UniqueTracks, them.UniqueTracks, Count),
-            PeriodComparison.Numeric("Days with listening", you.ActiveDays, them.ActiveDays, Count),
-            PeriodComparison.Numeric("Average per listening day", PerDay(you), PerDay(them), Time),
+            PeriodComparison.Numeric("Listening time", you.TotalMsPlayed, them.TotalMsPlayed, Time, people: true),
+            PeriodComparison.Numeric("Plays", you.TotalPlays, them.TotalPlays, Count, people: true),
+            PeriodComparison.Numeric("Artists", you.UniqueArtists, them.UniqueArtists, Count, people: true),
+            PeriodComparison.Numeric("Tracks", you.UniqueTracks, them.UniqueTracks, Count, people: true),
+            PeriodComparison.Numeric("Days with listening", you.ActiveDays, them.ActiveDays, Count, people: true),
+            PeriodComparison.Numeric("Average per listening day", PerDay(you), PerDay(them), Time, people: true),
         };
 
-        double skipYou = SkipRate(you), skipThem = SkipRate(them);
-        metrics.Add(new ComparisonMetric("Skip rate", $"{skipYou:0.#}%", $"{skipThem:0.#}%",
-            $"{skipThem - skipYou:+0.#;-0.#;0} points", PeriodComparison.Direction(skipYou, skipThem)));
+        metrics.Add(PeriodComparison.Points("Skip rate", SkipRate(you), SkipRate(them)));
 
-        string topArtistYou = you.Artists.Count > 0 ? you.Artists[0].Artist : "-";
-        string topArtistThem = them.Artists.Count > 0 ? them.Artists[0].Artist : "-";
-        metrics.Add(Same("Top artist", topArtistYou, topArtistThem));
-
-        string topTrackYou = you.Tracks.Count > 0 ? $"{you.Tracks[0].Track} - {you.Tracks[0].Artist}" : "-";
-        string topTrackThem = them.Tracks.Count > 0 ? $"{them.Tracks[0].Track} - {them.Tracks[0].Artist}" : "-";
-        metrics.Add(Same("Top track", topTrackYou, topTrackThem));
+        bool plays = metric == Metric.Plays;
+        metrics.Add(Same("Top artist", TopArtist(you), TopArtist(them)));
+        metrics.Add(Same("Top track", TopTrack(you), TopTrack(them)));
         return metrics;
+
+        string TopArtist(AnalysisResult r) => (plays ? r.ArtistsByPlayCount : r.Artists) is { Count: > 0 } artists
+            ? artists[0].Artist
+            : "-";
+
+        string TopTrack(AnalysisResult r) => (plays ? r.TracksByPlayCount : r.Tracks) is { Count: > 0 } tracks
+            ? $"{tracks[0].Track} - {tracks[0].Artist}"
+            : "-";
     }
 
     private static ComparisonMetric Same(string name, string you, string them) =>

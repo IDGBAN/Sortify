@@ -31,6 +31,16 @@
                                   Checked="OnAnimateChanged" Unchecked="OnAnimateChanged" />
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="Turn this off if charts feel sluggish on a very large history." />
+
+                        <TextBlock Text="WEEKS START ON" Style="{StaticResource Caption}" Margin="0,14,0,3" />
+                        <ComboBox x:Name="WeekStartBox" SelectionChanged="OnWeekStartChanged"
+                                  AutomationProperties.Name="Weeks start on">
+                            <ComboBoxItem Content="Sunday" Tag="Sunday" />
+                            <ComboBoxItem Content="Monday" Tag="Monday" />
+                            <ComboBoxItem Content="Saturday" Tag="Saturday" />
+                        </ComboBox>
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Sets the order of the days in the heatmap, the day-of-week chart and the sidebar, and where weekly totals begin." />
                     </StackPanel>
                 </Border>
 
@@ -56,6 +66,26 @@
                                 IsSnapToTickEnabled="True" ValueChanged="OnGapChanged" />
                         <TextBlock Style="{StaticResource Hint}"
                                    Text="A break longer than this starts a new listening session. Affects the session counts on the Insights tab." />
+                    </StackPanel>
+                </Border>
+
+                <!-- Time zone -->
+                <Border Style="{StaticResource Card}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Time Zone" Style="{StaticResource SectionHeader}" Margin="0,0,0,8" />
+
+                        <CheckBox x:Name="FollowCountryBox" Content="Show each play in the time zone it was streamed from"
+                                  Checked="OnFollowCountryChanged" Unchecked="OnFollowCountryChanged" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="Spotify records plays in UTC, and Sortify otherwise shows them in this PC's time zone, which gets the hours wrong for anything played before a move or on a trip. With this on, each play keeps the clock of the country Spotify says it came from." />
+
+                        <TextBlock Text="EVERYTHING ELSE" Style="{StaticResource Caption}" Margin="0,14,0,3" />
+                        <ComboBox x:Name="FallbackZoneBox" SelectionChanged="OnFallbackZoneChanged"
+                                  DisplayMemberPath="DisplayName"
+                                  IsEnabled="{Binding IsChecked, ElementName=FollowCountryBox}"
+                                  AutomationProperties.Name="Time zone for plays their country doesn't settle" />
+                        <TextBlock Style="{StaticResource Hint}"
+                                   Text="For plays from a country with several time zones, such as the US, Canada, Mexico, Brazil, Russia, Australia or Indonesia, and for plays with no country, like everything in the older account-data export. A VPN shows up as the VPN's country. Changing either setting reads your export again." />
                     </StackPanel>
                 </Border>
 

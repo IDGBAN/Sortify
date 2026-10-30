@@ -50,10 +50,47 @@ public partial class DetailWindow : ThemedWindow
         }
     }
 
+    private void OnShowChartNumbers(object sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Parent: ContextMenu { PlacementTarget: FrameworkElement card } })
+            ChartTableWindow.ShowFor(card, this);
+    }
+
     private async void OnYearReview(object sender, RoutedEventArgs e)
     {
         if (_openYearReview is not null && int.TryParse(_detail.Title, NumberStyles.None, CultureInfo.InvariantCulture, out int year))
             await _openYearReview(year, this);
+    }
+
+    private readonly Action<string>? _focusArtist;
+
+    /// <summary>
+    /// Narrows the main window to one artist. An artist's breakdown offers it with a button;
+    /// breakdowns opened from this one are handed it too.
+    /// </summary>
+    public Action<string>? FocusArtist
+    {
+        get => _focusArtist;
+        init
+        {
+            _focusArtist = value;
+            FocusButton.Visibility = value is not null && _detail.Scope == DetailScope.Artist
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>True once this breakdown narrowed the main window to its artist.</summary>
+    public bool FocusedOnArtist { get; private set; }
+
+    private void OnFocusArtist(object sender, RoutedEventArgs e)
+    {
+        if (_focusArtist is null)
+            return;
+
+        _focusArtist(_detail.Title);
+        FocusedOnArtist = true;
+        Close();
     }
 
     public DetailWindow(DetailResult detail) : this(detail, null) { }
@@ -68,6 +105,7 @@ public partial class DetailWindow : ThemedWindow
         Metric metric = Metric.Time)
     {
         InitializeComponent();
+        ChartTableWindow.MakeChartsReachable(this);
         _detail = detail;
         _openDetail = openDetail;
         _metric = metric;
@@ -128,6 +166,8 @@ public partial class DetailWindow : ThemedWindow
         TracksGrid.ItemsSource = byPlays ? detail.Tracks.OrderByDescending(t => t.PlayCount).ToList() : detail.Tracks;
         AlbumsGrid.ItemsSource = byPlays ? detail.Albums.OrderByDescending(a => a.PlayCount).ToList() : detail.Albums;
         ArtistsGrid.ItemsSource = byPlays ? detail.Artists.OrderByDescending(a => a.PlayCount).ToList() : detail.Artists;
+        ShowStanding(detail);
+        ShowPlays(detail);
 
         // Opening a single track already shows that one track in the header; the one-row
         // grid underneath would just repeat it. A show's "albums" are only the show itself.
@@ -150,11 +190,106 @@ public partial class DetailWindow : ThemedWindow
             OpenButton.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>Where it ranks, its share of the listening, and how it was played.</summary>
+    private void ShowStanding(DetailResult d)
+    {
+        RankText.Text = d.Rank is { } rank ? $"#{rank:N0}" : "-";
+        RankHint.Text = d.Rank is null ? string.Empty : $"of {RankedAmong(d)}";
+
+        bool byPlays = _metric == Metric.Plays;
+        string measure = byPlays ? "plays" : "listening";
+        ShareCaption.Text = byPlays ? "SHARE OF PLAYS" : "SHARE OF LISTENING";
+        ShareText.Text = d.Rank is null ? "-" : $"{d.SharePercent:0.#}%";
+        ShareHint.Text = d.Rank is null ? string.Empty
+            : d.Scope is DetailScope.Show or DetailScope.Episode ? $"of your podcast and audiobook {measure}" : $"of your {measure}";
+
+        SkipText.Text = d.SkipEligiblePlays > 0 ? $"{d.SkipRate:0.#}%" : "-";
+        SkipHint.Text = d.SkipEligiblePlays > 0 ? $"{d.Skips:N0} of {Plural.Of(d.SkipEligiblePlays, "play")} skipped" : string.Empty;
+
+        BusiestText.Text = d.BusiestMonth is { } month ? TimeFormat.Month(month) : "-";
+        BusiestHint.Text = d.BusiestMonth is null ? string.Empty
+            : byPlays ? Plural.Of(d.BusiestMonthPlays, "play")
+            : TimeFormat.Friendly(TimeSpan.FromMilliseconds(d.BusiestMonthMs));
+
+        StreakText.Text = d.LongestStreakDays > 0 ? Plural.Of(d.LongestStreakDays, "day") : "-";
+        StreakHint.Text = (d.LongestStreakStart, d.LongestStreakEnd) switch
+        {
+            ({ } start, { } end) when start == end => TimeFormat.Day(start),
+            ({ } start, { } end) => $"{TimeFormat.Day(start)} to {TimeFormat.Day(end)}",
+            _ => string.Empty,
+        };
+
+        DeviceText.Text = d.TopDevice.Length > 0 ? d.TopDevice : "-";
+        DeviceHint.Text = d.TopDevice.Length > 0 ? $"{d.TopDevicePercent:0}% of the time" : string.Empty;
+
+        // A single day has no months to compare and no run of days, so those go.
+        if (d.Scope == DetailScope.Day)
+        {
+            BusiestCard.Visibility = Visibility.Collapsed;
+            StreakCard.Visibility = Visibility.Collapsed;
+            MonthCard.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    /// <summary>Below this width the five figures under the title go three to a row.</summary>
+    private const double SummaryInOneRowMinWidth = 760;
+
+    /// <summary>Below this width the figures on where it stands go two rows deep.</summary>
+    private const double StandingInOneRowMinWidth = 900;
+
+    private void OnContentSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        SummaryCards.Columns = e.NewSize.Width < SummaryInOneRowMinWidth ? 3 : 5;
+        int standing = StandingCards.Children.OfType<UIElement>().Count(c => c.Visibility == Visibility.Visible);
+        StandingCards.Columns = e.NewSize.Width < StandingInOneRowMinWidth ? (standing + 1) / 2 : standing;
+    }
+
+    /// <summary>What a breakdown of this kind is ranked against: "160 artists", "1 year".</summary>
+    private static string RankedAmong(DetailResult d)
+    {
+        var (one, many) = d.Scope switch
+        {
+            DetailScope.Artist => ("artist", "artists"),
+            DetailScope.Track => ("track", "tracks"),
+            DetailScope.Album => ("album", "albums"),
+            DetailScope.Year => ("year", "years"),
+            DetailScope.Show => ("show", "shows and audiobooks"),
+            DetailScope.Episode => ("episode", "episodes and chapters"),
+            DetailScope.Day => ("day", "days with listening"),
+            _ => (string.Empty, string.Empty),
+        };
+        return $"{d.RankOutOf:N0} {(d.RankOutOf == 1 ? one : many)}";
+    }
+
+    /// <summary>
+    /// Every play of it, newest first. The track and artist columns go when the header already
+    /// names them for every row.
+    /// </summary>
+    private void ShowPlays(DetailResult d)
+    {
+        PlaysGrid.ItemsSource = HistoryViewModel.Sorted(HistoryViewModel.RowsFor(d.Plays), nameof(PlayRow.When), descending: true);
+        PlaysHeader.Text = $"Plays ({d.Plays.Count:N0})";
+
+        bool oneTrack = d.Scope is DetailScope.Track or DetailScope.Episode;
+        PlaysGrid.Columns[1].Visibility = oneTrack ? Visibility.Collapsed : Visibility.Visible;
+        PlaysGrid.Columns[2].Visibility = d.Scope is DetailScope.Year or DetailScope.Day ? Visibility.Visible : Visibility.Collapsed;
+        if (d.Scope is DetailScope.Show or DetailScope.Episode)
+            PlaysGrid.Columns[1].Header = d.Kind == ContentKind.Audiobook ? "Chapter" : "Episode";
+
+        PlaysHint.Text = oneTrack || _openDetail is null
+            ? "Newest first"
+            : "Newest first. Double-click a play, or press Enter, for its track's breakdown";
+        if (d.Plays.Count == 0)
+            PlaysCard.Visibility = Visibility.Collapsed;
+    }
+
     /// <summary>"Podcast", "Chapter" and so on: what the header says this breakdown is of.</summary>
     internal static string ScopeLabel(DetailResult detail) => detail.Scope switch
     {
         DetailScope.Show => detail.Kind == ContentKind.Audiobook ? "Audiobook" : "Podcast",
         DetailScope.Episode => detail.Kind == ContentKind.Audiobook ? "Chapter" : "Episode",
+        DetailScope.Day when DateTime.TryParseExact(detail.Title, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var day)
+            => day.DayOfWeek.ToString(),
         _ => detail.Scope.ToString(),
     };
 
@@ -171,7 +306,12 @@ public partial class DetailWindow : ThemedWindow
         MonthStat m => (DetailScope.Artist, m.TopArtist, string.Empty),
         MonthRow m => (DetailScope.Artist, m.TopArtist, string.Empty),
         Milestone m => (DetailScope.Track, m.Track.Track, m.Track.Artist),
-        ComparisonRow c => TargetFor(c.Item),
+        RepeatStat r => (DetailScope.Track, r.Track.Track, r.Track.Artist),
+        CalendarDay c => (DetailScope.Day, c.DateText, string.Empty),
+        PlayRow p => p.Record.Kind == ContentKind.Music
+            ? (DetailScope.Track, p.Track, p.Artist)
+            : (DetailScope.Episode, p.Record.EpisodeName, p.Record.ShowName),
+        ComparisonRow { Item: { } row } => TargetFor(row),
         _ => null,
     };
 
@@ -179,10 +319,13 @@ public partial class DetailWindow : ThemedWindow
     /// What a row opens from inside this breakdown. A show lists its episodes in the tracks
     /// grid, and those open as episodes rather than as tracks.
     /// </summary>
-    private (DetailScope Scope, string Title, string Subtitle)? TargetFrom(object item) =>
-        _detail.Scope == DetailScope.Show && item is TrackStat t
-            ? (DetailScope.Episode, t.Track, t.Artist)
-            : TargetFor(item);
+    private (DetailScope Scope, string Title, string Subtitle)? TargetFrom(object item) => item switch
+    {
+        TrackStat t when _detail.Scope == DetailScope.Show => (DetailScope.Episode, t.Track, t.Artist),
+        // A play of the very track or episode on screen would only open this breakdown again.
+        PlayRow when _detail.Scope is DetailScope.Track or DetailScope.Episode => null,
+        _ => TargetFor(item),
+    };
 
     private async void OnRowDoubleClick(object sender, MouseButtonEventArgs e)
     {
@@ -235,7 +378,20 @@ public partial class DetailWindow : ThemedWindow
         if (detail is not { PlayCount: > 0 })
             return;
 
-        new DetailWindow(detail, _openDetail, _metric) { Owner = this, OpenYearReview = _openYearReview }.ShowDialog();
+        var child = new DetailWindow(detail, _openDetail, _metric)
+        {
+            Owner = this,
+            OpenYearReview = _openYearReview,
+            FocusArtist = _focusArtist,
+        };
+        child.ShowDialog();
+
+        // The breakdowns it was opened from were worked out under the old filters, so they go too.
+        if (child.FocusedOnArtist)
+        {
+            FocusedOnArtist = true;
+            Close();
+        }
     }
 
     private static DataGridRow? FindRow(DependencyObject? d)
@@ -280,22 +436,10 @@ public partial class DetailWindow : ThemedWindow
     /// <summary>Copies the header figures as plain text, for pasting somewhere else.</summary>
     private void OnCopySummary(object sender, RoutedEventArgs e)
     {
-        var sb = new StringBuilder();
-        sb.AppendLine(_detail.Subtitle.Length > 0
-            ? $"{_detail.Title} - {_detail.Subtitle}"
-            : _detail.Title);
-        sb.AppendLine($"Time listened: {TimeFormat.Friendly(_detail.TotalTime)}");
-        sb.AppendLine($"Plays: {_detail.PlayCount:N0}");
-        sb.AppendLine($"Active days: {_detail.ActiveDays:N0}");
-        if (_detail.FirstPlayed is { } first)
-            sb.AppendLine($"First played: {TimeFormat.Timestamp(first)}");
-        if (_detail.LastPlayed is { } last)
-            sb.AppendLine($"Last played: {TimeFormat.Timestamp(last)}");
-
         bool copied;
         try
         {
-            Clipboard.SetDataObject(sb.ToString());
+            Clipboard.SetDataObject(SummaryText());
             copied = true;
         }
         catch (ExternalException)
@@ -307,6 +451,7 @@ public partial class DetailWindow : ThemedWindow
         // Held at its current width so the header doesn't shift under the shorter label.
         CopyButton.MinWidth = CopyButton.ActualWidth;
         CopyButton.Content = copied ? "Copied" : "Copy failed";
+        LiveRegion.Announce(CopyButton);
         _copyNotice ??= new DispatcherTimer(CopyNoticeTime, DispatcherPriority.Normal, (_, _) =>
         {
             _copyNotice!.Stop();
@@ -314,6 +459,36 @@ public partial class DetailWindow : ThemedWindow
         }, Dispatcher);
         _copyNotice.Stop();
         _copyNotice.Start();
+    }
+
+    /// <summary>The header figures as plain text, measured by time or plays as the window shows them.</summary>
+    internal string SummaryText()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine(_detail.Subtitle.Length > 0
+            ? $"{_detail.Title} - {_detail.Subtitle}"
+            : _detail.Title);
+        sb.AppendLine($"Time listened: {TimeFormat.Friendly(_detail.TotalTime)}");
+        sb.AppendLine($"Plays: {_detail.PlayCount:N0}");
+        sb.AppendLine($"Active days: {_detail.ActiveDays:N0}");
+        if (_detail.FirstPlayed is { } first)
+            sb.AppendLine($"First played: {TimeFormat.Timestamp(first)}");
+        if (_detail.LastPlayed is { } last)
+            sb.AppendLine($"Last played: {TimeFormat.Timestamp(last)}");
+        if (_detail.Rank is { } rank)
+        {
+            sb.AppendLine($"Rank: #{rank:N0} of {RankedAmong(_detail)}");
+            sb.AppendLine($"{(_metric == Metric.Plays ? "Share of plays" : "Share of listening")}: {_detail.SharePercent:0.#}%");
+        }
+        if (_detail.SkipEligiblePlays > 0)
+            sb.AppendLine($"Skip rate: {_detail.SkipRate:0.#}% ({_detail.Skips:N0} of {Plural.Of(_detail.SkipEligiblePlays, "play")})");
+        if (_detail.BusiestMonth is { } month)
+            sb.AppendLine($"Busiest month: {TimeFormat.Month(month)} ({BusiestHint.Text})");
+        if (_detail.LongestStreakDays > 0)
+            sb.AppendLine($"Longest streak: {Plural.Of(_detail.LongestStreakDays, "day")} ({StreakHint.Text})");
+        if (_detail.TopDevice.Length > 0)
+            sb.AppendLine($"Mostly on: {_detail.TopDevice} ({_detail.TopDevicePercent:0}%)");
+        return sb.ToString();
     }
 
     /// <summary>How long the Copy summary button says whether it worked.</summary>

@@ -16,6 +16,9 @@ public sealed class ParseResult
 
     /// <summary>Plays left out because another loaded file already held them.</summary>
     public int DuplicatesRemoved { get; set; }
+
+    /// <summary>Every file offered, in the order given, with what each held or why it wasn't read.</summary>
+    public List<LoadedFile> Files { get; } = new();
 }
 
 /// <summary>How far a parse has got, for a determinate progress bar and a status line.</summary>
@@ -35,6 +38,11 @@ public sealed class HistoryParser
     {
         PropertyNameCaseInsensitive = true,
     };
+
+    private readonly PlayTimeZones _timeZones;
+
+    /// <param name="timeZones">How UTC play times become local ones; this PC's zone when null.</param>
+    public HistoryParser(PlayTimeZones? timeZones = null) => _timeZones = timeZones ?? PlayTimeZones.ThisPc;
 
     /// <summary>
     /// Finds Spotify history JSON files under <paramref name="folder"/> (recursively), or
@@ -130,15 +138,17 @@ public sealed class HistoryParser
             {
                 var outcome = await ParseFileAsync(path, pool, cancellationToken).ConfigureAwait(false);
                 int n = Interlocked.Increment(ref completed);
-                progress?.Report(new ParseProgress(n, paths.Count, $"Read {n} of {paths.Count} file(s)..."));
+                progress?.Report(new ParseProgress(n, paths.Count, $"Read {n} of {Plural.Of(paths.Count, "file")}..."));
                 return outcome;
             }, cancellationToken))
             .ToList();
 
+        var outcomes = new List<FileOutcome>(tasks.Count);
         var sources = new List<OverlapFilter.SourceFile>(tasks.Count);
         foreach (var task in tasks)
         {
             var outcome = await task.ConfigureAwait(false);
+            outcomes.Add(outcome);
             if (outcome.Records is { } records)
                 sources.Add(new OverlapFilter.SourceFile(records, outcome.IsLegacy));
             if (outcome.SkippedFile is { } skipped)
@@ -150,11 +160,48 @@ public sealed class HistoryParser
         cancellationToken.ThrowIfCancellationRequested();
         result.Records.AddRange(OverlapFilter.Merge(sources, out int removed));
         result.DuplicatesRemoved = removed;
+
+        // Duplicates were matched on UTC above. Converting only now means a play held by both
+        // export formats can't slip past the match by landing in two different zones: the
+        // older format records no country, so it can be converted differently. Every file's
+        // plays are converted, those left out included, so each file's own dates are local.
+        foreach (var source in sources)
+        {
+            foreach (var record in source.Records)
+            {
+                if (record.Timestamp != DateTime.MinValue)
+                    record.SetLocalTime(_timeZones.ToLocal(record.Timestamp, record.Country));
+            }
+        }
+
+        for (int i = 0; i < paths.Count; i++)
+            result.Files.Add(Summarise(paths[i], outcomes[i]));
         return result;
     }
 
+    /// <summary>"Streaming_History_Audio_2019.json", or "... (in my_spotify_data.zip)" for a file inside a ZIP.</summary>
+    internal static string DisplayName(string path) =>
+        ArchivePath.TrySplit(path, out var archive, out var entry)
+            ? $"{Path.GetFileName(entry)} (in {Path.GetFileName(archive)})"
+            : Path.GetFileName(path);
+
+    private static LoadedFile Summarise(string path, FileOutcome outcome)
+    {
+        string name = DisplayName(path);
+        if (outcome.Records is not { Count: > 0 } records)
+        {
+            return new LoadedFile(path, name, LoadedFileFormat.Skipped, 0, null, null,
+                outcome.Problem ?? (outcome.Records is null ? "Empty" : "Holds no plays Sortify can read"));
+        }
+
+        var (first, last) = PlayRecord.DateSpan(records);
+        var format = outcome.IsLegacy ? LoadedFileFormat.AccountData : LoadedFileFormat.Extended;
+        return new LoadedFile(path, name, format, records.Count, first, last, null);
+    }
+
+    /// <summary>What reading one file came to. <paramref name="Problem"/> says briefly why a file wasn't read.</summary>
     private readonly record struct FileOutcome(
-        List<PlayRecord>? Records, string? SkippedFile, string? Warning, bool IsLegacy = false);
+        List<PlayRecord>? Records, string? SkippedFile, string? Warning, bool IsLegacy = false, string? Problem = null);
 
     private static async Task<FileOutcome> ParseFileAsync(string path, StringPool pool, CancellationToken cancellationToken)
     {
@@ -185,40 +232,47 @@ public sealed class HistoryParser
         }
         catch (JsonException ex)
         {
-            return new FileOutcome(null, null, $"Skipping invalid JSON file: {Path.GetFileName(path)} ({ex.Message})");
+            // Valid JSON of the wrong shape fails at the root; anything else is broken somewhere inside.
+            return new FileOutcome(null, null, $"Skipping invalid JSON file: {Path.GetFileName(path)} ({ex.Message})",
+                Problem: ex.Path is null or "$" ? "Not a listening history" : $"Broken or unexpected JSON near line {ex.LineNumber + 1}");
         }
         catch (InvalidDataException ex)
         {
-            return new FileOutcome(null, null, $"Could not unpack {Path.GetFileName(path)} from the ZIP ({ex.Message})");
+            return new FileOutcome(null, null, $"Could not unpack {Path.GetFileName(path)} from the ZIP ({ex.Message})",
+                Problem: $"Couldn't be unpacked from the ZIP ({ex.Message})");
         }
         catch (NotSupportedException ex)
         {
-            return new FileOutcome(null, null, $"Skipping unsupported JSON file: {Path.GetFileName(path)} ({ex.Message})");
+            return new FileOutcome(null, null, $"Skipping unsupported JSON file: {Path.GetFileName(path)} ({ex.Message})",
+                Problem: $"Not in a form Sortify reads ({ex.Message})");
         }
         catch (IOException ex)
         {
-            return new FileOutcome(null, null, $"Could not read {Path.GetFileName(path)} ({ex.Message})");
+            return new FileOutcome(null, null, $"Could not read {Path.GetFileName(path)} ({ex.Message})",
+                Problem: $"Couldn't be read ({ex.Message})");
         }
         catch (UnauthorizedAccessException ex)
         {
-            return new FileOutcome(null, null, $"Access denied to {Path.GetFileName(path)} ({ex.Message})");
+            return new FileOutcome(null, null, $"Access denied to {Path.GetFileName(path)} ({ex.Message})",
+                Problem: $"Access was denied ({ex.Message})");
         }
     }
 
     private static async Task<FileOutcome> ReadAsync(
         string path, Stream stream, StringPool pool, CancellationToken cancellationToken)
     {
-        var entries = await JsonSerializer
-            .DeserializeAsync<List<SpotifyHistoryEntry>>(stream, JsonOptions, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (entries is null)
-            return new FileOutcome(null, path, null);
-
-        var records = new List<PlayRecord>(entries.Count);
+        // Row by row rather than into one list first, so a file's raw rows don't all stay in
+        // memory until the last of them is read.
+        var records = new List<PlayRecord>();
         bool anyExtended = false, anyLegacy = false;
-        foreach (var entry in entries)
+        await foreach (var entry in JsonSerializer
+                           .DeserializeAsyncEnumerable<SpotifyHistoryEntry>(stream, JsonOptions, cancellationToken)
+                           .ConfigureAwait(false))
         {
+            // Some tools that re-save an export leave nulls in the list.
+            if (entry is null)
+                continue;
+
             anyExtended |= entry.Ts is not null;
             anyLegacy |= entry.LegacyEndTime is not null;
 
@@ -241,6 +295,8 @@ public sealed class HistoryParser
     {
         string? trackName = FirstNonEmpty(entry.TrackName, entry.LegacyTrackName);
         string? artistName = FirstNonEmpty(entry.ArtistName, entry.LegacyArtistName);
+        string? showName = FirstNonEmpty(entry.EpisodeShowName, entry.LegacyPodcastName);
+        string? episodeName = FirstNonEmpty(entry.EpisodeName, entry.LegacyEpisodeName);
 
         // Rows carry exactly one kind of content; music first, then podcast, then audiobook.
         ContentKind kind;
@@ -251,11 +307,11 @@ public sealed class HistoryParser
             kind = ContentKind.Music;
             uri = entry.TrackUri ?? string.Empty;
         }
-        else if (FirstNonEmpty(entry.EpisodeName, entry.EpisodeShowName) is not null)
+        else if (showName is not null || episodeName is not null)
         {
             kind = ContentKind.Podcast;
-            show = entry.EpisodeShowName ?? "Unknown Show";
-            episode = entry.EpisodeName ?? "Unknown Episode";
+            show = showName ?? "Unknown Show";
+            episode = episodeName ?? "Unknown Episode";
             uri = entry.EpisodeUri ?? string.Empty;
         }
         else if (FirstNonEmpty(entry.AudiobookTitle, entry.AudiobookChapterTitle) is not null)
@@ -273,37 +329,38 @@ public sealed class HistoryParser
 
         long ms = entry.MsPlayed != 0 ? entry.MsPlayed : entry.LegacyMsPlayed ?? 0;
 
-        // Spotify timestamps are UTC; convert to local time so hour-of-day and
-        // day-of-week charts and filters reflect the user's clock, not UTC.
+        // Spotify timestamps are UTC. They stay UTC until the files are merged, and then
+        // become local time so hour-of-day and day-of-week charts and filters reflect the
+        // listener's clock rather than UTC.
         DateTime timestamp = DateTime.MinValue;
         if (!string.IsNullOrEmpty(entry.Ts) &&
             DateTime.TryParse(entry.Ts, CultureInfo.InvariantCulture,
                 DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var parsed))
         {
-            timestamp = parsed.ToLocalTime();
+            timestamp = parsed;
         }
         else if (!string.IsNullOrEmpty(entry.LegacyEndTime) &&
                  DateTime.TryParseExact(entry.LegacyEndTime, "yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture,
                      DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var legacyParsed))
         {
-            timestamp = legacyParsed.ToLocalTime();
+            timestamp = legacyParsed;
         }
 
+        // Every play of a track repeats its names and link, and devices and countries repeat
+        // across nearly every row, so each string is held once rather than once per play.
         return new PlayRecord
         {
-            TrackName = trackName ?? "Unknown Track",
-            ArtistName = artistName ?? "Unknown Artist",
-            AlbumName = string.IsNullOrWhiteSpace(entry.AlbumName) ? "Unknown Album" : entry.AlbumName!,
+            TrackName = pool.Get(trackName ?? "Unknown Track"),
+            ArtistName = pool.Get(artistName ?? "Unknown Artist"),
+            AlbumName = pool.Get(string.IsNullOrWhiteSpace(entry.AlbumName) ? "Unknown Album" : entry.AlbumName),
             MsPlayed = ms < 0 ? 0 : (int)Math.Min(ms, int.MaxValue),
             Timestamp = timestamp,
-            ReasonEnd = entry.ReasonEnd,
+            ReasonEnd = entry.ReasonEnd is { } reason ? pool.Get(reason) : null,
             Skipped = entry.Skipped ?? IsSkipReason(entry.ReasonEnd),
             Kind = kind,
-            ShowName = show,
-            EpisodeName = episode,
-            Uri = uri,
-            // Platform and country repeat across nearly every row, so pool them instead of
-            // holding one string instance per play.
+            ShowName = pool.Get(show),
+            EpisodeName = pool.Get(episode),
+            Uri = pool.Get(uri),
             Platform = pool.Get(entry.Platform),
             Country = pool.Get(entry.ConnCountry),
             Shuffle = entry.Shuffle ?? false,
@@ -317,9 +374,9 @@ public sealed class HistoryParser
         => !string.IsNullOrWhiteSpace(a) ? a : !string.IsNullOrWhiteSpace(b) ? b : null;
 
     /// <summary>
-    /// Deduplicates the handful of distinct platform/country strings that repeat across
-    /// every record. Shared across the concurrent per-file parse tasks, so it must be
-    /// thread-safe.
+    /// One copy of each distinct string the plays hold. Shared across the concurrent per-file
+    /// parse tasks, so a track played in several years' files is held once too, and so it must
+    /// be thread-safe.
     /// </summary>
     private sealed class StringPool
     {

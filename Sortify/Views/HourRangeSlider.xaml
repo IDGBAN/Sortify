@@ -10,11 +10,15 @@
                     Background="{DynamicResource AccentBrush}" IsHitTestVisible="False" />
             <Border x:Name="FillB" Height="4" CornerRadius="2" Canvas.Top="8"
                     Background="{DynamicResource AccentBrush}" IsHitTestVisible="False" />
+            <!-- A Thumb takes no focus of its own (a Slider takes it instead), so these
+                 opt in, or the keys below could never reach them. -->
             <Thumb x:Name="StartThumb" Style="{StaticResource SliderThumb}" Canvas.Top="2"
-                   AutomationProperties.Name="Start hour"
+                   Focusable="True" IsTabStop="True" FocusVisualStyle="{StaticResource FocusRing}"
+                   AutomationProperties.HelpText="Arrow keys move it by an hour. Home and End go to the first and last hour."
                    DragDelta="OnStartDrag" PreviewKeyDown="OnStartKey" />
             <Thumb x:Name="EndThumb" Style="{StaticResource SliderThumb}" Canvas.Top="2"
-                   AutomationProperties.Name="End hour"
+                   Focusable="True" IsTabStop="True" FocusVisualStyle="{StaticResource FocusRing}"
+                   AutomationProperties.HelpText="Arrow keys move it by an hour. Home and End go to the first and last hour."
                    DragDelta="OnEndDrag" PreviewKeyDown="OnEndKey" />
         </Canvas>
     </Grid>
