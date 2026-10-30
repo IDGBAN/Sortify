@@ -13,9 +13,11 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 
 ## Features
 - Top tracks, artists and albums, ranked by listening time, play count, or the first time you played them.
+- A **Time / Plays** switch at the top of the sidebar: rank the charts, top lists and tables by how long you listened, or by how many times you played. Compare People always goes by listening time. Top lists and tables number their rows, and a column header's arrow shows which way its table is sorted.
 - Charts throughout the app: bar charts for top tracks, artists and albums, a donut showing each artist's share of your listening, a line chart of listening over time (daily, weekly or monthly), a day-of-week vs. hour-of-day heatmap, and breakdowns by hour and by day of the week.
 - An **Overview** tab that opens with your headline totals and your top five tracks, artists and albums.
-- A **Compare** tab that puts two periods side by side (it starts with your last 12 months against the 12 before): listening time, plays, artists and the rest with how much each changed, your artists and tracks ranked in both with how far they climbed or fell, and the artists that are new in the second period or gone from it. One click swaps the periods or makes the first one the stretch just before the second. Every sidebar filter except the date range applies to both.
+- A **Compare Periods** tab that puts two periods side by side (it starts with your last 12 months against the 12 before): listening time, plays, artists and the rest with how much each changed, your artists and tracks ranked in both with how far they climbed or fell, and the artists that are new in the second period or gone from it. One click swaps the periods, makes the first one the stretch just before the second, ends a period today, or moves it to the same days in another year of your history. Every sidebar filter except the date range applies to both.
+- A **Compare People** tab that puts another person's export (their ZIP, folder or JSON files) next to yours: the same headline figures side by side, how much of your listening goes to the same artists and tracks, the artists and tracks you both play, and the artists only one of you plays. Every sidebar filter applies to both of you, dates included. Their history is held in memory until you remove it or close Sortify, and is never cached or saved.
 - A **Years** tab with a per-year rollup: listening time, plays, unique artists and tracks, and your top artist and track for every year.
 - **Year in review image**: right-click a year on the Years tab (or use the button in a year's detail view) for a 1080 × 1350 card with your minutes, plays, artists, new artists, longest streak, top five artists and tracks, and biggest month and day. Save it as a PNG or copy it. It follows the light or dark theme, and says so on the card when other filters are on.
 - **Compare artists**, on the Trends tab: up to five artists' listening month by month (or week by week) on one chart. It starts with your top three; type a name to add another.
@@ -34,8 +36,8 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 - Filters that update every chart and table as you change them, with a chip row showing which ones are active. The x on a chip clears just that filter:
   - Minimum play duration. The default is five seconds, which drops skips.
   - Whether podcasts and audiobooks count toward your track, artist and album statistics. Off by default, since a few long shows will otherwise outrank your music. The Podcasts tab shows them either way.
-  - Date range, typed in or picked with one click: all time, the last 30 days or 12 months of your history, or any single year. Right-click a year on the Years tab to filter everything to it.
-  - Search by track, artist or album name.
+  - Date range, set with year, month and day drop-downs or picked with one click: all time, the last 30 days or 12 months of your history, or any single year. Right-click a year on the Years tab to filter everything to it.
+  - Search by track, artist or album name. As you type, it suggests matching names from your history with their listening time and plays, as do the exclusion boxes and each table's filter box ([more on suggestions](docs/Search.md)).
   - An exclude list for specific artists or tracks.
   - Time of day and day of week. Time ranges may cross midnight, for example 22:00 to 02:00.
   - Playback: count only shuffled, offline or private-session plays, or leave them out, and untick any device or country you want left out. Older exports don't record any of this, so their plays always count unless one of the lists is set to "Only".
@@ -64,7 +66,7 @@ Sortify reads your Spotify streaming history and turns it into statistics you ca
 1. Request your [extended streaming history](https://www.spotify.com/ca-en/account/privacy/) from Spotify. When it arrives, download the ZIP. There's no need to extract it.
 2. Download the latest `Sortify.exe` from the [releases page](https://github.com/IDGBAN/Sortify/releases/) and run it.
 3. Drag the ZIP onto the window, or click **Open Files** and pick it. An extracted folder works too: use **Open Folder**, or drop the folder or its JSON files onto the window.
-4. Browse the Overview, Tracks, Artists, Albums, Years, Podcasts, Trends, Insights and Compare tabs, adjust the filters on the left, and export your results if you want a copy.
+4. Browse the Overview, Tracks, Artists, Albums, Years, Podcasts, Trends, Insights, Compare Periods and Compare People tabs, adjust the filters on the left, and export your results if you want a copy.
 
 Analysis is quick unless your history is unusually large.
 

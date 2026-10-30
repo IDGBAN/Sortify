@@ -77,7 +77,9 @@ session-gap minutes, chart animation toggle, the Time/Plays metric — failures 
 rather than surfacing errors), `Services/ThemeService.cs` (swaps the palette `ResourceDictionary`
 at a fixed slot in `App.xaml`'s merged dictionaries so every DynamicResource-bound style repaints;
 raises `Changed`), `Services/ImageExporter.cs` (copy/save a chart as PNG, wired to chart
-right-click), `Views/Converters.cs`.
+right-click), `Services/SearchSuggestions.cs` (the names a search, exclusion or table-filter box
+suggests as you type, attached to a `TextBox` by `Views/SearchCompletion.cs`; behaviour described
+in `docs/Search.md`), `Views/Converters.cs`.
 
 **UI structure**: `Views/MainWindow.xaml(.cs)` is the main shell (tabs: Overview, Tracks, Artists,
 Albums, Years, Podcasts, Trends, Insights, Compare Periods, Compare People) bound to `MainViewModel`.
@@ -87,6 +89,8 @@ ranges of the loaded history side by side; Compare People (`ViewModels/PeopleCom
 memory only (never in the record cache or Recent). `Views/FilterPanel.xaml(.cs)`
 + `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises `FiltersChanged` on any
 change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before re-running analysis.
+Its dates are picked with `Views/DateSelector.xaml` (year, month and day drop-downs) and its time
+of day with `Views/HourRangeSlider.xaml`.
 `Views/DetailWindow.xaml(.cs)` is the per-row drill-down. `Views/SettingsWindow.xaml(.cs)` covers
 theme/animation/session-gap/cache-clearing preferences. Every window derives from
 `Views/ThemedWindow.cs`, which swaps the native title bar for a palette-coloured one via `WindowChrome`
@@ -104,12 +108,15 @@ every bar up front.
 bound to the window's view model rather than the panel's `FilterViewModel`) sets `MainViewModel.Metric` (`Models/Metric.cs`,
 remembered in settings), which every chart and ranked list follows: bars, donuts, the over-time,
 hour, weekday, heatmap and per-year charts, the Overview top fives, the Tracks/Artists/Albums/podcast
-grids, each month's and year's leaders, the Compare tab (`CompareViewModel.Metric`) and the detail
-window. `AnalysisResult` already carries both measures (`Plays*` breakdowns, `*ByPlayCount` lists,
-`MostPlayed*` leaders), so switching re-ranks and rebuilds charts without re-running analysis; new
-charts take a `Metric` in `ChartBuilder`. Grid column headers draw a sort arrow (header template in
+grids, each month's and year's leaders, the Compare Periods tab (`CompareViewModel.Metric`) and the
+detail window. Compare People still ranks by listening time either way. `AnalysisResult` already
+carries both measures (`Plays*` breakdowns, `*ByPlayCount` lists, `MostPlayed*` leaders), so
+switching re-ranks and rebuilds charts without re-running analysis; new charts take a `Metric` in
+`ChartBuilder`. Grid column headers draw a sort arrow (header template in
 `Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather than sorted by the grid,
-`Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they arrive sorted by.
+`Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they arrive sorted by. Top lists,
+tables and ranked bar charts number their rows; a grid gets its "#" column from
+`Views/RowNumbers.cs`.
 Grid columns, which can't see the DataContext, bind headers and visibility through
 `Views/BindingProxy.cs` (the `Vm` resource in MainWindow).
 
