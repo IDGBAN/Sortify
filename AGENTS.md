@@ -92,7 +92,9 @@ at a fixed slot in `App.xaml`'s merged dictionaries so every DynamicResource-bou
 raises `Changed`), `Services/ImageExporter.cs` (copy/save a chart as PNG, wired to chart
 right-click), `Services/ChartTables.cs` (the "Show the numbers" table behind any chart, shown by
 `Views/ChartTableWindow.xaml`), `Services/SampleHistory.cs` (the made-up two-year history the start
-screen offers), `Views/Converters.cs`.
+screen offers), `Services/SearchSuggestions.cs` (the names a search, exclusion or table-filter box
+suggests as you type, attached to a `TextBox` by `Views/SearchCompletion.cs`; behaviour described
+in `docs/Search.md`), `Views/Converters.cs`.
 
 **UI structure**: `Views/MainWindow.xaml(.cs)` is the main shell (tabs: Overview, Tracks, Artists,
 Albums, Years, Podcasts, Trends, Insights, Compare Periods, Compare People, History) bound to
@@ -102,7 +104,8 @@ puts two date ranges of the loaded history side by side; Compare People
 next to yours, holding their plays in memory only (never in the record cache or Recent).
 `Views/FilterPanel.xaml(.cs)` + `ViewModels/FilterViewModel.cs` is the filter sidebar, which raises
 `FiltersChanged` on any change; `MainViewModel` debounces that (300ms `DispatcherTimer`) before
-re-running analysis. The two Compare tabs, the History tab, the listening calendar and Compare
+re-running analysis. Its dates are picked with `Views/DateSelector.xaml` (year, month and day
+drop-downs) and its time of day with `Views/HourRangeSlider.xaml`. The two Compare tabs, the History tab, the listening calendar and Compare
 Artists have view models of their own (`CompareViewModel`, `PeopleCompareViewModel`,
 `HistoryViewModel`, `CalendarViewModel`, `CompareArtistsViewModel`) that `MainViewModel` creates and
 refreshes after each analysis pass; the Compare and History tabs only do any work while on screen.
@@ -120,11 +123,6 @@ raise a `CollectionChanged` per row and freeze the UI. Large horizontal bar char
 (tracks/artists/albums) page in via `LoadMore*` methods as the user scrolls rather than rendering
 every bar up front.
 
-The logo's source is `Sortify/Assets/sortify-logo.svg`. `Themes/Logo.xaml` is the same drawing as a
-WPF `DrawingImage` (key `SortifyLogo`) that the title bar, toolbar, Settings and the year-in-review
-card draw, and `Assets/Sortify.ico` is rendered from it at 16-256 px for the exe, taskbar and Alt+Tab.
-A change to the logo means updating all three.
-
 **Time / Plays**: the segmented switch at the top of the filter sidebar (`Views/FilterPanel.xaml`,
 bound to the window's view model rather than the panel's `FilterViewModel`) sets
 `MainViewModel.Metric` (`Models/Metric.cs`, remembered in settings), which every chart and ranked
@@ -133,13 +131,19 @@ year-found split and Rank History included), the Overview top fives, the
 Tracks/Artists/Albums/podcast grids, each month's and year's leaders, both Compare tabs
 (`CompareViewModel.Metric`, `PeopleCompareViewModel.Metric`), Compare Artists
 (`CompareArtistsViewModel.Metric`) and the detail window. `AnalysisResult` already carries both
-measures (`Plays*` breakdowns, `*ByPlayCount` lists,
-`MostPlayed*` leaders, `RankHistoryByPlays`), so switching re-ranks and rebuilds charts without
-re-running analysis; new charts take a `Metric` in `ChartBuilder`. Grid column headers draw a sort
-arrow (header template in `Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather
-than sorted by the grid, `Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they
-arrive sorted by. Grid columns, which can't see the DataContext, bind headers and visibility through
+measures (`Plays*` breakdowns, `*ByPlayCount` lists, `MostPlayed*` leaders, `RankHistoryByPlays`),
+so switching re-ranks and rebuilds charts without re-running analysis; new charts take a `Metric`
+in `ChartBuilder`. Grid column headers draw a sort arrow (header template in
+`Themes/Controls.xaml`); since the ranked grids arrive pre-sorted rather than sorted by the grid,
+`Views/GridSort.cs`'s `PresortedBy` puts the arrow on the column they arrive sorted by. Top lists,
+tables and ranked bar charts number their rows; a grid gets its "#" column from
+`Views/RowNumbers.cs`. Grid columns, which can't see the DataContext, bind headers and visibility through
 `Views/BindingProxy.cs` (the `Vm` resource in MainWindow).
+
+The logo's source is `Sortify/Assets/sortify-logo.svg`. `Themes/Logo.xaml` is the same drawing as a
+WPF `DrawingImage` (key `SortifyLogo`) that the title bar, toolbar, Settings and the year-in-review
+card draw, and `Assets/Sortify.ico` is rendered from it at 16-256 px for the exe, taskbar and Alt+Tab.
+A change to the logo means updating all three.
 
 Tests (`Sortify.Tests/`) that touch WPF types (windows, converters, dependency properties) run
 through `WpfTestHost.cs`, which spins up a single STA thread with one live `Application` and merges
